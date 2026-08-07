@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { IspcCrest } from "@/components/brand/IspcCrest";
 import { Field, Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { loginAction, type LoginState } from "@/actions/auth";
+import { DemoAccountsPanel } from "./DemoAccountsPanel";
 
 const initialState: LoginState = {};
 
@@ -14,9 +15,18 @@ interface LoginFormProps {
 
 export function LoginForm({ callbackUrl }: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-navy-950 px-4 py-12">
+      <DemoAccountsPanel
+        onSelect={(demoEmail, demoPassword) => {
+          setEmail(demoEmail);
+          setPassword(demoPassword);
+        }}
+      />
+
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <IspcCrest size={88} />
@@ -32,11 +42,28 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
           <input type="hidden" name="callbackUrl" value={callbackUrl} />
 
           <Field label="Email" htmlFor="email" labelProps={{ className: "text-sm font-medium text-navy-100" }}>
-            <Input id="email" name="email" type="email" required placeholder="secretaria@ispc.ao" autoComplete="email" />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              required
+              placeholder="secretaria@ispc.ao"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </Field>
 
           <Field label="Senha" htmlFor="password" labelProps={{ className: "text-sm font-medium text-navy-100" }}>
-            <Input id="password" name="password" type="password" required autoComplete="current-password" />
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </Field>
 
           {state.error ? <p className="text-sm text-red-400">{state.error}</p> : null}
