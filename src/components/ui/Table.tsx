@@ -13,7 +13,7 @@ export function Thead({ children }: { children: ReactNode }) {
   return <thead className="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-400">{children}</thead>;
 }
 
-export function Th({ children, className }: { children: ReactNode; className?: string }) {
+export function Th({ children, className }: { children?: ReactNode; className?: string }) {
   return <th className={cn("px-4 py-3 font-semibold", className)}>{children}</th>;
 }
 

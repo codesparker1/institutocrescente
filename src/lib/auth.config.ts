@@ -1,11 +1,12 @@
-import type { NextAuthConfig } from "next-auth";
+import type { NextAuthConfig, Session, User } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 
-export const authConfig = {
+export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [],
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user }: { token: JWT; user?: User }) {
       if (user) {
         token.role = user.role;
         token.professorId = user.professorId;
@@ -13,7 +14,7 @@ export const authConfig = {
       }
       return token;
     },
-    session({ session, token }) {
+    session({ session, token }: { session: Session; token: JWT }) {
       session.user.id = token.sub as string;
       session.user.role = token.role;
       session.user.professorId = token.professorId;
@@ -21,4 +22,4 @@ export const authConfig = {
       return session;
     },
   },
-} satisfies NextAuthConfig;
+};

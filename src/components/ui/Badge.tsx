@@ -1,9 +1,10 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
 
 interface BadgeProps {
-  children: string;
+  children: ReactNode;
   tone?: Tone;
   className?: string;
 }
