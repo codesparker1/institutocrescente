@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  SECRETARIA
+  PROFESSOR
+  ALUNO
+}
+
+enum AlunoStatus {
+  ATIVO
+  TRANCADO
+  FORMADO
+  DESISTENTE
+}
+
+enum MatriculaStatus {
+  ATIVA
+  TRANCADA
+  CONCLUIDA
+}
+
+enum AvaliacaoTipo {
+  TESTE
+  TRABALHO
+  EXAME_FINAL
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role
+  professorId  String?    @unique
+  professor    Professor? @relation(fields: [professorId], references: [id])
+  alunoId      String?    @unique
+  aluno        Aluno?     @relation(fields: [alunoId], references: [id])
+  createdAt    DateTime   @default(now())
+}
+
+model Professor {
+  id            String   @id @default(cuid())
+  nome          String
+  email         String   @unique
+  telefone      String
+  especialidade String
+  createdAt     DateTime @default(now())
+
+  turmas Turma[]
+  user   User?
+}
+
+model Aluno {
+  id              String      @id @default(cuid())
+  numeroEstudante String      @unique
+  nome            String
+  email           String      @unique
+  telefone        String
+  dataNascimento  DateTime
+  genero          String
+  curso           String
+  anoIngresso     Int
+  status          AlunoStatus @default(ATIVO)
+  createdAt       DateTime    @default(now())
+
+  matriculas Matricula[]
+  user       User?
+}
+
+model Curso {
+  id          String @id @default(cuid())
+  nome        String
+  codigo      String @unique
+  duracaoAnos Int
+
+  disciplinas Disciplina[]
+}
+
+model Disciplina {
+  id           String @id @default(cuid())
+  nome         String
+  codigo       String @unique
+  cargaHoraria Int
+  cursoId      String
+  curso        Curso  @relation(fields: [cursoId], references: [id])
+
+  turmas Turma[]
+}
+
+model Turma {
+  id           String     @id @default(cuid())
+  nome         String
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+  professorId  String
+  professor    Professor  @relation(fields: [professorId], references: [id])
+  anoLetivo    Int
+  semestre     Int
+  sala         String
+  horario      String
+
+  matriculas Matricula[]
+  avaliacoes Avaliacao[]
+  aulas      Aula[]
+}
+
+model Matricula {
+  id            String          @id @default(cuid())
+  alunoId       String
+  aluno         Aluno           @relation(fields: [alunoId], references: [id])
+  turmaId       String
+  turma         Turma           @relation(fields: [turmaId], references: [id])
+  dataMatricula DateTime        @default(now())
+  status        MatriculaStatus @default(ATIVA)
+
+  notas       Nota[]
+  frequencias Frequencia[]
+
+  @@unique([alunoId, turmaId])
+}
+
+model Avaliacao {
+  id      String        @id @default(cuid())
+  turmaId String
+  turma   Turma         @relation(fields: [turmaId], references: [id])
+  tipo    AvaliacaoTipo
+  peso    Decimal       @db.Decimal(4, 2)
+  data    DateTime
+  nome    String
+
+  notas Nota[]
+}
+
+model Nota {
+  id          String    @id @default(cuid())
+  avaliacaoId String
+  avaliacao   Avaliacao @relation(fields: [avaliacaoId], references: [id])
+  matriculaId String
+  matricula   Matricula @relation(fields: [matriculaId], references: [id])
+  valor       Decimal   @db.Decimal(4, 2)
+  lancadoEm   DateTime  @default(now())
+
+  @@unique([avaliacaoId, matriculaId])
+}
+
+model Aula {
+  id      String   @id @default(cuid())
+  turmaId String
+  turma   Turma    @relation(fields: [turmaId], references: [id])
+  data    DateTime
+  tema    String?
+
+  frequencias Frequencia[]
+}
+
+model Frequencia {
+  id          String    @id @default(cuid())
+  aulaId      String
+  aula        Aula      @relation(fields: [aulaId], references: [id])
+  matriculaId String
+  matricula   Matricula @relation(fields: [matriculaId], references: [id])
+  presente    Boolean
+  justificada Boolean?
+
+  @@unique([aulaId, matriculaId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userName   String
+  userRole   Role
+  action     String
+  entityType String
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}

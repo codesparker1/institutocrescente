@@ -1,8 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f3ec;
+  --foreground: #17173a;
+
+  --color-navy-50: #eef0fa;
+  --color-navy-100: #d6d9f0;
+  --color-navy-200: #adb2e0;
+  --color-navy-300: #7c82c9;
+  --color-navy-400: #4e54a8;
+  --color-navy-500: #2f3480;
+  --color-navy-600: #212463;
+  --color-navy-700: #1b1b5c;
+  --color-navy-800: #15154a;
+  --color-navy-900: #101036;
+  --color-navy-950: #0a0a24;
+
+  --color-gold-50: #fbf6ea;
+  --color-gold-100: #f4e8c9;
+  --color-gold-200: #ead197;
+  --color-gold-300: #e0bf85;
+  --color-gold-400: #d4af6a;
+  --color-gold-500: #c9a15c;
+  --color-gold-600: #ab8547;
+  --color-gold-700: #8a6d33;
+  --color-gold-800: #6b5327;
+  --color-gold-900: #4d3b1c;
 }
 
 @theme inline {
@@ -10,17 +33,33 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-navy-50: var(--color-navy-50);
+  --color-navy-100: var(--color-navy-100);
+  --color-navy-200: var(--color-navy-200);
+  --color-navy-300: var(--color-navy-300);
+  --color-navy-400: var(--color-navy-400);
+  --color-navy-500: var(--color-navy-500);
+  --color-navy-600: var(--color-navy-600);
+  --color-navy-700: var(--color-navy-700);
+  --color-navy-800: var(--color-navy-800);
+  --color-navy-900: var(--color-navy-900);
+  --color-navy-950: var(--color-navy-950);
+
+  --color-gold-50: var(--color-gold-50);
+  --color-gold-100: var(--color-gold-100);
+  --color-gold-200: var(--color-gold-200);
+  --color-gold-300: var(--color-gold-300);
+  --color-gold-400: var(--color-gold-400);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-600: var(--color-gold-600);
+  --color-gold-700: var(--color-gold-700);
+  --color-gold-800: var(--color-gold-800);
+  --color-gold-900: var(--color-gold-900);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
