@@ -8,18 +8,17 @@ import { PERIODO_LABEL } from "@/lib/utils";
 export default async function NotasPage() {
   const turmas = await prisma.turma.findMany({
     include: {
-      disciplina: true,
-      professor: true,
-      _count: { select: { matriculas: true } },
+      curso: true,
+      _count: { select: { matriculas: true, turmaDisciplinas: true } },
     },
-    orderBy: [{ anoCurricular: "asc" }, { nome: "asc" }],
+    orderBy: [{ curso: { nome: "asc" } }, { anoCurricular: "asc" }],
   });
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-navy-900">Notas e Frequência</h1>
-        <p className="text-sm text-navy-400">Selecione uma turma para lançar notas e ver a frequência.</p>
+        <p className="text-sm text-navy-400">Selecione uma turma para ver as suas disciplinas.</p>
       </div>
 
       <Card>
@@ -30,11 +29,10 @@ export default async function NotasPage() {
           <Table>
             <Thead>
               <tr>
-                <Th>Turma</Th>
-                <Th>Disciplina</Th>
-                <Th>Professor</Th>
+                <Th>Curso</Th>
                 <Th>Ano</Th>
                 <Th>Período</Th>
+                <Th>Disciplinas</Th>
                 <Th>Alunos</Th>
               </tr>
             </Thead>
@@ -43,15 +41,14 @@ export default async function NotasPage() {
                 <Tr key={turma.id}>
                   <Td>
                     <Link href={`/notas/${turma.id}`} className="font-medium text-navy-900 hover:text-navy-600">
-                      {turma.nome}
+                      {turma.curso.nome}
                     </Link>
                   </Td>
-                  <Td>{turma.disciplina.nome}</Td>
-                  <Td>{turma.professor.nome}</Td>
                   <Td>
                     <Badge tone="neutral">{turma.anoCurricular}º Ano</Badge>
                   </Td>
                   <Td>{PERIODO_LABEL[turma.periodo]}</Td>
+                  <Td>{turma._count.turmaDisciplinas}</Td>
                   <Td>{turma._count.matriculas}</Td>
                 </Tr>
               ))}

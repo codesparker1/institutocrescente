@@ -57,7 +57,9 @@ async function main() {
     prisma.aula.deleteMany(),
     prisma.nota.deleteMany(),
     prisma.avaliacao.deleteMany(),
+    prisma.horarioSlot.deleteMany(),
     prisma.matricula.deleteMany(),
+    prisma.turmaDisciplina.deleteMany(),
     prisma.turma.deleteMany(),
     prisma.disciplina.deleteMany(),
     prisma.curso.deleteMany(),
@@ -74,7 +76,7 @@ async function main() {
     data: { nome: "Gestão de Empresas", codigo: "GESTAO", duracaoAnos: 3 },
   });
 
-  const disciplinasEngInf = await Promise.all(
+  const [progI, progII, basesDados, redes] = await Promise.all(
     [
       { nome: "Programação I", codigo: "ENG-101", cargaHoraria: 60 },
       { nome: "Programação II", codigo: "ENG-102", cargaHoraria: 60 },
@@ -83,17 +85,22 @@ async function main() {
     ].map((d) => prisma.disciplina.create({ data: { ...d, cursoId: cursoEngInf.id } })),
   );
 
-  const disciplinasGestao = await Promise.all(
+  const [contabilidade, marketing] = await Promise.all(
     [
       { nome: "Contabilidade Geral", codigo: "GES-101", cargaHoraria: 45 },
       { nome: "Marketing", codigo: "GES-102", cargaHoraria: 45 },
+    ].map((d) => prisma.disciplina.create({ data: { ...d, cursoId: cursoGestao.id } })),
+  );
+
+  await Promise.all(
+    [
       { nome: "Economia", codigo: "GES-201", cargaHoraria: 45 },
       { nome: "Gestão Financeira", codigo: "GES-202", cargaHoraria: 45 },
     ].map((d) => prisma.disciplina.create({ data: { ...d, cursoId: cursoGestao.id } })),
   );
 
   console.log("A criar professores...");
-  const professores = await Promise.all(
+  const [profAntonio, profRui, profJoaquim, profFernanda, profIsabel] = await Promise.all(
     [
       { nome: "Eng. António Sousa", email: "antonio.sousa@ispc.ao", telefone: "923 111 222", especialidade: "Engenharia de Software" },
       { nome: "Eng. Rui Manuel Ferreira", email: "rui.ferreira@ispc.ao", telefone: "923 222 333", especialidade: "Bases de Dados" },
@@ -102,110 +109,66 @@ async function main() {
       { nome: "Dra. Isabel Chissano", email: "isabel.chissano@ispc.ao", telefone: "923 555 666", especialidade: "Marketing e Economia" },
     ].map((p) => prisma.professor.create({ data: p })),
   );
-  const [profAntonio, profRui, profJoaquim, profFernanda, profIsabel] = professores;
 
-  console.log("A criar turmas...");
-  const turmasData = [
-    {
-      nome: "Programação I - 1º Ano",
-      disciplina: disciplinasEngInf[0],
-      professor: profAntonio,
-      sala: "Lab 1",
-      horario: "Seg/Qua 08h-10h",
-      anoCurricular: 1,
-      periodo: "MATUTINO" as const,
-      slots: [
-        { diaSemana: "SEGUNDA" as const, horaInicio: "08:00", horaFim: "10:00", sala: "Lab 1" },
-        { diaSemana: "QUARTA" as const, horaInicio: "08:00", horaFim: "10:00", sala: "Lab 1" },
-      ],
-    },
-    {
-      nome: "Programação II - 2º Ano",
-      disciplina: disciplinasEngInf[1],
-      professor: profAntonio,
-      sala: "Lab 1",
-      horario: "Ter/Qui 10h-12h",
-      anoCurricular: 2,
-      periodo: "MATUTINO" as const,
-      slots: [
-        { diaSemana: "TERCA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Lab 1" },
-        { diaSemana: "QUINTA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Lab 1" },
-      ],
-    },
-    {
-      nome: "Bases de Dados - 2º Ano",
-      disciplina: disciplinasEngInf[2],
-      professor: profRui,
-      sala: "Lab 2",
-      horario: "Seg/Qua 14h-16h",
-      anoCurricular: 2,
-      periodo: "VESPERTINO" as const,
-      slots: [
-        { diaSemana: "SEGUNDA" as const, horaInicio: "14:00", horaFim: "16:00", sala: "Lab 2" },
-        { diaSemana: "QUARTA" as const, horaInicio: "14:00", horaFim: "16:00", sala: "Lab 2" },
-      ],
-    },
-    {
-      nome: "Redes de Computadores - 3º Ano",
-      disciplina: disciplinasEngInf[3],
-      professor: profJoaquim,
-      sala: "Lab 3",
-      horario: "Sex 18h-22h",
-      anoCurricular: 3,
-      periodo: "NOTURNO" as const,
-      slots: [{ diaSemana: "SEXTA" as const, horaInicio: "18:00", horaFim: "22:00", sala: "Lab 3" }],
-    },
-    {
-      nome: "Contabilidade Geral - 1º Ano",
-      disciplina: disciplinasGestao[0],
-      professor: profFernanda,
-      sala: "Sala 5",
-      horario: "Seg/Qua 10h-12h",
-      anoCurricular: 1,
-      periodo: "MATUTINO" as const,
-      slots: [
-        { diaSemana: "SEGUNDA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Sala 5" },
-        { diaSemana: "QUARTA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Sala 5" },
-      ],
-    },
-    {
-      nome: "Marketing - 2º Ano",
-      disciplina: disciplinasGestao[1],
-      professor: profIsabel,
-      sala: "Sala 6",
-      horario: "Ter/Qui 18h-20h",
-      anoCurricular: 2,
-      periodo: "NOTURNO" as const,
-      slots: [
-        { diaSemana: "TERCA" as const, horaInicio: "18:00", horaFim: "20:00", sala: "Sala 6" },
-        { diaSemana: "QUINTA" as const, horaInicio: "18:00", horaFim: "20:00", sala: "Sala 6" },
-      ],
-    },
+  console.log("A criar turmas (coortes: curso + ano + período)...");
+  const turmaEngInf1 = await prisma.turma.create({
+    data: { cursoId: cursoEngInf.id, anoCurricular: 1, periodo: "MATUTINO", anoLetivo: 2026 },
+  });
+  const turmaEngInf2 = await prisma.turma.create({
+    data: { cursoId: cursoEngInf.id, anoCurricular: 2, periodo: "MATUTINO", anoLetivo: 2026 },
+  });
+  const turmaEngInf3 = await prisma.turma.create({
+    data: { cursoId: cursoEngInf.id, anoCurricular: 3, periodo: "NOTURNO", anoLetivo: 2026 },
+  });
+  const turmaGestao1 = await prisma.turma.create({
+    data: { cursoId: cursoGestao.id, anoCurricular: 1, periodo: "MATUTINO", anoLetivo: 2026 },
+  });
+  const turmaGestao2 = await prisma.turma.create({
+    data: { cursoId: cursoGestao.id, anoCurricular: 2, periodo: "NOTURNO", anoLetivo: 2026 },
+  });
+
+  console.log("A atribuir disciplinas, professores e semestres às turmas...");
+  const turmaDisciplinasData = [
+    { turma: turmaEngInf1, disciplina: progI, professor: profAntonio, semestre: 1, sala: "Lab 1", slots: [
+      { diaSemana: "SEGUNDA" as const, horaInicio: "08:00", horaFim: "10:00", sala: "Lab 1" },
+      { diaSemana: "QUARTA" as const, horaInicio: "08:00", horaFim: "10:00", sala: "Lab 1" },
+    ] },
+    { turma: turmaEngInf2, disciplina: progII, professor: profAntonio, semestre: 1, sala: "Lab 1", slots: [
+      { diaSemana: "TERCA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Lab 1" },
+      { diaSemana: "QUINTA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Lab 1" },
+    ] },
+    { turma: turmaEngInf2, disciplina: basesDados, professor: profRui, semestre: 2, sala: "Lab 2", slots: [
+      { diaSemana: "SEGUNDA" as const, horaInicio: "14:00", horaFim: "16:00", sala: "Lab 2" },
+      { diaSemana: "QUARTA" as const, horaInicio: "14:00", horaFim: "16:00", sala: "Lab 2" },
+    ] },
+    { turma: turmaEngInf3, disciplina: redes, professor: profJoaquim, semestre: 1, sala: "Lab 3", slots: [
+      { diaSemana: "SEXTA" as const, horaInicio: "18:00", horaFim: "22:00", sala: "Lab 3" },
+    ] },
+    { turma: turmaGestao1, disciplina: contabilidade, professor: profFernanda, semestre: 1, sala: "Sala 5", slots: [
+      { diaSemana: "SEGUNDA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Sala 5" },
+      { diaSemana: "QUARTA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Sala 5" },
+    ] },
+    { turma: turmaGestao2, disciplina: marketing, professor: profIsabel, semestre: 2, sala: "Sala 6", slots: [
+      { diaSemana: "TERCA" as const, horaInicio: "18:00", horaFim: "20:00", sala: "Sala 6" },
+      { diaSemana: "QUINTA" as const, horaInicio: "18:00", horaFim: "20:00", sala: "Sala 6" },
+    ] },
   ];
 
-  const turmas = await Promise.all(
-    turmasData.map((t) =>
-      prisma.turma.create({
-        data: {
-          nome: t.nome,
-          disciplinaId: t.disciplina.id,
-          professorId: t.professor.id,
-          anoLetivo: 2026,
-          semestre: 1,
-          anoCurricular: t.anoCurricular,
-          periodo: t.periodo,
-          sala: t.sala,
-          horario: t.horario,
-        },
-      }),
-    ),
-  );
-
-  console.log("A criar horário semanal das turmas...");
-  for (let i = 0; i < turmas.length; i += 1) {
-    for (const slot of turmasData[i].slots) {
-      await prisma.horarioSlot.create({ data: { turmaId: turmas[i].id, ...slot } });
+  const turmaDisciplinas = [];
+  for (const td of turmaDisciplinasData) {
+    const created = await prisma.turmaDisciplina.create({
+      data: {
+        turmaId: td.turma.id,
+        disciplinaId: td.disciplina.id,
+        professorId: td.professor.id,
+        semestre: td.semestre,
+        sala: td.sala,
+      },
+    });
+    for (const slot of td.slots) {
+      await prisma.horarioSlot.create({ data: { turmaDisciplinaId: created.id, ...slot } });
     }
+    turmaDisciplinas.push({ ...created, salaExame: td.sala });
   }
 
   console.log("A criar alunos...");
@@ -231,57 +194,48 @@ async function main() {
     }),
   );
 
-  console.log("A matricular alunos nas turmas...");
-  const turmasEngInf = turmas.slice(0, 4);
-  const turmasGestao = turmas.slice(4, 6);
-  const turmaAnoCurricular = new Map(turmas.map((t, i) => [t.id, turmasData[i].anoCurricular]));
+  console.log("A matricular alunos nas suas turmas (curso + ano)...");
+  const turmasPorCursoAno = new Map<string, string>([
+    [`${cursoEngInf.id}:1`, turmaEngInf1.id],
+    [`${cursoEngInf.id}:2`, turmaEngInf2.id],
+    [`${cursoEngInf.id}:3`, turmaEngInf3.id],
+    [`${cursoGestao.id}:1`, turmaGestao1.id],
+    [`${cursoGestao.id}:2`, turmaGestao2.id],
+  ]);
 
-  const matriculas: { id: string; turmaId: string; alunoId: string }[] = [];
+  const matriculas = [];
   for (const aluno of alunos) {
-    const cursoPool = aluno.curso === "Engenharia Informática" ? turmasEngInf : turmasGestao;
-    const pool = cursoPool.filter((t) => turmaAnoCurricular.get(t.id) === aluno.anoCurricular);
-    const poolFinal = pool.length > 0 ? pool : cursoPool;
-    const quantidade = Math.min(poolFinal.length, randomInt(1, poolFinal.length));
-    const escolhidas = [...poolFinal].sort(() => Math.random() - 0.5).slice(0, quantidade);
-    for (const turma of escolhidas) {
-      const matricula = await prisma.matricula.create({
-        data: { alunoId: aluno.id, turmaId: turma.id },
-      });
-      matriculas.push(matricula);
-    }
+    const cursoId = aluno.curso === "Engenharia Informática" ? cursoEngInf.id : cursoGestao.id;
+    const turmaId = turmasPorCursoAno.get(`${cursoId}:${aluno.anoCurricular}`);
+    if (!turmaId) continue;
+    const matricula = await prisma.matricula.create({ data: { alunoId: aluno.id, turmaId } });
+    matriculas.push(matricula);
   }
 
-  console.log("A criar avaliações e notas...");
-  for (let i = 0; i < turmas.length; i += 1) {
-    const turma = turmas[i];
-    const salaExame = turmasData[i].sala;
+  console.log("A criar avaliações, notas, aulas e frequência...");
+  for (const td of turmaDisciplinas) {
     const avaliacoes = await Promise.all(
       [
-        { nome: "Teste 1", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(45), sala: salaExame },
-        { nome: "Teste 2", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(20), sala: salaExame },
-        { nome: "Exame Final", tipo: "EXAME_FINAL" as const, peso: 0.4, data: daysAgo(-10), sala: salaExame },
-      ].map((a) => prisma.avaliacao.create({ data: { ...a, turmaId: turma.id } })),
+        { nome: "Teste 1", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(45), sala: td.salaExame },
+        { nome: "Teste 2", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(20), sala: td.salaExame },
+        { nome: "Exame Final", tipo: "EXAME_FINAL" as const, peso: 0.4, data: daysAgo(-10), sala: td.salaExame },
+      ].map((a) => prisma.avaliacao.create({ data: { ...a, turmaDisciplinaId: td.id } })),
     );
 
-    const matriculasTurma = matriculas.filter((m) => m.turmaId === turma.id);
+    const matriculasTurma = matriculas.filter((m) => m.turmaId === td.turmaId);
     for (const avaliacao of avaliacoes) {
       for (const matricula of matriculasTurma) {
         if (chance(0.8)) {
           await prisma.nota.create({
-            data: {
-              avaliacaoId: avaliacao.id,
-              matriculaId: matricula.id,
-              valor: randomInt(8, 19),
-            },
+            data: { avaliacaoId: avaliacao.id, matriculaId: matricula.id, valor: randomInt(8, 19) },
           });
         }
       }
     }
 
-    console.log(`A criar aulas e frequência para ${turma.nome}...`);
     for (let semana = 6; semana >= 1; semana -= 1) {
       const aula = await prisma.aula.create({
-        data: { turmaId: turma.id, data: daysAgo(semana * 7) },
+        data: { turmaDisciplinaId: td.id, data: daysAgo(semana * 7) },
       });
       for (const matricula of matriculasTurma) {
         const presente = chance(0.9);
@@ -323,7 +277,7 @@ async function main() {
       {
         userName: profAntonio.nome,
         userRole: "PROFESSOR",
-        action: "Lançou nota em Programação I - Turma A",
+        action: "Lançou nota em Programação I",
         entityType: "Nota",
         ipAddress: "197.221.30.88",
       },

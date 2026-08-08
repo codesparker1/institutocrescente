@@ -2,9 +2,22 @@ import { Users, GraduationCap, ClipboardCheck, ScrollText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { ProfileCard } from "./ProfileCard";
 import { formatDate } from "@/lib/utils";
+import type { Role } from "@/generated/prisma/client";
 
-export async function AdminDashboard() {
+const CARGO_LABEL: Record<string, string> = {
+  ADMIN: "Administrador",
+  SECRETARIA: "Secretaria",
+};
+
+interface AdminDashboardProps {
+  nome: string;
+  email: string;
+  role: Role;
+}
+
+export async function AdminDashboard({ nome, email, role }: AdminDashboardProps) {
   const [totalAlunos, totalTurmas, totalNotas, ultimasAuditorias] = await Promise.all([
     prisma.aluno.count({ where: { status: "ATIVO" } }),
     prisma.turma.count(),
@@ -15,9 +28,11 @@ export async function AdminDashboard() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Visão Geral</h1>
+        <h1 className="text-xl font-bold text-navy-900">Página Inicial</h1>
         <p className="text-sm text-navy-400">Resumo do sistema de gestão académica do ISPC.</p>
       </div>
+
+      <ProfileCard nome={nome} cargo={CARGO_LABEL[role] ?? role} campos={[{ label: "Email", value: email }]} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard label="Alunos ativos" value={totalAlunos} icon={<Users size={20} />} />

@@ -10,7 +10,7 @@ const LancarNotaSchema = z.object({
   avaliacaoId: z.string().min(1),
   matriculaId: z.string().min(1),
   valor: z.coerce.number().min(0).max(20),
-  turmaId: z.string().min(1),
+  turmaDisciplinaId: z.string().min(1),
 });
 
 export interface LancarNotaState {
@@ -27,18 +27,21 @@ export async function lancarNotaAction(_prevState: LancarNotaState, formData: Fo
     avaliacaoId: formData.get("avaliacaoId"),
     matriculaId: formData.get("matriculaId"),
     valor: formData.get("valor"),
-    turmaId: formData.get("turmaId"),
+    turmaDisciplinaId: formData.get("turmaDisciplinaId"),
   });
 
   if (!parsed.success) {
     return { error: "Valor de nota inválido (use 0 a 20)." };
   }
 
-  if (session.user.role === "PROFESSOR") {
-    const turma = await prisma.turma.findUnique({ where: { id: parsed.data.turmaId } });
-    if (!turma || turma.professorId !== session.user.professorId) {
-      return { error: "Só pode lançar notas nas suas próprias turmas." };
-    }
+  const turmaDisciplina = await prisma.turmaDisciplina.findUnique({
+    where: { id: parsed.data.turmaDisciplinaId },
+  });
+  if (!turmaDisciplina) {
+    return { error: "Disciplina não encontrada." };
+  }
+  if (session.user.role === "PROFESSOR" && turmaDisciplina.professorId !== session.user.professorId) {
+    return { error: "Só pode lançar notas nas suas próprias disciplinas." };
   }
 
   const notaExistente = await prisma.nota.findUnique({
@@ -77,7 +80,7 @@ export async function lancarNotaAction(_prevState: LancarNotaState, formData: Fo
     entityId: nota.id,
   });
 
-  revalidatePath(`/notas/${parsed.data.turmaId}`);
-  revalidatePath(`/professor/${parsed.data.turmaId}`);
+  revalidatePath(`/notas`);
+  revalidatePath(`/professor`);
   return {};
 }

@@ -45,7 +45,7 @@ export async function createCursoAction(formData: FormData) {
   });
   const curso = await prisma.curso.create({ data });
   await audit(session, `Criou o curso ${curso.nome}`, "Curso", curso.id);
-  revalidatePath("/admin");
+  revalidatePath("/admin/cursos");
 }
 
 export async function deleteCursoAction(formData: FormData) {
@@ -53,7 +53,7 @@ export async function deleteCursoAction(formData: FormData) {
   const id = String(formData.get("id"));
   const curso = await prisma.curso.delete({ where: { id } });
   await audit(session, `Removeu o curso ${curso.nome}`, "Curso", id);
-  revalidatePath("/admin");
+  revalidatePath("/admin/cursos");
 }
 
 const DisciplinaSchema = z.object({
@@ -73,7 +73,7 @@ export async function createDisciplinaAction(formData: FormData) {
   });
   const disciplina = await prisma.disciplina.create({ data });
   await audit(session, `Criou a disciplina ${disciplina.nome}`, "Disciplina", disciplina.id);
-  revalidatePath("/admin");
+  revalidatePath("/admin/disciplinas");
 }
 
 export async function deleteDisciplinaAction(formData: FormData) {
@@ -81,7 +81,7 @@ export async function deleteDisciplinaAction(formData: FormData) {
   const id = String(formData.get("id"));
   const disciplina = await prisma.disciplina.delete({ where: { id } });
   await audit(session, `Removeu a disciplina ${disciplina.nome}`, "Disciplina", id);
-  revalidatePath("/admin");
+  revalidatePath("/admin/disciplinas");
 }
 
 const ProfessorSchema = z.object({
@@ -101,7 +101,7 @@ export async function createProfessorAction(formData: FormData) {
   });
   const professor = await prisma.professor.create({ data });
   await audit(session, `Criou o professor ${professor.nome}`, "Professor", professor.id);
-  revalidatePath("/admin");
+  revalidatePath("/admin/professores");
 }
 
 export async function deleteProfessorAction(formData: FormData) {
@@ -109,43 +109,74 @@ export async function deleteProfessorAction(formData: FormData) {
   const id = String(formData.get("id"));
   const professor = await prisma.professor.delete({ where: { id } });
   await audit(session, `Removeu o professor ${professor.nome}`, "Professor", id);
-  revalidatePath("/admin");
+  revalidatePath("/admin/professores");
 }
 
 const TurmaSchema = z.object({
-  nome: z.string().min(2),
-  disciplinaId: z.string().min(1),
-  professorId: z.string().min(1),
-  anoLetivo: z.coerce.number().int().min(2000).max(2100),
-  semestre: z.coerce.number().int().min(1).max(2),
+  cursoId: z.string().min(1),
   anoCurricular: z.coerce.number().int().min(1).max(8),
   periodo: z.enum(["MATUTINO", "VESPERTINO", "NOTURNO"]),
-  sala: z.string().min(1),
-  horario: z.string().min(3),
+  anoLetivo: z.coerce.number().int().min(2000).max(2100),
 });
 
 export async function createTurmaAction(formData: FormData) {
   const session = await requireAdmin();
   const data = TurmaSchema.parse({
-    nome: formData.get("nome"),
-    disciplinaId: formData.get("disciplinaId"),
-    professorId: formData.get("professorId"),
-    anoLetivo: formData.get("anoLetivo"),
-    semestre: formData.get("semestre"),
+    cursoId: formData.get("cursoId"),
     anoCurricular: formData.get("anoCurricular"),
     periodo: formData.get("periodo"),
-    sala: formData.get("sala"),
-    horario: formData.get("horario"),
+    anoLetivo: formData.get("anoLetivo"),
   });
-  const turma = await prisma.turma.create({ data });
-  await audit(session, `Criou a turma ${turma.nome}`, "Turma", turma.id);
-  revalidatePath("/admin");
+  const turma = await prisma.turma.create({ data, include: { curso: true } });
+  await audit(
+    session,
+    `Criou a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`,
+    "Turma",
+    turma.id,
+  );
+  revalidatePath("/admin/turmas");
 }
 
 export async function deleteTurmaAction(formData: FormData) {
   const session = await requireAdmin();
   const id = String(formData.get("id"));
-  const turma = await prisma.turma.delete({ where: { id } });
-  await audit(session, `Removeu a turma ${turma.nome}`, "Turma", id);
-  revalidatePath("/admin");
+  const turma = await prisma.turma.delete({ where: { id }, include: { curso: true } });
+  await audit(session, `Removeu a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`, "Turma", id);
+  revalidatePath("/admin/turmas");
+}
+
+const TurmaDisciplinaSchema = z.object({
+  turmaId: z.string().min(1),
+  disciplinaId: z.string().min(1),
+  professorId: z.string().min(1),
+  semestre: z.coerce.number().int().min(1).max(2),
+  sala: z.string().min(1),
+});
+
+export async function createTurmaDisciplinaAction(formData: FormData) {
+  const session = await requireAdmin();
+  const data = TurmaDisciplinaSchema.parse({
+    turmaId: formData.get("turmaId"),
+    disciplinaId: formData.get("disciplinaId"),
+    professorId: formData.get("professorId"),
+    semestre: formData.get("semestre"),
+    sala: formData.get("sala"),
+  });
+  const turmaDisciplina = await prisma.turmaDisciplina.create({
+    data,
+    include: { disciplina: true },
+  });
+  await audit(session, `Atribuiu ${turmaDisciplina.disciplina.nome} à turma`, "TurmaDisciplina", turmaDisciplina.id);
+  revalidatePath(`/admin/turmas/${data.turmaId}`);
+}
+
+export async function deleteTurmaDisciplinaAction(formData: FormData) {
+  const session = await requireAdmin();
+  const id = String(formData.get("id"));
+  const turmaDisciplina = await prisma.turmaDisciplina.delete({
+    where: { id },
+    include: { disciplina: true },
+  });
+  await audit(session, `Removeu ${turmaDisciplina.disciplina.nome} da turma`, "TurmaDisciplina", id);
+  revalidatePath(`/admin/turmas/${turmaDisciplina.turmaId}`);
 }

@@ -5,6 +5,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
+import { ProfileCard } from "./ProfileCard";
 import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatDate } from "@/lib/utils";
 
 interface AlunoDashboardProps {
@@ -18,8 +19,13 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
       matriculas: {
         where: { status: "ATIVA" },
         include: {
-          turma: { include: { disciplina: true, professor: true, horarioSlots: true, avaliacoes: true } },
-          notas: { include: { avaliacao: true } },
+          turma: {
+            include: {
+              curso: true,
+              turmaDisciplinas: { include: { disciplina: true, professor: true, horarioSlots: true, avaliacoes: true } },
+            },
+          },
+          notas: { include: { avaliacao: { include: { turmaDisciplina: { include: { disciplina: true } } } } } },
           frequencias: true,
         },
       },
@@ -37,14 +43,16 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   const presencas = todasFrequencias.filter((f) => f.presente).length;
   const percentualPresenca = todasFrequencias.length > 0 ? Math.round((presencas / todasFrequencias.length) * 100) : null;
 
-  const proximasAulas = aluno.matriculas
-    .flatMap((m) => m.turma.horarioSlots.map((slot) => ({ ...slot, turmaNome: m.turma.nome })))
+  const todasDisciplinas = aluno.matriculas.flatMap((m) => m.turma.turmaDisciplinas);
+
+  const proximasAulas = todasDisciplinas
+    .flatMap((td) => td.horarioSlots.map((slot) => ({ ...slot, disciplinaNome: td.disciplina.nome })))
     .sort((a, b) => diasAteProximo(a.diaSemana) - diasAteProximo(b.diaSemana))
     .slice(0, 5);
 
   const hoje = new Date();
-  const proximasProvas = aluno.matriculas
-    .flatMap((m) => m.turma.avaliacoes.map((av) => ({ ...av, turmaNome: m.turma.nome })))
+  const proximasProvas = todasDisciplinas
+    .flatMap((td) => td.avaliacoes.map((av) => ({ ...av, disciplinaNome: td.disciplina.nome })))
     .filter((av) => av.data >= hoje)
     .sort((a, b) => a.data.getTime() - b.data.getTime())
     .slice(0, 5);
@@ -52,16 +60,25 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Olá, {aluno.nome.split(" ")[0]}</h1>
-        <p className="text-sm text-navy-400">
-          {aluno.numeroEstudante} · {aluno.curso} · {aluno.anoCurricular}º Ano
-        </p>
+        <h1 className="text-xl font-bold text-navy-900">Página Inicial</h1>
+        <p className="text-sm text-navy-400">Olá, {aluno.nome.split(" ")[0]}. Aqui está o resumo do seu percurso académico.</p>
       </div>
+
+      <ProfileCard
+        nome={aluno.nome}
+        cargo="Aluno"
+        campos={[
+          { label: "Nº Estudante", value: aluno.numeroEstudante },
+          { label: "Curso", value: aluno.curso },
+          { label: "Ano", value: `${aluno.anoCurricular}º Ano` },
+          { label: "Email", value: aluno.email },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Média geral" value={mediaGeral !== null ? mediaGeral.toFixed(1) : "—"} icon={<TrendingUp size={20} />} />
         <StatCard label="Assiduidade" value={percentualPresenca !== null ? `${percentualPresenca}%` : "—"} icon={<ClipboardCheck size={20} />} />
-        <StatCard label="Disciplinas ativas" value={aluno.matriculas.length} icon={<GraduationCap size={20} />} />
+        <StatCard label="Disciplinas ativas" value={todasDisciplinas.length} icon={<GraduationCap size={20} />} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -82,7 +99,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
               {proximasAulas.map((slot) => (
                 <div key={slot.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                   <div>
-                    <p className="font-medium text-navy-800">{slot.turmaNome}</p>
+                    <p className="font-medium text-navy-800">{slot.disciplinaNome}</p>
                     <p className="text-xs text-navy-400">
                       {DIA_SEMANA_LABEL[slot.diaSemana]} · {slot.horaInicio}–{slot.horaFim} · {slot.sala}
                     </p>
@@ -103,7 +120,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
                 <div key={prova.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                   <div>
                     <p className="font-medium text-navy-800">
-                      {prova.nome} · {prova.turmaNome}
+                      {prova.nome} · {prova.disciplinaNome}
                     </p>
                     <p className="text-xs text-navy-400">{prova.sala ?? "Sala a confirmar"}</p>
                   </div>
@@ -116,26 +133,31 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
       </div>
 
       <Card>
-        <CardHeader title="Minhas disciplinas" subtitle={`${aluno.matriculas.length} disciplina(s) ativa(s)`} />
-        {aluno.matriculas.length === 0 ? (
+        <CardHeader title="Minhas disciplinas" subtitle={`${todasDisciplinas.length} disciplina(s) ativa(s)`} />
+        {todasDisciplinas.length === 0 ? (
           <EmptyState message="Sem matrículas ativas." />
         ) : (
           <CardBody className="flex flex-col gap-2">
-            {aluno.matriculas.map((matricula) => (
-              <div key={matricula.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
-                <div>
-                  <p className="font-medium text-navy-800">{matricula.turma.nome}</p>
-                  <p className="text-xs text-navy-400">
-                    {matricula.turma.professor.nome} · {PERIODO_LABEL[matricula.turma.periodo]}
-                  </p>
-                </div>
-                <span className="text-xs text-navy-400">
-                  {matricula.notas.length === 0
-                    ? "Sem notas"
-                    : matricula.notas.map((n) => `${n.avaliacao.nome}: ${Number(n.valor)}`).join(" · ")}
-                </span>
-              </div>
-            ))}
+            {aluno.matriculas.map((matricula) =>
+              matricula.turma.turmaDisciplinas.map((td) => {
+                const notasDisciplina = matricula.notas.filter((n) => n.avaliacao.turmaDisciplina.id === td.id);
+                return (
+                  <div key={td.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-medium text-navy-800">{td.disciplina.nome}</p>
+                      <p className="text-xs text-navy-400">
+                        {td.professor.nome} · {PERIODO_LABEL[matricula.turma.periodo]}
+                      </p>
+                    </div>
+                    <span className="text-xs text-navy-400">
+                      {notasDisciplina.length === 0
+                        ? "Sem notas"
+                        : notasDisciplina.map((n) => `${n.avaliacao.nome}: ${Number(n.valor)}`).join(" · ")}
+                    </span>
+                  </div>
+                );
+              }),
+            )}
           </CardBody>
         )}
       </Card>

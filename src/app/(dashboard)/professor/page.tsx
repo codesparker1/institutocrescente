@@ -7,6 +7,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
+import { ProfileCard } from "@/components/dashboard/ProfileCard";
 import { PERIODO_LABEL } from "@/lib/utils";
 
 export default async function ProfessorPortalPage() {
@@ -15,25 +16,34 @@ export default async function ProfessorPortalPage() {
 
   const professor = await prisma.professor.findUnique({ where: { id: session.user.professorId } });
 
-  const turmas = await prisma.turma.findMany({
+  const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
     where: { professorId: session.user.professorId },
-    include: { disciplina: true, _count: { select: { matriculas: true } } },
-    orderBy: [{ anoCurricular: "asc" }, { nome: "asc" }],
+    include: { disciplina: true, turma: { include: { curso: true, _count: { select: { matriculas: true } } } } },
+    orderBy: [{ turma: { anoCurricular: "asc" } }, { disciplina: { nome: "asc" } }],
   });
 
-  const totalAlunos = turmas.reduce((sum, t) => sum + t._count.matriculas, 0);
+  const totalAlunos = turmaDisciplinas.reduce((sum, td) => sum + td.turma._count.matriculas, 0);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-navy-900">Minhas Disciplinas</h1>
-        <p className="text-sm text-navy-400">
-          {professor?.nome} · {professor?.especialidade}
-        </p>
+        <p className="text-sm text-navy-400">Resumo da sua atividade docente.</p>
       </div>
 
+      {professor ? (
+        <ProfileCard
+          nome={professor.nome}
+          cargo="Professor"
+          campos={[
+            { label: "Especialidade", value: professor.especialidade },
+            { label: "Email", value: professor.email },
+          ]}
+        />
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Disciplinas" value={turmas.length} icon={<GraduationCap size={20} />} />
+        <StatCard label="Disciplinas" value={turmaDisciplinas.length} icon={<GraduationCap size={20} />} />
         <StatCard label="Total de alunos" value={totalAlunos} icon={<Users size={20} />} />
         <Link href="/horario">
           <Card className="flex h-full items-center gap-4 px-5 py-4 transition-colors hover:border-navy-300">
@@ -49,32 +59,36 @@ export default async function ProfessorPortalPage() {
       </div>
 
       <Card>
-        <CardHeader title="Disciplinas atribuídas" subtitle={`${turmas.length} disciplina(s)`} />
-        {turmas.length === 0 ? (
+        <CardHeader title="Disciplinas atribuídas" subtitle={`${turmaDisciplinas.length} disciplina(s)`} />
+        {turmaDisciplinas.length === 0 ? (
           <EmptyState message="Nenhuma disciplina atribuída." />
         ) : (
           <Table>
             <Thead>
               <tr>
                 <Th>Disciplina</Th>
+                <Th>Curso</Th>
                 <Th>Ano</Th>
                 <Th>Período</Th>
+                <Th>Semestre</Th>
                 <Th>Alunos</Th>
               </tr>
             </Thead>
             <Tbody>
-              {turmas.map((turma) => (
-                <Tr key={turma.id}>
+              {turmaDisciplinas.map((td) => (
+                <Tr key={td.id}>
                   <Td>
-                    <Link href={`/professor/${turma.id}`} className="font-medium text-navy-900 hover:text-navy-600">
-                      {turma.disciplina.nome}
+                    <Link href={`/professor/${td.id}`} className="font-medium text-navy-900 hover:text-navy-600">
+                      {td.disciplina.nome}
                     </Link>
                   </Td>
+                  <Td>{td.turma.curso.nome}</Td>
                   <Td>
-                    <Badge tone="neutral">{turma.anoCurricular}º Ano</Badge>
+                    <Badge tone="neutral">{td.turma.anoCurricular}º Ano</Badge>
                   </Td>
-                  <Td>{PERIODO_LABEL[turma.periodo]}</Td>
-                  <Td>{turma._count.matriculas}</Td>
+                  <Td>{PERIODO_LABEL[td.turma.periodo]}</Td>
+                  <Td>{td.semestre}º Semestre</Td>
+                  <Td>{td.turma._count.matriculas}</Td>
                 </Tr>
               ))}
             </Tbody>

@@ -31,7 +31,7 @@ async function audit(
 }
 
 const HorarioSlotSchema = z.object({
-  turmaId: z.string().min(1),
+  turmaDisciplinaId: z.string().min(1),
   diaSemana: z.enum(["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"]),
   horaInicio: z.string().min(4),
   horaFim: z.string().min(4),
@@ -41,27 +41,33 @@ const HorarioSlotSchema = z.object({
 export async function createHorarioSlotAction(formData: FormData) {
   const session = await requireAdmin();
   const data = HorarioSlotSchema.parse({
-    turmaId: formData.get("turmaId"),
+    turmaDisciplinaId: formData.get("turmaDisciplinaId"),
     diaSemana: formData.get("diaSemana"),
     horaInicio: formData.get("horaInicio"),
     horaFim: formData.get("horaFim"),
     sala: formData.get("sala"),
   });
-  const slot = await prisma.horarioSlot.create({ data, include: { turma: true } });
-  await audit(session, `Adicionou horário de aula para ${slot.turma.nome}`, "HorarioSlot", slot.id);
+  const slot = await prisma.horarioSlot.create({
+    data,
+    include: { turmaDisciplina: { include: { disciplina: true } } },
+  });
+  await audit(session, `Adicionou horário de aula para ${slot.turmaDisciplina.disciplina.nome}`, "HorarioSlot", slot.id);
   revalidatePath("/horario");
 }
 
 export async function deleteHorarioSlotAction(formData: FormData) {
   const session = await requireAdmin();
   const id = String(formData.get("id"));
-  const slot = await prisma.horarioSlot.delete({ where: { id }, include: { turma: true } });
-  await audit(session, `Removeu horário de aula de ${slot.turma.nome}`, "HorarioSlot", id);
+  const slot = await prisma.horarioSlot.delete({
+    where: { id },
+    include: { turmaDisciplina: { include: { disciplina: true } } },
+  });
+  await audit(session, `Removeu horário de aula de ${slot.turmaDisciplina.disciplina.nome}`, "HorarioSlot", id);
   revalidatePath("/horario");
 }
 
 const ProvaSchema = z.object({
-  turmaId: z.string().min(1),
+  turmaDisciplinaId: z.string().min(1),
   nome: z.string().min(2),
   tipo: z.enum(["TESTE", "TRABALHO", "EXAME_FINAL"]),
   data: z.string().min(1),
@@ -72,7 +78,7 @@ const ProvaSchema = z.object({
 export async function createProvaAction(formData: FormData) {
   const session = await requireAdmin();
   const data = ProvaSchema.parse({
-    turmaId: formData.get("turmaId"),
+    turmaDisciplinaId: formData.get("turmaDisciplinaId"),
     nome: formData.get("nome"),
     tipo: formData.get("tipo"),
     data: formData.get("data"),
@@ -81,16 +87,19 @@ export async function createProvaAction(formData: FormData) {
   });
   const prova = await prisma.avaliacao.create({
     data: { ...data, data: new Date(data.data) },
-    include: { turma: true },
+    include: { turmaDisciplina: { include: { disciplina: true } } },
   });
-  await audit(session, `Agendou "${prova.nome}" para ${prova.turma.nome}`, "Avaliacao", prova.id);
+  await audit(session, `Agendou "${prova.nome}" para ${prova.turmaDisciplina.disciplina.nome}`, "Avaliacao", prova.id);
   revalidatePath("/horario");
 }
 
 export async function deleteProvaAction(formData: FormData) {
   const session = await requireAdmin();
   const id = String(formData.get("id"));
-  const prova = await prisma.avaliacao.delete({ where: { id }, include: { turma: true } });
-  await audit(session, `Removeu "${prova.nome}" de ${prova.turma.nome}`, "Avaliacao", id);
+  const prova = await prisma.avaliacao.delete({
+    where: { id },
+    include: { turmaDisciplina: { include: { disciplina: true } } },
+  });
+  await audit(session, `Removeu "${prova.nome}" de ${prova.turmaDisciplina.disciplina.nome}`, "Avaliacao", id);
   revalidatePath("/horario");
 }

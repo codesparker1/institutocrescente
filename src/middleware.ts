@@ -16,6 +16,8 @@ const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   { prefix: "/admin", roles: ["ADMIN"] },
   { prefix: "/auditoria", roles: ["ADMIN"] },
   { prefix: "/professor", roles: ["ADMIN", "PROFESSOR"] },
+  { prefix: "/notas", roles: ["ADMIN", "SECRETARIA"] },
+  { prefix: "/minhas-notas", roles: ["ALUNO"] },
 ];
 
 export default auth((req) => {
@@ -46,5 +48,6 @@ export const config = {
     "/admin/:path*",
     "/auditoria/:path*",
     "/horario/:path*",
+    "/minhas-notas/:path*",
   ],
 };

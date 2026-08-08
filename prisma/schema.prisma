@@ -69,8 +69,8 @@ model Professor {
   especialidade String
   createdAt     DateTime @default(now())
 
-  turmas Turma[]
-  user   User?
+  turmaDisciplinas TurmaDisciplina[]
+  user             User?
 }
 
 model Aluno {
@@ -98,6 +98,7 @@ model Curso {
   duracaoAnos Int
 
   disciplinas Disciplina[]
+  turmas      Turma[]
 }
 
 model Disciplina {
@@ -108,37 +109,51 @@ model Disciplina {
   cursoId      String
   curso        Curso  @relation(fields: [cursoId], references: [id])
 
-  turmas Turma[]
+  turmaDisciplinas TurmaDisciplina[]
 }
 
+/// Uma "turma" é uma coorte de alunos: Curso + Ano curricular + Período, num ano letivo.
 model Turma {
-  id            String     @id @default(cuid())
-  nome          String
-  disciplinaId  String
-  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
-  professorId   String
-  professor     Professor  @relation(fields: [professorId], references: [id])
+  id            String  @id @default(cuid())
+  cursoId       String
+  curso         Curso   @relation(fields: [cursoId], references: [id])
+  anoCurricular Int
+  periodo       Periodo
   anoLetivo     Int
-  semestre      Int
-  anoCurricular Int     @default(1)
-  periodo       Periodo @default(MATUTINO)
-  sala          String
-  horario       String
 
-  matriculas   Matricula[]
+  matriculas       Matricula[]
+  turmaDisciplinas TurmaDisciplina[]
+
+  @@unique([cursoId, anoCurricular, periodo, anoLetivo])
+}
+
+/// Uma disciplina lecionada por um professor dentro de uma turma (coorte). Cada disciplina tem o seu próprio semestre.
+model TurmaDisciplina {
+  id           String     @id @default(cuid())
+  turmaId      String
+  turma        Turma      @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+  professorId  String
+  professor    Professor  @relation(fields: [professorId], references: [id])
+  semestre     Int
+  sala         String
+
   avaliacoes   Avaliacao[]
   aulas        Aula[]
   horarioSlots HorarioSlot[]
+
+  @@unique([turmaId, disciplinaId])
 }
 
 model HorarioSlot {
-  id         String    @id @default(cuid())
-  turmaId    String
-  turma      Turma     @relation(fields: [turmaId], references: [id], onDelete: Cascade)
-  diaSemana  DiaSemana
-  horaInicio String
-  horaFim    String
-  sala       String
+  id                String          @id @default(cuid())
+  turmaDisciplinaId String
+  turmaDisciplina   TurmaDisciplina @relation(fields: [turmaDisciplinaId], references: [id], onDelete: Cascade)
+  diaSemana         DiaSemana
+  horaInicio        String
+  horaFim           String
+  sala              String
 }
 
 model Matricula {
@@ -157,14 +172,14 @@ model Matricula {
 }
 
 model Avaliacao {
-  id      String        @id @default(cuid())
-  turmaId String
-  turma   Turma         @relation(fields: [turmaId], references: [id])
-  tipo    AvaliacaoTipo
-  peso    Decimal       @db.Decimal(4, 2)
-  data    DateTime
-  nome    String
-  sala    String?
+  id                String          @id @default(cuid())
+  turmaDisciplinaId String
+  turmaDisciplina   TurmaDisciplina @relation(fields: [turmaDisciplinaId], references: [id], onDelete: Cascade)
+  tipo              AvaliacaoTipo
+  peso              Decimal         @db.Decimal(4, 2)
+  data              DateTime
+  nome              String
+  sala              String?
 
   notas Nota[]
 }
@@ -182,11 +197,11 @@ model Nota {
 }
 
 model Aula {
-  id      String   @id @default(cuid())
-  turmaId String
-  turma   Turma    @relation(fields: [turmaId], references: [id])
-  data    DateTime
-  tema    String?
+  id                String          @id @default(cuid())
+  turmaDisciplinaId String
+  turmaDisciplina   TurmaDisciplina @relation(fields: [turmaDisciplinaId], references: [id], onDelete: Cascade)
+  data              DateTime
+  tema              String?
 
   frequencias Frequencia[]
 }

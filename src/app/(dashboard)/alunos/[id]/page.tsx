@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { formatDate } from "@/lib/utils";
+import { formatDate, PERIODO_LABEL } from "@/lib/utils";
 import type { AlunoStatus } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
@@ -27,8 +27,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
     include: {
       matriculas: {
         include: {
-          turma: { include: { disciplina: true, professor: true } },
-          notas: { include: { avaliacao: true } },
+          turma: {
+            include: { curso: true, turmaDisciplinas: { include: { disciplina: true, professor: true } } },
+          },
+          notas: { include: { avaliacao: { include: { turmaDisciplina: true } } } },
         },
       },
     },
@@ -69,36 +71,53 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader title="Matrículas e desempenho" subtitle={`${aluno.matriculas.length} turma(s)`} />
+          <CardHeader title="Matrícula e desempenho" subtitle={`${aluno.matriculas.length} turma(s)`} />
           {aluno.matriculas.length === 0 ? (
             <EmptyState message="Sem matrículas registadas." />
           ) : (
-            <Table>
-              <Thead>
-                <tr>
-                  <Th>Turma</Th>
-                  <Th>Professor</Th>
-                  <Th>Estado</Th>
-                  <Th>Notas lançadas</Th>
-                </tr>
-              </Thead>
-              <Tbody>
-                {aluno.matriculas.map((matricula) => (
-                  <Tr key={matricula.id}>
-                    <Td className="font-medium text-navy-900">{matricula.turma.nome}</Td>
-                    <Td>{matricula.turma.professor.nome}</Td>
-                    <Td>
-                      <Badge tone={matricula.status === "ATIVA" ? "success" : "neutral"}>{matricula.status}</Badge>
-                    </Td>
-                    <Td>
-                      {matricula.notas.length === 0
-                        ? "—"
-                        : matricula.notas.map((n) => `${n.avaliacao.nome}: ${n.valor}`).join(" · ")}
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+            <CardBody className="flex flex-col gap-5">
+              {aluno.matriculas.map((matricula) => (
+                <div key={matricula.id} className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-navy-900">
+                      {matricula.turma.curso.nome} · {matricula.turma.anoCurricular}º Ano ·{" "}
+                      {PERIODO_LABEL[matricula.turma.periodo]}
+                    </p>
+                    <Badge tone={matricula.status === "ATIVA" ? "success" : "neutral"}>{matricula.status}</Badge>
+                  </div>
+
+                  {matricula.turma.turmaDisciplinas.length === 0 ? (
+                    <p className="text-sm text-navy-400">Sem disciplinas atribuídas a esta turma.</p>
+                  ) : (
+                    <Table>
+                      <Thead>
+                        <tr>
+                          <Th>Disciplina</Th>
+                          <Th>Professor</Th>
+                          <Th>Notas lançadas</Th>
+                        </tr>
+                      </Thead>
+                      <Tbody>
+                        {matricula.turma.turmaDisciplinas.map((td) => {
+                          const notasDisciplina = matricula.notas.filter((n) => n.avaliacao.turmaDisciplina.id === td.id);
+                          return (
+                            <Tr key={td.id}>
+                              <Td className="font-medium text-navy-900">{td.disciplina.nome}</Td>
+                              <Td>{td.professor.nome}</Td>
+                              <Td>
+                                {notasDisciplina.length === 0
+                                  ? "—"
+                                  : notasDisciplina.map((n) => `${n.avaliacao.nome}: ${n.valor}`).join(" · ")}
+                              </Td>
+                            </Tr>
+                          );
+                        })}
+                      </Tbody>
+                    </Table>
+                  )}
+                </div>
+              ))}
+            </CardBody>
           )}
         </Card>
       </div>

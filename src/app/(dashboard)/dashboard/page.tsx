@@ -14,5 +14,11 @@ export default async function DashboardPage() {
     return <AlunoDashboard alunoId={session.user.alunoId} />;
   }
 
-  return <AdminDashboard />;
+  return (
+    <AdminDashboard
+      nome={session.user.name ?? "Utilizador"}
+      email={session.user.email ?? "—"}
+      role={session.user.role}
+    />
+  );
 }
