@@ -118,6 +118,8 @@ const TurmaSchema = z.object({
   professorId: z.string().min(1),
   anoLetivo: z.coerce.number().int().min(2000).max(2100),
   semestre: z.coerce.number().int().min(1).max(2),
+  anoCurricular: z.coerce.number().int().min(1).max(8),
+  periodo: z.enum(["MATUTINO", "VESPERTINO", "NOTURNO"]),
   sala: z.string().min(1),
   horario: z.string().min(3),
 });
@@ -130,6 +132,8 @@ export async function createTurmaAction(formData: FormData) {
     professorId: formData.get("professorId"),
     anoLetivo: formData.get("anoLetivo"),
     semestre: formData.get("semestre"),
+    anoCurricular: formData.get("anoCurricular"),
+    periodo: formData.get("periodo"),
     sala: formData.get("sala"),
     horario: formData.get("horario"),
   });

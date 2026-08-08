@@ -48,7 +48,9 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-navy-900">{aluno.nome}</h1>
-          <p className="text-sm text-navy-400">{aluno.numeroEstudante} · {aluno.curso}</p>
+          <p className="text-sm text-navy-400">
+            {aluno.numeroEstudante} · {aluno.curso} · {aluno.anoCurricular}º Ano
+          </p>
         </div>
         <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
       </div>

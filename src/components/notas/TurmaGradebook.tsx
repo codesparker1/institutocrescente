@@ -6,7 +6,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import { GradeCell } from "./GradeCell";
-import { formatDate } from "@/lib/utils";
+import { formatDate, PERIODO_LABEL } from "@/lib/utils";
 
 interface TurmaGradebookProps {
   turmaId: string;
@@ -50,7 +50,7 @@ export async function TurmaGradebook({ turmaId, backHref, editable }: TurmaGrade
         </Link>
         <h1 className="mt-2 text-xl font-bold text-navy-900">{turma.nome}</h1>
         <p className="text-sm text-navy-400">
-          {turma.disciplina.nome} · {turma.professor.nome} · {turma.horario}
+          {turma.disciplina.nome} · {turma.professor.nome} · {turma.anoCurricular}º Ano · {PERIODO_LABEL[turma.periodo]}
         </p>
       </div>
 

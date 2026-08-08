@@ -67,6 +67,16 @@ export default function NovoAlunoPage() {
               <Input id="anoIngresso" name="anoIngresso" type="number" required defaultValue={new Date().getFullYear()} />
             </Field>
 
+            <Field label="Ano curricular" htmlFor="anoCurricular" error={state.fieldErrors?.anoCurricular}>
+              <Select id="anoCurricular" name="anoCurricular" required defaultValue="1">
+                {[1, 2, 3, 4, 5, 6].map((ano) => (
+                  <option key={ano} value={ano}>
+                    {ano}º Ano
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
             {state.error ? <p className="sm:col-span-2 text-sm text-red-600">{state.error}</p> : null}
 
             <div className="sm:col-span-2 flex justify-end gap-3 pt-2">

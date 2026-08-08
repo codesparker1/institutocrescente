@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, GraduationCap, ShieldCheck, ScrollText } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, ShieldCheck, ScrollText, CalendarClock } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { NavItem } from "./NavItem";
 import type { Role } from "@/generated/prisma/client";
@@ -12,6 +12,7 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string; icon: React.React
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
     { href: "/alunos", label: "Alunos", icon: <Users size={18} /> },
     { href: "/notas", label: "Notas e Frequência", icon: <GraduationCap size={18} /> },
+    { href: "/horario", label: "Horário e Provas", icon: <CalendarClock size={18} /> },
     { href: "/admin", label: "Admin", icon: <ShieldCheck size={18} /> },
     { href: "/auditoria", label: "Auditoria", icon: <ScrollText size={18} /> },
   ],
@@ -19,11 +20,16 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string; icon: React.React
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
     { href: "/alunos", label: "Alunos", icon: <Users size={18} /> },
     { href: "/notas", label: "Notas e Frequência", icon: <GraduationCap size={18} /> },
+    { href: "/horario", label: "Horário e Provas", icon: <CalendarClock size={18} /> },
   ],
   PROFESSOR: [
-    { href: "/professor", label: "Minhas Turmas", icon: <GraduationCap size={18} /> },
+    { href: "/professor", label: "Minhas Disciplinas", icon: <GraduationCap size={18} /> },
+    { href: "/horario", label: "Meu Horário", icon: <CalendarClock size={18} /> },
   ],
-  ALUNO: [{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> }],
+  ALUNO: [
+    { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+    { href: "/horario", label: "Meu Horário", icon: <CalendarClock size={18} /> },
+  ],
 };
 
 export function Sidebar({ role }: SidebarProps) {

@@ -76,7 +76,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                 <Th>Nº Estudante</Th>
                 <Th>Nome</Th>
                 <Th>Curso</Th>
-                <Th>Ano de ingresso</Th>
+                <Th>Ano</Th>
                 <Th>Estado</Th>
                 <Th>Registado em</Th>
               </tr>
@@ -91,7 +91,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                     </Link>
                   </Td>
                   <Td>{aluno.curso}</Td>
-                  <Td>{aluno.anoIngresso}</Td>
+                  <Td>{aluno.anoCurricular}º Ano</Td>
                   <Td>
                     <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
                   </Td>

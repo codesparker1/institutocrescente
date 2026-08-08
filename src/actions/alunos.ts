@@ -15,6 +15,7 @@ const AlunoSchema = z.object({
   genero: z.enum(["Feminino", "Masculino"]),
   curso: z.string().min(1, "Curso é obrigatório"),
   anoIngresso: z.coerce.number().int().min(2000).max(2100),
+  anoCurricular: z.coerce.number().int().min(1).max(8),
 });
 
 export interface CreateAlunoState {
@@ -39,6 +40,7 @@ export async function createAlunoAction(
     genero: formData.get("genero"),
     curso: formData.get("curso"),
     anoIngresso: formData.get("anoIngresso"),
+    anoCurricular: formData.get("anoCurricular"),
   });
 
   if (!parsed.success) {
@@ -64,6 +66,7 @@ export async function createAlunoAction(
         genero: parsed.data.genero,
         curso: parsed.data.curso,
         anoIngresso: parsed.data.anoIngresso,
+        anoCurricular: parsed.data.anoCurricular,
       },
     });
     alunoId = aluno.id;

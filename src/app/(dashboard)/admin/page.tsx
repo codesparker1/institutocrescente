@@ -1,5 +1,6 @@
 import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { PERIODO_LABEL } from "@/lib/utils";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { Field, Input } from "@/components/ui/Input";
@@ -222,6 +223,22 @@ export default async function AdminPage() {
                 ))}
               </Select>
             </Field>
+            <Field label="Ano curricular" htmlFor="turma-anocurricular">
+              <Select id="turma-anocurricular" name="anoCurricular" required defaultValue="1">
+                {[1, 2, 3, 4, 5, 6].map((ano) => (
+                  <option key={ano} value={ano}>
+                    {ano}º Ano
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Período" htmlFor="turma-periodo">
+              <Select id="turma-periodo" name="periodo" required defaultValue="MATUTINO">
+                <option value="MATUTINO">Matutino</option>
+                <option value="VESPERTINO">Vespertino</option>
+                <option value="NOTURNO">Noturno</option>
+              </Select>
+            </Field>
             <Field label="Sala" htmlFor="turma-sala">
               <Input id="turma-sala" name="sala" required placeholder="Sala 3" />
             </Field>
@@ -234,7 +251,7 @@ export default async function AdminPage() {
                 <option value="2">2º Semestre</option>
               </Select>
             </Field>
-            <Field label="Horário" htmlFor="turma-horario">
+            <Field label="Horário (descrição)" htmlFor="turma-horario">
               <Input id="turma-horario" name="horario" required placeholder="Seg/Qua 08h-10h" />
             </Field>
             <div className="flex items-end">
@@ -253,7 +270,8 @@ export default async function AdminPage() {
                   <Th>Turma</Th>
                   <Th>Disciplina</Th>
                   <Th>Professor</Th>
-                  <Th>Horário</Th>
+                  <Th>Ano</Th>
+                  <Th>Período</Th>
                   <Th></Th>
                 </tr>
               </Thead>
@@ -263,7 +281,8 @@ export default async function AdminPage() {
                     <Td className="font-medium text-navy-900">{turma.nome}</Td>
                     <Td>{turma.disciplina.nome}</Td>
                     <Td>{turma.professor.nome}</Td>
-                    <Td>{turma.horario}</Td>
+                    <Td>{turma.anoCurricular}º Ano</Td>
+                    <Td>{PERIODO_LABEL[turma.periodo]}</Td>
                     <Td className="text-right">
                       <form action={deleteTurmaAction}>
                         <input type="hidden" name="id" value={turma.id} />

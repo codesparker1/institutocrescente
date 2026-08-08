@@ -33,6 +33,21 @@ enum AvaliacaoTipo {
   EXAME_FINAL
 }
 
+enum Periodo {
+  MATUTINO
+  VESPERTINO
+  NOTURNO
+}
+
+enum DiaSemana {
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+}
+
 model User {
   id           String     @id @default(cuid())
   name         String
@@ -68,6 +83,7 @@ model Aluno {
   genero          String
   curso           String
   anoIngresso     Int
+  anoCurricular   Int         @default(1)
   status          AlunoStatus @default(ATIVO)
   createdAt       DateTime    @default(now())
 
@@ -96,20 +112,33 @@ model Disciplina {
 }
 
 model Turma {
-  id           String     @id @default(cuid())
-  nome         String
-  disciplinaId String
-  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
-  professorId  String
-  professor    Professor  @relation(fields: [professorId], references: [id])
-  anoLetivo    Int
-  semestre     Int
-  sala         String
-  horario      String
+  id            String     @id @default(cuid())
+  nome          String
+  disciplinaId  String
+  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
+  professorId   String
+  professor     Professor  @relation(fields: [professorId], references: [id])
+  anoLetivo     Int
+  semestre      Int
+  anoCurricular Int     @default(1)
+  periodo       Periodo @default(MATUTINO)
+  sala          String
+  horario       String
 
-  matriculas Matricula[]
-  avaliacoes Avaliacao[]
-  aulas      Aula[]
+  matriculas   Matricula[]
+  avaliacoes   Avaliacao[]
+  aulas        Aula[]
+  horarioSlots HorarioSlot[]
+}
+
+model HorarioSlot {
+  id         String    @id @default(cuid())
+  turmaId    String
+  turma      Turma     @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  diaSemana  DiaSemana
+  horaInicio String
+  horaFim    String
+  sala       String
 }
 
 model Matricula {
@@ -135,6 +164,7 @@ model Avaliacao {
   peso    Decimal       @db.Decimal(4, 2)
   data    DateTime
   nome    String
+  sala    String?
 
   notas Nota[]
 }

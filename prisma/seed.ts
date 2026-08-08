@@ -106,12 +106,81 @@ async function main() {
 
   console.log("A criar turmas...");
   const turmasData = [
-    { nome: "Programação I - Turma A", disciplina: disciplinasEngInf[0], professor: profAntonio, sala: "Lab 1", horario: "Seg/Qua 08h-10h" },
-    { nome: "Programação II - Turma A", disciplina: disciplinasEngInf[1], professor: profAntonio, sala: "Lab 1", horario: "Ter/Qui 10h-12h" },
-    { nome: "Bases de Dados - Turma A", disciplina: disciplinasEngInf[2], professor: profRui, sala: "Lab 2", horario: "Seg/Qua 14h-16h" },
-    { nome: "Redes de Computadores - Turma A", disciplina: disciplinasEngInf[3], professor: profJoaquim, sala: "Lab 3", horario: "Sex 08h-12h" },
-    { nome: "Contabilidade Geral - Turma A", disciplina: disciplinasGestao[0], professor: profFernanda, sala: "Sala 5", horario: "Seg/Qua 10h-12h" },
-    { nome: "Marketing - Turma A", disciplina: disciplinasGestao[1], professor: profIsabel, sala: "Sala 6", horario: "Ter/Qui 08h-10h" },
+    {
+      nome: "Programação I - 1º Ano",
+      disciplina: disciplinasEngInf[0],
+      professor: profAntonio,
+      sala: "Lab 1",
+      horario: "Seg/Qua 08h-10h",
+      anoCurricular: 1,
+      periodo: "MATUTINO" as const,
+      slots: [
+        { diaSemana: "SEGUNDA" as const, horaInicio: "08:00", horaFim: "10:00", sala: "Lab 1" },
+        { diaSemana: "QUARTA" as const, horaInicio: "08:00", horaFim: "10:00", sala: "Lab 1" },
+      ],
+    },
+    {
+      nome: "Programação II - 2º Ano",
+      disciplina: disciplinasEngInf[1],
+      professor: profAntonio,
+      sala: "Lab 1",
+      horario: "Ter/Qui 10h-12h",
+      anoCurricular: 2,
+      periodo: "MATUTINO" as const,
+      slots: [
+        { diaSemana: "TERCA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Lab 1" },
+        { diaSemana: "QUINTA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Lab 1" },
+      ],
+    },
+    {
+      nome: "Bases de Dados - 2º Ano",
+      disciplina: disciplinasEngInf[2],
+      professor: profRui,
+      sala: "Lab 2",
+      horario: "Seg/Qua 14h-16h",
+      anoCurricular: 2,
+      periodo: "VESPERTINO" as const,
+      slots: [
+        { diaSemana: "SEGUNDA" as const, horaInicio: "14:00", horaFim: "16:00", sala: "Lab 2" },
+        { diaSemana: "QUARTA" as const, horaInicio: "14:00", horaFim: "16:00", sala: "Lab 2" },
+      ],
+    },
+    {
+      nome: "Redes de Computadores - 3º Ano",
+      disciplina: disciplinasEngInf[3],
+      professor: profJoaquim,
+      sala: "Lab 3",
+      horario: "Sex 18h-22h",
+      anoCurricular: 3,
+      periodo: "NOTURNO" as const,
+      slots: [{ diaSemana: "SEXTA" as const, horaInicio: "18:00", horaFim: "22:00", sala: "Lab 3" }],
+    },
+    {
+      nome: "Contabilidade Geral - 1º Ano",
+      disciplina: disciplinasGestao[0],
+      professor: profFernanda,
+      sala: "Sala 5",
+      horario: "Seg/Qua 10h-12h",
+      anoCurricular: 1,
+      periodo: "MATUTINO" as const,
+      slots: [
+        { diaSemana: "SEGUNDA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Sala 5" },
+        { diaSemana: "QUARTA" as const, horaInicio: "10:00", horaFim: "12:00", sala: "Sala 5" },
+      ],
+    },
+    {
+      nome: "Marketing - 2º Ano",
+      disciplina: disciplinasGestao[1],
+      professor: profIsabel,
+      sala: "Sala 6",
+      horario: "Ter/Qui 18h-20h",
+      anoCurricular: 2,
+      periodo: "NOTURNO" as const,
+      slots: [
+        { diaSemana: "TERCA" as const, horaInicio: "18:00", horaFim: "20:00", sala: "Sala 6" },
+        { diaSemana: "QUINTA" as const, horaInicio: "18:00", horaFim: "20:00", sala: "Sala 6" },
+      ],
+    },
   ];
 
   const turmas = await Promise.all(
@@ -123,6 +192,8 @@ async function main() {
           professorId: t.professor.id,
           anoLetivo: 2026,
           semestre: 1,
+          anoCurricular: t.anoCurricular,
+          periodo: t.periodo,
           sala: t.sala,
           horario: t.horario,
         },
@@ -130,11 +201,19 @@ async function main() {
     ),
   );
 
+  console.log("A criar horário semanal das turmas...");
+  for (let i = 0; i < turmas.length; i += 1) {
+    for (const slot of turmasData[i].slots) {
+      await prisma.horarioSlot.create({ data: { turmaId: turmas[i].id, ...slot } });
+    }
+  }
+
   console.log("A criar alunos...");
   const alunos = await Promise.all(
     ALUNO_NOMES.map(([primeiro, ultimo], index) => {
       const curso = index % 2 === 0 ? "Engenharia Informática" : "Gestão de Empresas";
       const numero = String(index + 1).padStart(4, "0");
+      const anoCurricular = pick(curso === "Engenharia Informática" ? [1, 2, 3] : [1, 2]);
       return prisma.aluno.create({
         data: {
           numeroEstudante: `ISPC2026-${numero}`,
@@ -145,6 +224,7 @@ async function main() {
           genero: chance(0.5) ? "Feminino" : "Masculino",
           curso,
           anoIngresso: pick([2023, 2024, 2025]),
+          anoCurricular,
           status: chance(0.9) ? "ATIVO" : "TRANCADO",
         },
       });
@@ -154,12 +234,15 @@ async function main() {
   console.log("A matricular alunos nas turmas...");
   const turmasEngInf = turmas.slice(0, 4);
   const turmasGestao = turmas.slice(4, 6);
+  const turmaAnoCurricular = new Map(turmas.map((t, i) => [t.id, turmasData[i].anoCurricular]));
 
   const matriculas: { id: string; turmaId: string; alunoId: string }[] = [];
   for (const aluno of alunos) {
-    const pool = aluno.curso === "Engenharia Informática" ? turmasEngInf : turmasGestao;
-    const quantidade = Math.min(pool.length, randomInt(2, pool.length));
-    const escolhidas = [...pool].sort(() => Math.random() - 0.5).slice(0, quantidade);
+    const cursoPool = aluno.curso === "Engenharia Informática" ? turmasEngInf : turmasGestao;
+    const pool = cursoPool.filter((t) => turmaAnoCurricular.get(t.id) === aluno.anoCurricular);
+    const poolFinal = pool.length > 0 ? pool : cursoPool;
+    const quantidade = Math.min(poolFinal.length, randomInt(1, poolFinal.length));
+    const escolhidas = [...poolFinal].sort(() => Math.random() - 0.5).slice(0, quantidade);
     for (const turma of escolhidas) {
       const matricula = await prisma.matricula.create({
         data: { alunoId: aluno.id, turmaId: turma.id },
@@ -169,12 +252,14 @@ async function main() {
   }
 
   console.log("A criar avaliações e notas...");
-  for (const turma of turmas) {
+  for (let i = 0; i < turmas.length; i += 1) {
+    const turma = turmas[i];
+    const salaExame = turmasData[i].sala;
     const avaliacoes = await Promise.all(
       [
-        { nome: "Teste 1", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(45) },
-        { nome: "Teste 2", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(20) },
-        { nome: "Exame Final", tipo: "EXAME_FINAL" as const, peso: 0.4, data: daysAgo(5) },
+        { nome: "Teste 1", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(45), sala: salaExame },
+        { nome: "Teste 2", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(20), sala: salaExame },
+        { nome: "Exame Final", tipo: "EXAME_FINAL" as const, peso: 0.4, data: daysAgo(-10), sala: salaExame },
       ].map((a) => prisma.avaliacao.create({ data: { ...a, turmaId: turma.id } })),
     );
 

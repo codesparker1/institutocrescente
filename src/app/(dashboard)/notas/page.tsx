@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
+import { Badge } from "@/components/ui/Badge";
+import { PERIODO_LABEL } from "@/lib/utils";
 
 export default async function NotasPage() {
   const turmas = await prisma.turma.findMany({
@@ -10,7 +12,7 @@ export default async function NotasPage() {
       professor: true,
       _count: { select: { matriculas: true } },
     },
-    orderBy: { nome: "asc" },
+    orderBy: [{ anoCurricular: "asc" }, { nome: "asc" }],
   });
 
   return (
@@ -31,8 +33,9 @@ export default async function NotasPage() {
                 <Th>Turma</Th>
                 <Th>Disciplina</Th>
                 <Th>Professor</Th>
+                <Th>Ano</Th>
+                <Th>Período</Th>
                 <Th>Alunos</Th>
-                <Th>Horário</Th>
               </tr>
             </Thead>
             <Tbody>
@@ -45,8 +48,11 @@ export default async function NotasPage() {
                   </Td>
                   <Td>{turma.disciplina.nome}</Td>
                   <Td>{turma.professor.nome}</Td>
+                  <Td>
+                    <Badge tone="neutral">{turma.anoCurricular}º Ano</Badge>
+                  </Td>
+                  <Td>{PERIODO_LABEL[turma.periodo]}</Td>
                   <Td>{turma._count.matriculas}</Td>
-                  <Td>{turma.horario}</Td>
                 </Tr>
               ))}
             </Tbody>
