@@ -55,7 +55,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
     return (
       <div className="flex flex-col gap-6">
         <HorarioHeader subtitle={subtitle} view={view} baseQuery={{}} />
-        <ScheduleGrid turmaDisciplinas={turmaDisciplinas} view={view} editable={false} />
+        <ScheduleGrid turmaDisciplinas={turmaDisciplinas} view={view} editable={false} canPrint={role !== "ALUNO"} />
       </div>
     );
   }

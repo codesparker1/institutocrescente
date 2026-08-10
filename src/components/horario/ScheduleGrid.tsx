@@ -25,9 +25,10 @@ interface ScheduleGridProps {
   turmaDisciplinas: TurmaDisciplinaComHorario[];
   view: "aulas" | "provas";
   editable: boolean;
+  canPrint?: boolean;
 }
 
-export function ScheduleGrid({ turmaDisciplinas, view, editable }: ScheduleGridProps) {
+export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true }: ScheduleGridProps) {
   if (turmaDisciplinas.length === 0) {
     return <EmptyState message="Sem disciplinas para mostrar." />;
   }
@@ -57,16 +58,18 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable }: ScheduleGridP
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge tone={prova.data >= new Date() ? "info" : "neutral"}>{formatDate(prova.data)}</Badge>
-                    <a
-                      href={`/api/lista-presenca/${prova.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
-                      aria-label="Imprimir lista de presença"
-                      title="Imprimir lista de presença"
-                    >
-                      <Printer size={14} />
-                    </a>
+                    {canPrint ? (
+                      <a
+                        href={`/api/lista-presenca/${prova.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
+                        aria-label="Imprimir lista de presença"
+                        title="Imprimir lista de presença"
+                      >
+                        <Printer size={14} />
+                      </a>
+                    ) : null}
                     {editable ? (
                       <form action={deleteProvaAction}>
                         <input type="hidden" name="id" value={prova.id} />
