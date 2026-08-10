@@ -1,10 +1,12 @@
 "use server";
 
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
+import { gerarSenhaTemporaria } from "@/lib/credentials";
 
 async function requireAdmin() {
   const session = await auth();
@@ -85,23 +87,78 @@ export async function deleteDisciplinaAction(formData: FormData) {
 }
 
 const ProfessorSchema = z.object({
-  nome: z.string().min(2),
-  email: z.string().email(),
-  telefone: z.string().min(6),
-  especialidade: z.string().min(2),
+  nome: z.string().min(2, "Nome é obrigatório"),
+  email: z.string().email("Email inválido"),
+  telefone: z.string().min(6, "Telefone é obrigatório"),
+  especialidade: z.string().min(2, "Especialidade é obrigatória"),
 });
 
-export async function createProfessorAction(formData: FormData) {
+export interface CreateProfessorState {
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  success?: {
+    professorId: string;
+    nome: string;
+    email: string;
+    senhaTemporaria: string;
+  };
+}
+
+export async function createProfessorAction(
+  _prevState: CreateProfessorState,
+  formData: FormData,
+): Promise<CreateProfessorState> {
   const session = await requireAdmin();
-  const data = ProfessorSchema.parse({
+
+  const parsed = ProfessorSchema.safeParse({
     nome: formData.get("nome"),
     email: formData.get("email"),
     telefone: formData.get("telefone"),
     especialidade: formData.get("especialidade"),
   });
-  const professor = await prisma.professor.create({ data });
-  await audit(session, `Criou o professor ${professor.nome}`, "Professor", professor.id);
+
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      fieldErrors[String(issue.path[0])] = issue.message;
+    }
+    return { fieldErrors };
+  }
+
+  const senhaTemporaria = gerarSenhaTemporaria();
+  const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
+
+  let professorId: string;
+  try {
+    const professor = await prisma.$transaction(async (tx) => {
+      const novoProfessor = await tx.professor.create({ data: parsed.data });
+      await tx.user.create({
+        data: {
+          name: parsed.data.nome,
+          email: parsed.data.email,
+          passwordHash,
+          role: "PROFESSOR",
+          professorId: novoProfessor.id,
+        },
+      });
+      return novoProfessor;
+    });
+    professorId = professor.id;
+  } catch {
+    return { error: "Não foi possível criar o professor (email já registado?)." };
+  }
+
+  await audit(session, `Criou o professor ${parsed.data.nome}`, "Professor", professorId);
   revalidatePath("/admin/professores");
+
+  return {
+    success: {
+      professorId,
+      nome: parsed.data.nome,
+      email: parsed.data.email,
+      senhaTemporaria,
+    },
+  };
 }
 
 export async function deleteProfessorAction(formData: FormData) {

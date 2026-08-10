@@ -2,9 +2,8 @@ import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { Field, Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
-import { createProfessorAction, deleteProfessorAction } from "@/actions/admin";
+import { deleteProfessorAction } from "@/actions/admin";
+import { CreateProfessorForm } from "./CreateProfessorForm";
 
 export default async function AdminProfessoresPage() {
   const professores = await prisma.professor.findMany({ orderBy: { nome: "asc" } });
@@ -19,21 +18,7 @@ export default async function AdminProfessoresPage() {
       <Card>
         <CardHeader title="Professores" subtitle={`${professores.length} professor(es)`} />
         <CardBody className="flex flex-col gap-4">
-          <form action={createProfessorAction} className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
-            <Field label="Nome" htmlFor="prof-nome">
-              <Input id="prof-nome" name="nome" required placeholder="Eng. Carlos Neto" />
-            </Field>
-            <Field label="Email" htmlFor="prof-email">
-              <Input id="prof-email" name="email" type="email" required placeholder="carlos.neto@ispc.ao" />
-            </Field>
-            <Field label="Telefone" htmlFor="prof-telefone">
-              <Input id="prof-telefone" name="telefone" required placeholder="923 000 000" />
-            </Field>
-            <Field label="Especialidade" htmlFor="prof-especialidade">
-              <Input id="prof-especialidade" name="especialidade" required placeholder="Engenharia Civil" />
-            </Field>
-            <Button type="submit">Adicionar</Button>
-          </form>
+          <CreateProfessorForm />
 
           {professores.length === 0 ? (
             <EmptyState message="Nenhum professor cadastrado." />

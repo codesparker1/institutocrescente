@@ -1,11 +1,12 @@
 "use server";
 
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
+import { gerarSenhaTemporaria } from "@/lib/credentials";
 
 const AlunoSchema = z.object({
   nome: z.string().min(3, "Nome é obrigatório"),
@@ -13,14 +14,19 @@ const AlunoSchema = z.object({
   telefone: z.string().min(6, "Telefone é obrigatório"),
   dataNascimento: z.string().min(1, "Data de nascimento é obrigatória"),
   genero: z.enum(["Feminino", "Masculino"]),
-  curso: z.string().min(1, "Curso é obrigatório"),
-  anoIngresso: z.coerce.number().int().min(2000).max(2100),
-  anoCurricular: z.coerce.number().int().min(1).max(8),
+  turmaId: z.string().min(1, "Turma é obrigatória"),
 });
 
 export interface CreateAlunoState {
   error?: string;
   fieldErrors?: Record<string, string>;
+  success?: {
+    alunoId: string;
+    numeroEstudante: string;
+    nome: string;
+    email: string;
+    senhaTemporaria: string;
+  };
 }
 
 export async function createAlunoAction(
@@ -38,9 +44,7 @@ export async function createAlunoAction(
     telefone: formData.get("telefone"),
     dataNascimento: formData.get("dataNascimento"),
     genero: formData.get("genero"),
-    curso: formData.get("curso"),
-    anoIngresso: formData.get("anoIngresso"),
-    anoCurricular: formData.get("anoCurricular"),
+    turmaId: formData.get("turmaId"),
   });
 
   if (!parsed.success) {
@@ -51,23 +55,51 @@ export async function createAlunoAction(
     return { fieldErrors };
   }
 
+  const turma = await prisma.turma.findUnique({
+    where: { id: parsed.data.turmaId },
+    include: { curso: true },
+  });
+  if (!turma) {
+    return { fieldErrors: { turmaId: "Turma inválida. Crie a turma primeiro em Admin > Turmas." } };
+  }
+
   const totalAlunos = await prisma.aluno.count();
   const numeroEstudante = `ISPC${new Date().getFullYear()}-${String(totalAlunos + 1).padStart(4, "0")}`;
+  const senhaTemporaria = gerarSenhaTemporaria();
+  const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
 
   let alunoId: string;
   try {
-    const aluno = await prisma.aluno.create({
-      data: {
-        numeroEstudante,
-        nome: parsed.data.nome,
-        email: parsed.data.email,
-        telefone: parsed.data.telefone,
-        dataNascimento: new Date(parsed.data.dataNascimento),
-        genero: parsed.data.genero,
-        curso: parsed.data.curso,
-        anoIngresso: parsed.data.anoIngresso,
-        anoCurricular: parsed.data.anoCurricular,
-      },
+    const aluno = await prisma.$transaction(async (tx) => {
+      const novoAluno = await tx.aluno.create({
+        data: {
+          numeroEstudante,
+          nome: parsed.data.nome,
+          email: parsed.data.email,
+          telefone: parsed.data.telefone,
+          dataNascimento: new Date(parsed.data.dataNascimento),
+          genero: parsed.data.genero,
+          curso: turma.curso.nome,
+          anoIngresso: turma.anoLetivo,
+          anoCurricular: turma.anoCurricular,
+        },
+      });
+
+      await tx.user.create({
+        data: {
+          name: parsed.data.nome,
+          email: parsed.data.email,
+          passwordHash,
+          role: "ALUNO",
+          alunoId: novoAluno.id,
+        },
+      });
+
+      await tx.matricula.create({
+        data: { alunoId: novoAluno.id, turmaId: turma.id, status: "ATIVA" },
+      });
+
+      return novoAluno;
     });
     alunoId = aluno.id;
   } catch {
@@ -78,11 +110,21 @@ export async function createAlunoAction(
     userId: session.user.id,
     userName: session.user.name ?? session.user.email ?? "Utilizador",
     userRole: session.user.role,
-    action: `Registou o aluno ${parsed.data.nome}`,
+    action: `Registou e matriculou o aluno ${parsed.data.nome} em ${turma.curso.nome} · ${turma.anoCurricular}º Ano`,
     entityType: "Aluno",
     entityId: alunoId,
   });
 
   revalidatePath("/alunos");
-  redirect(`/alunos/${alunoId}`);
+  revalidatePath("/admin/turmas");
+
+  return {
+    success: {
+      alunoId,
+      numeroEstudante,
+      nome: parsed.data.nome,
+      email: parsed.data.email,
+      senhaTemporaria,
+    },
+  };
 }
