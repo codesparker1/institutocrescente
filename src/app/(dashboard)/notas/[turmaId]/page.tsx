@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
@@ -11,6 +12,10 @@ interface NotasTurmaPageProps {
 }
 
 export default async function NotasTurmaPage({ params }: NotasTurmaPageProps) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  if (session.user.role === "SECRETARIA") redirect("/dashboard");
+
   const { turmaId } = await params;
 
   const turma = await prisma.turma.findUnique({

@@ -17,6 +17,25 @@ export function formatDate(date: Date | string): string {
   return d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+const MESES_LABEL = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
+export function mesReferenciaLabel(data: Date): string {
+  return `${MESES_LABEL[data.getMonth()]}/${data.getFullYear()}`;
+}
+
 export const DIA_SEMANA_LABEL: Record<string, string> = {
   SEGUNDA: "Segunda",
   TERCA: "Terça",

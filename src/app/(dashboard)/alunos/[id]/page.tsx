@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { formatDate, PERIODO_LABEL } from "@/lib/utils";
+import { PropinasMensais } from "@/components/financeiro/PropinasMensais";
+import { formatDate, formatCurrency, PERIODO_LABEL } from "@/lib/utils";
+import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import type { AlunoStatus } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
@@ -38,6 +41,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 
   if (!aluno) notFound();
 
+  const session = await auth();
+  const podeGerirPropinas = session?.user.role === "ADMIN" || session?.user.role === "SECRETARIA";
+  const estadoFinanceiro = await getEstadoFinanceiroAluno(aluno.id);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -56,6 +63,16 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         </div>
         <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
       </div>
+
+      <Card>
+        <CardHeader
+          title="Situação Financeira"
+          subtitle={`Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)}`}
+        />
+        <CardBody>
+          <PropinasMensais meses={estadoFinanceiro.meses} editable={podeGerirPropinas} />
+        </CardBody>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">

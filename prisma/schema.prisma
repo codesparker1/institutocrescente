@@ -59,6 +59,9 @@ model User {
   alunoId      String?    @unique
   aluno        Aluno?     @relation(fields: [alunoId], references: [id])
   createdAt    DateTime   @default(now())
+
+  propinasRegistadas               Propina[]                 @relation("PropinaRegistadaPor")
+  configuracoesFinanceirasAtualizadas ConfiguracaoFinanceira[] @relation("ConfigFinanceiraAtualizadaPor")
 }
 
 model Professor {
@@ -88,6 +91,7 @@ model Aluno {
   createdAt       DateTime    @default(now())
 
   matriculas Matricula[]
+  propinas   Propina[]
   user       User?
 }
 
@@ -167,6 +171,7 @@ model Matricula {
 
   notas       Nota[]
   frequencias Frequencia[]
+  propinas    Propina[]
 
   @@unique([alunoId, turmaId])
 }
@@ -233,4 +238,45 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([userId])
   @@index([createdAt])
+}
+
+enum PropinaStatus {
+  PENDENTE
+  PAGO
+}
+
+/// Uma mensalidade (propina) devida por um aluno, referente a um mês de um ano letivo.
+/// Ligada à Matricula para saber curso/turma na altura, mas a unicidade e os totais são por Aluno,
+/// para a dívida seguir o aluno mesmo que a matrícula mude.
+model Propina {
+  id             String        @id @default(cuid())
+  matriculaId    String
+  matricula      Matricula     @relation(fields: [matriculaId], references: [id])
+  alunoId        String
+  aluno          Aluno         @relation(fields: [alunoId], references: [id])
+  mesReferencia  DateTime
+  valorDevido    Decimal       @db.Decimal(10, 2)
+  valorPago      Decimal       @default(0) @db.Decimal(10, 2)
+  status         PropinaStatus @default(PENDENTE)
+  dataVencimento DateTime
+  dataPagamento  DateTime?
+  registadoPorId String?
+  registadoPor   User?         @relation("PropinaRegistadaPor", fields: [registadoPorId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([alunoId, mesReferencia])
+  @@index([alunoId])
+  @@index([status])
+}
+
+/// Configuração singleton do bloqueio por dívida (id fixo "config").
+model ConfiguracaoFinanceira {
+  id                String   @id @default("config")
+  bloqueioAtivo     Boolean  @default(true)
+  toleranciaDias    Int      @default(5)
+  valorMensalPadrao Decimal  @default(15000) @db.Decimal(10, 2)
+  updatedAt         DateTime @updatedAt
+  updatedPorId      String?
+  updatedPor        User?    @relation("ConfigFinanceiraAtualizadaPor", fields: [updatedPorId], references: [id])
 }

@@ -4,11 +4,26 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
+import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
+import { verificarBloqueioAluno } from "@/lib/financeiro";
 
 export default async function MinhasNotasPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ALUNO" || !session.user.alunoId) redirect("/dashboard");
+
+  const bloqueio = await verificarBloqueioAluno(session.user.alunoId);
+  if (bloqueio.bloqueado) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-xl font-bold text-navy-900">Minhas Notas</h1>
+          <p className="text-sm text-navy-400">As suas notas, organizadas por ano do curso e semestre.</p>
+        </div>
+        <AvisoNotasBloqueadas saldoEmDivida={bloqueio.saldoEmDivida} />
+      </div>
+    );
+  }
 
   const matriculas = await prisma.matricula.findMany({
     where: { alunoId: session.user.alunoId, status: "ATIVA" },

@@ -14,6 +14,7 @@ export function IspcCrest({ size = 96, className, priority }: IspcCrestProps) {
       width={size}
       height={size}
       priority={priority}
+      unoptimized
       className={className}
       style={{ width: size, height: size, objectFit: "contain" }}
     />

@@ -26,7 +26,7 @@ export default function LandingPage() {
     <main className="flex min-h-screen flex-col bg-navy-950 text-navy-50">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-3">
-          <IspcCrest size={44} />
+          <IspcCrest size={60} />
           <span className="text-sm font-bold tracking-wide text-gold-300">ISPC</span>
         </div>
         <Link href="/login">
@@ -35,7 +35,7 @@ export default function LandingPage() {
       </header>
 
       <section className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-8 px-6 py-16 text-center">
-        <IspcCrest size={128} />
+        <IspcCrest size={240} priority />
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight text-gold-300 sm:text-5xl">ISPC</h1>
           <p className="mx-auto mt-3 max-w-xl text-balance text-navy-200">

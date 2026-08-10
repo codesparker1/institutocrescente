@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
@@ -6,6 +8,10 @@ import { Badge } from "@/components/ui/Badge";
 import { PERIODO_LABEL } from "@/lib/utils";
 
 export default async function NotasPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  if (session.user.role === "SECRETARIA") redirect("/dashboard");
+
   const turmas = await prisma.turma.findMany({
     include: {
       curso: true,

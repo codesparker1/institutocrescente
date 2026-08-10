@@ -1,4 +1,6 @@
-import { LogOut } from "lucide-react";
+"use client";
+
+import { LogOut, Menu } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import type { Role } from "@/generated/prisma/client";
 
@@ -12,12 +14,20 @@ const ROLE_LABEL: Record<Role, string> = {
 interface TopbarProps {
   name: string;
   role: Role;
+  onMenuClick: () => void;
 }
 
-export function Topbar({ name, role }: TopbarProps) {
+export function Topbar({ name, role, onMenuClick }: TopbarProps) {
   return (
-    <header className="flex items-center justify-between border-b border-navy-100 bg-white px-6 py-4">
-      <div />
+    <header className="flex items-center justify-between border-b border-navy-100 bg-white px-4 py-4 sm:px-6">
+      <button
+        type="button"
+        onClick={onMenuClick}
+        className="rounded-lg border border-navy-100 p-2 text-navy-600 hover:bg-navy-50 md:hidden"
+        aria-label="Abrir menu"
+      >
+        <Menu size={20} />
+      </button>
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="text-sm font-semibold text-navy-900">{name}</p>

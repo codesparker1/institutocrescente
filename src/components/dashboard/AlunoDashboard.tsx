@@ -6,6 +6,8 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
+import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
+import { verificarBloqueioAluno } from "@/lib/financeiro";
 import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatDate } from "@/lib/utils";
 
 interface AlunoDashboardProps {
@@ -13,6 +15,8 @@ interface AlunoDashboardProps {
 }
 
 export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
+  const bloqueio = await verificarBloqueioAluno(alunoId);
+
   const aluno = await prisma.aluno.findUnique({
     where: { id: alunoId },
     include: {
@@ -64,6 +68,8 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
         <p className="text-sm text-navy-400">Olá, {aluno.nome.split(" ")[0]}. Aqui está o resumo do seu percurso académico.</p>
       </div>
 
+      {bloqueio.bloqueado ? <AvisoNotasBloqueadas saldoEmDivida={bloqueio.saldoEmDivida} /> : null}
+
       <ProfileCard
         nome={aluno.nome}
         cargo="Aluno"
@@ -76,7 +82,11 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Média geral" value={mediaGeral !== null ? mediaGeral.toFixed(1) : "—"} icon={<TrendingUp size={20} />} />
+        <StatCard
+          label="Média geral"
+          value={bloqueio.bloqueado ? "—" : mediaGeral !== null ? mediaGeral.toFixed(1) : "—"}
+          icon={<TrendingUp size={20} />}
+        />
         <StatCard label="Assiduidade" value={percentualPresenca !== null ? `${percentualPresenca}%` : "—"} icon={<ClipboardCheck size={20} />} />
         <StatCard label="Disciplinas ativas" value={todasDisciplinas.length} icon={<GraduationCap size={20} />} />
       </div>
@@ -150,9 +160,11 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
                       </p>
                     </div>
                     <span className="text-xs text-navy-400">
-                      {notasDisciplina.length === 0
-                        ? "Sem notas"
-                        : notasDisciplina.map((n) => `${n.avaliacao.nome}: ${Number(n.valor)}`).join(" · ")}
+                      {bloqueio.bloqueado
+                        ? "—"
+                        : notasDisciplina.length === 0
+                          ? "Sem notas"
+                          : notasDisciplina.map((n) => `${n.avaliacao.nome}: ${Number(n.valor)}`).join(" · ")}
                     </span>
                   </div>
                 );

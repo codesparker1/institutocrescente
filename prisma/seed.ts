@@ -52,6 +52,8 @@ const ALUNO_NOMES: [string, string][] = [
 async function main() {
   console.log("A limpar dados existentes...");
   await prisma.$transaction([
+    prisma.propina.deleteMany(),
+    prisma.configuracaoFinanceira.deleteMany(),
     prisma.auditLog.deleteMany(),
     prisma.frequencia.deleteMany(),
     prisma.aula.deleteMany(),
@@ -176,7 +178,10 @@ async function main() {
     ALUNO_NOMES.map(([primeiro, ultimo], index) => {
       const curso = index % 2 === 0 ? "Engenharia Informática" : "Gestão de Empresas";
       const numero = String(index + 1).padStart(4, "0");
-      const anoCurricular = pick(curso === "Engenharia Informática" ? [1, 2, 3] : [1, 2]);
+      // alunos[0] (usado no login de demo aluno@ispc.ao) fica fixado no 1º ano de Eng. Informática,
+      // para cair sempre em turmaEngInf1 (que já tem avaliações seedadas) e reproduzir o fluxo de
+      // demonstração (Secção 8) de forma determinística.
+      const anoCurricular = index === 0 ? 1 : pick(curso === "Engenharia Informática" ? [1, 2, 3] : [1, 2]);
       return prisma.aluno.create({
         data: {
           numeroEstudante: `ISPC2026-${numero}`,
@@ -216,8 +221,8 @@ async function main() {
   for (const td of turmaDisciplinas) {
     const avaliacoes = await Promise.all(
       [
-        { nome: "Teste 1", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(45), sala: td.salaExame },
-        { nome: "Teste 2", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(20), sala: td.salaExame },
+        { nome: "1.ª Prova", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(45), sala: td.salaExame },
+        { nome: "2.ª Prova", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(20), sala: td.salaExame },
         { nome: "Exame Final", tipo: "EXAME_FINAL" as const, peso: 0.4, data: daysAgo(-10), sala: td.salaExame },
       ].map((a) => prisma.avaliacao.create({ data: { ...a, turmaDisciplinaId: td.id } })),
     );
@@ -255,14 +260,69 @@ async function main() {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const primeiroAluno = alunos[0];
 
-  await prisma.user.createMany({
-    data: [
-      { name: "Administrador ISPC", email: "admin@ispc.ao", passwordHash, role: "ADMIN" },
-      { name: "Secretaria ISPC", email: "secretaria@ispc.ao", passwordHash, role: "SECRETARIA" },
-      { name: profAntonio.nome, email: "professor@ispc.ao", passwordHash, role: "PROFESSOR", professorId: profAntonio.id },
-      { name: primeiroAluno.nome, email: "aluno@ispc.ao", passwordHash, role: "ALUNO", alunoId: primeiroAluno.id },
-    ],
+  await prisma.user.create({
+    data: { name: "Administrador ISPC", email: "admin@ispc.ao", passwordHash, role: "ADMIN" },
   });
+  const userSecretaria = await prisma.user.create({
+    data: { name: "Secretaria ISPC", email: "secretaria@ispc.ao", passwordHash, role: "SECRETARIA" },
+  });
+  await prisma.user.create({
+    data: { name: profAntonio.nome, email: "professor@ispc.ao", passwordHash, role: "PROFESSOR", professorId: profAntonio.id },
+  });
+  await prisma.user.create({
+    data: { name: primeiroAluno.nome, email: "aluno@ispc.ao", passwordHash, role: "ALUNO", alunoId: primeiroAluno.id },
+  });
+
+  console.log("A criar propinas (módulo financeiro)...");
+  const VALOR_PROPINA_POR_CURSO: Record<string, number> = {
+    "Engenharia Informática": 18000,
+    "Gestão de Empresas": 15000,
+  };
+
+  await prisma.configuracaoFinanceira.create({
+    data: { id: "config", bloqueioAtivo: true, toleranciaDias: 5, valorMensalPadrao: 15000 },
+  });
+
+  // Perfil de dívida: quantos dos últimos 6 meses (a contar do mais recente) ficam PENDENTE.
+  // Nunca deixar apenas 1 mês pendente: o mês corrente ainda pode estar dentro da tolerância,
+  // por isso qualquer aluno "em dívida" tem sempre pelo menos o mês anterior também pendente,
+  // que fica seguramente vencido além da tolerância.
+  function perfilDivida(): number {
+    if (chance(0.5)) return 0; // regularizado
+    if (chance(0.4)) return 2; // em dívida recente
+    if (chance(0.6)) return pick([3, 4]); // em dívida moderada
+    return pick([5, 6]); // em dívida crónica
+  }
+
+  for (const matricula of matriculas) {
+    const aluno = alunos.find((a) => a.id === matricula.alunoId)!;
+    const valorBase = VALOR_PROPINA_POR_CURSO[aluno.curso] ?? 15000;
+    const valorDevido = valorBase + pick([0, 250, 500, 750]);
+
+    // alunos[0] fica sempre "em dívida recente" para o fluxo de demonstração da Secção 8 ser reprodutível.
+    const mesesPendentes = aluno.id === primeiroAluno.id ? 2 : perfilDivida();
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const base = daysAgo(30 * i);
+      const mesReferencia = new Date(base.getFullYear(), base.getMonth(), 1);
+      const dataVencimento = new Date(base.getFullYear(), base.getMonth(), 8);
+      const estaPendente = i < mesesPendentes;
+
+      await prisma.propina.create({
+        data: {
+          matriculaId: matricula.id,
+          alunoId: aluno.id,
+          mesReferencia,
+          valorDevido,
+          valorPago: estaPendente ? 0 : valorDevido,
+          status: estaPendente ? "PENDENTE" : "PAGO",
+          dataVencimento,
+          dataPagamento: estaPendente ? null : base,
+          registadoPorId: estaPendente ? null : userSecretaria.id,
+        },
+      });
+    }
+  }
 
   console.log("A criar registos de auditoria iniciais...");
   await prisma.auditLog.createMany({
@@ -288,6 +348,13 @@ async function main() {
         entityType: "Matricula",
         ipAddress: "197.221.16.40",
       },
+      {
+        userName: "Secretaria ISPC",
+        userRole: "SECRETARIA",
+        action: `Confirmou o pagamento de propina de um aluno`,
+        entityType: "Propina",
+        ipAddress: "197.221.16.40",
+      },
     ],
   });
 
@@ -297,6 +364,7 @@ async function main() {
   console.log("  secretaria@ispc.ao (SECRETARIA)");
   console.log("  professor@ispc.ao (PROFESSOR)");
   console.log("  aluno@ispc.ao (ALUNO)");
+  console.log(`Aluno em dívida para demo: ${primeiroAluno.numeroEstudante} (${primeiroAluno.nome})`);
 }
 
 main()

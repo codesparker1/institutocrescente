@@ -13,6 +13,12 @@
 # testing
 /coverage
 
+# local load/stress test logs
+/stress-logs
+
+# graphify knowledge-graph analysis output (generated, not source)
+/graphify-out
+
 # next.js
 /.next/
 /out/

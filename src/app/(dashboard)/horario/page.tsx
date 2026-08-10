@@ -21,6 +21,7 @@ interface HorarioPageProps {
 export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  if (session.user.role === "SECRETARIA") redirect("/dashboard");
 
   const { role } = session.user;
   const params = await searchParams;
@@ -59,7 +60,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
     );
   }
 
-  // ADMIN e SECRETARIA: escolher curso + ano + período primeiro.
+  // ADMIN: escolher curso + ano + período primeiro.
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
   const cursoId = params.cursoId ?? cursos[0]?.id ?? "";
   const anoCurricular = params.anoCurricular ? Number(params.anoCurricular) : 1;
@@ -76,7 +77,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   return (
     <div className="flex flex-col gap-6">
       <HorarioHeader
-        subtitle={role === "ADMIN" ? "Gerir horário de aulas e provas." : "Consulta do horário de aulas e provas."}
+        subtitle="Gerir horário de aulas e provas."
         view={view}
         baseQuery={{ cursoId, anoCurricular: String(anoCurricular), periodo }}
       />

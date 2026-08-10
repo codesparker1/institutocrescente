@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2, Printer } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -56,6 +56,16 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable }: ScheduleGridP
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge tone={prova.data >= new Date() ? "info" : "neutral"}>{formatDate(prova.data)}</Badge>
+                    <a
+                      href={`/api/lista-presenca/${prova.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
+                      aria-label="Imprimir lista de presença"
+                      title="Imprimir lista de presença"
+                    >
+                      <Printer size={14} />
+                    </a>
                     {editable ? (
                       <form action={deleteProvaAction}>
                         <input type="hidden" name="id" value={prova.id} />
@@ -107,7 +117,7 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable }: ScheduleGridP
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {DIAS.map((dia) => {
           const slotsDoDia = turmaDisciplinas
             .flatMap((td) => td.horarioSlots.filter((s) => s.diaSemana === dia).map((s) => ({ ...s, disciplina: td.disciplina, cursoAnoLabel: td.cursoAnoLabel })))

@@ -29,7 +29,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
 
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <IspcCrest size={88} />
+          <IspcCrest size={176} priority />
           <div>
             <h1 className="text-lg font-bold tracking-wide text-gold-300">ISPC</h1>
             <p className="text-xs uppercase tracking-wider text-navy-300">
