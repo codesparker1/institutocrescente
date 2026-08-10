@@ -17,7 +17,7 @@
  *
  * Usage: node scripts/e2e-workflow/run.mjs [--url http://localhost:3000] [--timeout 60000]
  */
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFParse } from "pdf-parse";
@@ -31,7 +31,9 @@ const DEMO_EMAILS = {
   aluno: "aluno@ispc.ao",
 };
 
-function parseArgs(argv) {
+type Role = keyof typeof DEMO_EMAILS;
+
+function parseArgs(argv: string[]) {
   const args = { url: "http://localhost:3000", timeout: 60000 };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--url") args.url = argv[i + 1];
@@ -40,7 +42,7 @@ function parseArgs(argv) {
   return args;
 }
 
-async function login(page, baseUrl, role) {
+async function login(page: Page, baseUrl: string, role: Role) {
   await page.goto(`${baseUrl}/login`);
   await page.fill("#email", DEMO_EMAILS[role]);
   await page.fill("#password", DEMO_PASSWORD);
@@ -93,7 +95,7 @@ async function main() {
     await login(page, args.url, "professor");
     await page.goto(`${args.url}/professor/${ctx.turmaDisciplina.id}`);
 
-    async function lancarNota(nomeAluno, valor) {
+    async function lancarNota(nomeAluno: string, valor: number) {
       const linha = page.locator("tbody tr", { hasText: nomeAluno });
       await linha.waitFor({ state: "visible" });
       const primeiraColunaNota = linha.locator('input[type="number"]').first();
