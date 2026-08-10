@@ -6,6 +6,8 @@ import { CheckCircle2, KeyRound } from "lucide-react";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { PhoneInput } from "@/components/ui/PhoneInput";
+import { DateSelect } from "@/components/ui/DateSelect";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/Table";
 import { createAlunoAction, type CreateAlunoState } from "@/actions/alunos";
@@ -86,11 +88,11 @@ export function NovoAlunoForm({ turmas }: NovoAlunoFormProps) {
             </Field>
 
             <Field label="Telefone" htmlFor="telefone" error={state.fieldErrors?.telefone}>
-              <Input id="telefone" name="telefone" required placeholder="923 000 000" />
+              <PhoneInput id="telefone" name="telefone" required />
             </Field>
 
             <Field label="Data de nascimento" htmlFor="dataNascimento" error={state.fieldErrors?.dataNascimento}>
-              <Input id="dataNascimento" name="dataNascimento" type="date" required />
+              <DateSelect name="dataNascimento" maxYear={new Date().getFullYear() - 15} />
             </Field>
 
             <Field label="Género" htmlFor="genero" error={state.fieldErrors?.genero}>

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { gerarSenhaTemporaria } from "@/lib/credentials";
+import { telefoneAngolaSchema } from "@/lib/phone";
 
 async function requireAdmin() {
   const session = await auth();
@@ -89,7 +90,7 @@ export async function deleteDisciplinaAction(formData: FormData) {
 const ProfessorSchema = z.object({
   nome: z.string().min(2, "Nome é obrigatório"),
   email: z.string().email("Email inválido"),
-  telefone: z.string().min(6, "Telefone é obrigatório"),
+  telefone: telefoneAngolaSchema,
   especialidade: z.string().min(2, "Especialidade é obrigatória"),
 });
 

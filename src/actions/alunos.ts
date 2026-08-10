@@ -7,11 +7,12 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { gerarSenhaTemporaria } from "@/lib/credentials";
+import { telefoneAngolaSchema } from "@/lib/phone";
 
 const AlunoSchema = z.object({
   nome: z.string().min(3, "Nome é obrigatório"),
   email: z.string().email("Email inválido"),
-  telefone: z.string().min(6, "Telefone é obrigatório"),
+  telefone: telefoneAngolaSchema,
   dataNascimento: z.string().min(1, "Data de nascimento é obrigatória"),
   genero: z.enum(["Feminino", "Masculino"]),
   turmaId: z.string().min(1, "Turma é obrigatória"),

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { CheckCircle2, KeyRound } from "lucide-react";
 import { Field, Input } from "@/components/ui/Input";
+import { PhoneInput } from "@/components/ui/PhoneInput";
 import { Button } from "@/components/ui/Button";
 import { createProfessorAction, type CreateProfessorState } from "@/actions/admin";
 
@@ -52,7 +53,7 @@ export function CreateProfessorForm() {
         <Input id="prof-email" name="email" type="email" required placeholder="carlos.neto@ispc.ao" />
       </Field>
       <Field label="Telefone" htmlFor="prof-telefone" error={state.fieldErrors?.telefone}>
-        <Input id="prof-telefone" name="telefone" required placeholder="923 000 000" />
+        <PhoneInput id="prof-telefone" name="telefone" required />
       </Field>
       <Field label="Especialidade" htmlFor="prof-especialidade" error={state.fieldErrors?.especialidade}>
         <Input id="prof-especialidade" name="especialidade" required placeholder="Engenharia Civil" />

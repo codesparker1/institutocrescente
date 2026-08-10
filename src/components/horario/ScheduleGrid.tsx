@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { TimeSelect } from "@/components/ui/TimeSelect";
+import { DateSelect } from "@/components/ui/DateSelect";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/Table";
 import { DIA_SEMANA_LABEL, formatDate } from "@/lib/utils";
@@ -103,7 +104,7 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
                   <option value="TRABALHO">Trabalho</option>
                   <option value="EXAME_FINAL">Exame Final</option>
                 </Select>
-                <Input name="data" type="date" required className="w-36 text-xs" />
+                <DateSelect name="data" minYear={new Date().getFullYear() - 1} maxYear={new Date().getFullYear() + 2} />
                 <Input name="sala" placeholder="Sala" required className="w-24 text-xs" />
                 <Input name="peso" type="number" step="0.1" min={0} max={1} placeholder="Peso" required defaultValue={0.3} className="w-16 text-xs" />
                 <Button type="submit" variant="ghost" className="text-xs">
