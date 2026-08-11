@@ -26,6 +26,11 @@ function daysAgo(days: number): Date {
   return date;
 }
 
+function telefoneAngola(): string {
+  const numero = `9${randomInt(10000000, 99999999)}`;
+  return `+244 ${numero.slice(0, 3)} ${numero.slice(3, 6)} ${numero.slice(6, 9)}`;
+}
+
 const ALUNO_NOMES: [string, string][] = [
   ["Marta", "Kiala"],
   ["João", "Manuel"],
@@ -68,7 +73,7 @@ async function main() {
     prisma.user.deleteMany(),
     prisma.aluno.deleteMany(),
     prisma.professor.deleteMany(),
-  ]);
+  ], { maxWait: 20000, timeout: 30000 });
 
   console.log("A criar cursos e disciplinas...");
   const cursoEngInf = await prisma.curso.create({
@@ -104,11 +109,11 @@ async function main() {
   console.log("A criar professores...");
   const [profAntonio, profRui, profJoaquim, profFernanda, profIsabel] = await Promise.all(
     [
-      { nome: "Eng. António Sousa", email: "antonio.sousa@ispc.ao", telefone: "923 111 222", especialidade: "Engenharia de Software" },
-      { nome: "Eng. Rui Manuel Ferreira", email: "rui.ferreira@ispc.ao", telefone: "923 222 333", especialidade: "Bases de Dados" },
-      { nome: "Prof. Joaquim Bandeira", email: "joaquim.bandeira@ispc.ao", telefone: "923 333 444", especialidade: "Redes e Infraestrutura" },
-      { nome: "Dra. Fernanda Mucavele", email: "fernanda.mucavele@ispc.ao", telefone: "923 444 555", especialidade: "Gestão e Finanças" },
-      { nome: "Dra. Isabel Chissano", email: "isabel.chissano@ispc.ao", telefone: "923 555 666", especialidade: "Marketing e Economia" },
+      { nome: "Eng. António Sousa", email: "antonio.sousa@ispc.ao", telefone: "+244 923 111 222", especialidade: "Engenharia de Software" },
+      { nome: "Eng. Rui Manuel Ferreira", email: "rui.ferreira@ispc.ao", telefone: "+244 923 222 333", especialidade: "Bases de Dados" },
+      { nome: "Prof. Joaquim Bandeira", email: "joaquim.bandeira@ispc.ao", telefone: "+244 923 333 444", especialidade: "Redes e Infraestrutura" },
+      { nome: "Dra. Fernanda Mucavele", email: "fernanda.mucavele@ispc.ao", telefone: "+244 923 444 555", especialidade: "Gestão e Finanças" },
+      { nome: "Dra. Isabel Chissano", email: "isabel.chissano@ispc.ao", telefone: "+244 923 555 666", especialidade: "Marketing e Economia" },
     ].map((p) => prisma.professor.create({ data: p })),
   );
 
@@ -187,7 +192,7 @@ async function main() {
           numeroEstudante: `ISPC2026-${numero}`,
           nome: `${primeiro} ${ultimo}`,
           email: `${primeiro.toLowerCase().replace(/\s+/g, "")}.${ultimo.toLowerCase().replace(/\s+/g, "")}@aluno.ispc.ao`,
-          telefone: `9${randomInt(10000000, 99999999)}`,
+          telefone: telefoneAngola(),
           dataNascimento: new Date(randomInt(1999, 2006), randomInt(0, 11), randomInt(1, 28)),
           genero: chance(0.5) ? "Feminino" : "Masculino",
           curso,
@@ -266,12 +271,33 @@ async function main() {
   const userSecretaria = await prisma.user.create({
     data: { name: "Secretaria ISPC", email: "secretaria@ispc.ao", passwordHash, role: "SECRETARIA" },
   });
+  // Atalho de demo — mesmo professor de profAntonio, sob um email mais fácil de digitar.
   await prisma.user.create({
     data: { name: profAntonio.nome, email: "professor@ispc.ao", passwordHash, role: "PROFESSOR", professorId: profAntonio.id },
   });
+  // Atalho de demo — mesmo aluno do primeiroAluno, sob um email mais fácil de digitar.
   await prisma.user.create({
     data: { name: primeiroAluno.nome, email: "aluno@ispc.ao", passwordHash, role: "ALUNO", alunoId: primeiroAluno.id },
   });
+
+  console.log("A criar conta de login para todos os professores e alunos (consistente com o sistema atual)...");
+  const outrosProfessores = [profRui, profJoaquim, profFernanda, profIsabel];
+  await Promise.all(
+    outrosProfessores.map((professor) =>
+      prisma.user.create({
+        data: { name: professor.nome, email: professor.email, passwordHash, role: "PROFESSOR", professorId: professor.id },
+      }),
+    ),
+  );
+
+  const outrosAlunos = alunos.slice(1);
+  await Promise.all(
+    outrosAlunos.map((aluno) =>
+      prisma.user.create({
+        data: { name: aluno.nome, email: aluno.email, passwordHash, role: "ALUNO", alunoId: aluno.id },
+      }),
+    ),
+  );
 
   console.log("A criar propinas (módulo financeiro)...");
   const VALOR_PROPINA_POR_CURSO: Record<string, number> = {
@@ -359,11 +385,13 @@ async function main() {
   });
 
   console.log("Seed concluído com sucesso.");
-  console.log(`Contas de demonstração (senha: ${DEMO_PASSWORD}):`);
+  console.log(`Todas as contas usam a mesma senha: ${DEMO_PASSWORD}`);
+  console.log("Atalhos de demonstração:");
   console.log("  admin@ispc.ao (ADMIN)");
   console.log("  secretaria@ispc.ao (SECRETARIA)");
-  console.log("  professor@ispc.ao (PROFESSOR)");
-  console.log("  aluno@ispc.ao (ALUNO)");
+  console.log("  professor@ispc.ao (PROFESSOR, = " + profAntonio.email + ")");
+  console.log("  aluno@ispc.ao (ALUNO, = " + primeiroAluno.email + ")");
+  console.log(`Todos os ${outrosProfessores.length + 1} professores e ${alunos.length} alunos têm conta de login própria (email real + senha acima).`);
   console.log(`Aluno em dívida para demo: ${primeiroAluno.numeroEstudante} (${primeiroAluno.nome})`);
 }
 

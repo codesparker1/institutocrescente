@@ -12,9 +12,42 @@ export function formatCurrency(value: number | string): string {
   return `${amount.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY}`;
 }
 
+const FUSO_ANGOLA = "Africa/Luanda";
+
 export function formatDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: FUSO_ANGOLA });
+}
+
+export function formatDateTime(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: FUSO_ANGOLA,
+  });
+}
+
+const RELATIVE_UNITS: { limit: number; divisor: number; unit: Intl.RelativeTimeFormatUnit }[] = [
+  { limit: 60, divisor: 1, unit: "second" },
+  { limit: 3600, divisor: 60, unit: "minute" },
+  { limit: 86400, divisor: 3600, unit: "hour" },
+  { limit: 2592000, divisor: 86400, unit: "day" },
+  { limit: 31536000, divisor: 2592000, unit: "month" },
+  { limit: Infinity, divisor: 31536000, unit: "year" },
+];
+
+const relativeFormatter = new Intl.RelativeTimeFormat("pt-PT", { numeric: "auto" });
+
+export function formatRelativeTime(date: Date | string, agora: Date = new Date()): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const diffSegundos = Math.round((d.getTime() - agora.getTime()) / 1000);
+  const abs = Math.abs(diffSegundos);
+  const { divisor, unit } = RELATIVE_UNITS.find((u) => abs < u.limit) ?? RELATIVE_UNITS[RELATIVE_UNITS.length - 1];
+  return relativeFormatter.format(Math.round(diffSegundos / divisor), unit);
 }
 
 const MESES_LABEL = [

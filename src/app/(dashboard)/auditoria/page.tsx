@@ -4,6 +4,7 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { formatDateTime, formatRelativeTime } from "@/lib/utils";
 import type { Prisma, Role } from "@/generated/prisma/client";
 
 const ROLE_TONE: Record<Role, "info" | "success" | "warning" | "neutral"> = {
@@ -13,15 +14,7 @@ const ROLE_TONE: Record<Role, "info" | "success" | "warning" | "neutral"> = {
   ALUNO: "neutral",
 };
 
-function formatDateTime(date: Date): string {
-  return date.toLocaleString("pt-PT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const LIMITE_REGISTOS = 200;
 
 interface AuditoriaPageProps {
   searchParams: Promise<{ q?: string; papel?: string; entidade?: string }>;
@@ -40,10 +33,12 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
   if (papel) where.userRole = papel as Role;
   if (entidade) where.entityType = entidade;
 
-  const [logs, entidades] = await Promise.all([
-    prisma.auditLog.findMany({ where, orderBy: { createdAt: "desc" }, take: 200 }),
+  const [logs, totalFiltrado, entidades] = await Promise.all([
+    prisma.auditLog.findMany({ where, orderBy: { createdAt: "desc" }, take: LIMITE_REGISTOS }),
+    prisma.auditLog.count({ where }),
     prisma.auditLog.findMany({ distinct: ["entityType"], select: { entityType: true }, orderBy: { entityType: "asc" } }),
   ]);
+  const agora = new Date();
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,7 +50,14 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
       </div>
 
       <Card>
-        <CardHeader title="Histórico de ações" subtitle={`${logs.length} registo(s) mais recentes`} />
+        <CardHeader
+          title="Histórico de ações"
+          subtitle={
+            totalFiltrado > LIMITE_REGISTOS
+              ? `A mostrar os ${LIMITE_REGISTOS} registos mais recentes de ${totalFiltrado} — refine a pesquisa para ver outros.`
+              : `${totalFiltrado} registo(s)`
+          }
+        />
         <CardBody className="flex flex-col gap-4">
           <form className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end">
             <Input type="search" name="q" defaultValue={q} placeholder="Utilizador ou ação..." />
@@ -99,7 +101,10 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
               <Tbody>
                 {logs.map((log) => (
                   <Tr key={log.id}>
-                    <Td className="whitespace-nowrap text-xs text-navy-400">{formatDateTime(log.createdAt)}</Td>
+                    <Td className="whitespace-nowrap text-xs text-navy-400">
+                      <span>{formatDateTime(log.createdAt)}</span>
+                      <span className="block text-navy-300">{formatRelativeTime(log.createdAt, agora)}</span>
+                    </Td>
                     <Td className="font-medium text-navy-900">{log.userName}</Td>
                     <Td>
                       <Badge tone={ROLE_TONE[log.userRole]}>{log.userRole}</Badge>
