@@ -21,18 +21,23 @@ async function getClientIp(): Promise<string | null> {
 }
 
 export async function registrarAuditoria(input: RegistrarAuditoriaInput): Promise<void> {
-  const ipAddress = await getClientIp();
+  try {
+    const ipAddress = await getClientIp();
 
-  await prisma.auditLog.create({
-    data: {
-      userId: input.userId ?? null,
-      userName: input.userName,
-      userRole: input.userRole,
-      action: input.action,
-      entityType: input.entityType,
-      entityId: input.entityId ?? null,
-      details: input.details ?? null,
-      ipAddress,
-    },
-  });
+    await prisma.auditLog.create({
+      data: {
+        userId: input.userId ?? null,
+        userName: input.userName,
+        userRole: input.userRole,
+        action: input.action,
+        entityType: input.entityType,
+        entityId: input.entityId ?? null,
+        details: input.details ?? null,
+        ipAddress,
+      },
+    });
+  } catch (error) {
+    // A falha ao registar a auditoria não pode derrubar a ação que já foi aplicada com sucesso.
+    console.error("Falha ao registar auditoria:", error);
+  }
 }
