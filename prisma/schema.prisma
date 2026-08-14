@@ -80,6 +80,7 @@ model User {
 
   cobrancasRegistadas               Cobranca[]                @relation("CobrancaRegistadaPor")
   configuracoesFinanceirasAtualizadas ConfiguracaoFinanceira[] @relation("ConfigFinanceiraAtualizadaPor")
+  configuracoesAcademicasAtualizadas ConfiguracaoAcademica[]   @relation("ConfigAcademicaAtualizadaPor")
 }
 
 model Professor {
@@ -398,4 +399,27 @@ model ConfiguracaoFinanceira {
   updatedAt       DateTime  @updatedAt
   updatedPorId    String?
   updatedPor      User?     @relation("ConfigFinanceiraAtualizadaPor", fields: [updatedPorId], references: [id])
+}
+
+/// O que acontece às cadeiras já aprovadas de um aluno retido (Fase 8b) — configurável pelo DAAC
+/// em vez de fixo no código, a pedido explícito (mesmo espírito de `permiteDispensa` na Fase 6).
+enum RegraRetencao {
+  SO_REPROVADAS
+  ANO_INTEIRO
+}
+
+/// Configuração singleton da rematrícula/retenção (id fixo "config", §4.2/8b — não é promoção
+/// automática em lote: a Secretaria aciona aluno a aluno via processarRematriculaAction, só dentro
+/// da janela [matriculaInicio, matriculaFim]).
+model ConfiguracaoAcademica {
+  id                String        @id @default("config")
+  limiteReprovacoes Int           @default(2)
+  regraRetencao     RegraRetencao @default(SO_REPROVADAS)
+  matriculaInicio   DateTime?
+  matriculaFim      DateTime?
+  /// Marca a última corrida da suspensão automática de quem não rematriculou — evita repeti-la em cada request.
+  ultimaSuspensaoEm DateTime?
+  updatedAt         DateTime      @updatedAt
+  updatedPorId      String?
+  updatedPor        User?         @relation("ConfigAcademicaAtualizadaPor", fields: [updatedPorId], references: [id])
 }

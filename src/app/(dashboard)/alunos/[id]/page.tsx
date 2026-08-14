@@ -10,10 +10,12 @@ import { PropinasMensais } from "@/components/financeiro/PropinasMensais";
 import { MultasPendentes } from "@/components/financeiro/MultasPendentes";
 import { CategoriaEstudanteForm } from "@/components/alunos/CategoriaEstudanteForm";
 import { RepeticaoForm } from "@/components/alunos/RepeticaoForm";
+import { RematriculaForm } from "@/components/alunos/RematriculaForm";
+import { MudarCursoForm } from "@/components/alunos/MudarCursoForm";
 import { formatDate, formatCurrency, PERIODO_LABEL } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { podeRegistarPagamento, podeGerirCurriculo } from "@/lib/permissions";
-import { EPOCA_LABEL } from "@/lib/avaliacao";
+import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import type { AlunoStatus } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
@@ -66,6 +68,28 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         include: { turma: { include: { curso: true } }, professor: true, disciplina: true },
       })
     : [];
+
+  // Rematrícula (§4.2/Fase 8b) — resumo do ano corrente e janela de matrícula.
+  const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const agora = new Date();
+  const dentroDaJanela = Boolean(
+    configAcademica?.matriculaInicio &&
+      configAcademica.matriculaFim &&
+      agora >= configAcademica.matriculaInicio &&
+      agora <= configAcademica.matriculaFim,
+  );
+  const reprovacoesAnoCorrente = inscricoes.filter((i) => {
+    if (!i.ativa) return false;
+    const notas = i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
+    const resultado = calcularNotaFinal(extrairNotasPorEpoca(notas), {
+      permiteDispensa: i.permiteDispensaAplicada,
+      notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
+    });
+    return resultado.estado === "REPROVADO";
+  }).length;
+
+  // Segunda licenciatura / mudança de curso (Fase 8c) — cursos além do atual do aluno.
+  const outrosCursos = podeEditarCategoria ? await prisma.curso.findMany({ where: { nome: { not: aluno.curso } }, orderBy: { nome: "asc" } }) : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -133,6 +157,30 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           )}
         </Card>
       </div>
+
+      {podeEditarCategoria ? (
+        <Card>
+          <CardHeader
+            title="Rematrícula"
+            subtitle={`Ano corrente: ${reprovacoesAnoCorrente} reprovação(ões) nas cadeiras ativas`}
+          />
+          <CardBody>
+            <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {podeEditarCategoria ? (
+        <Card>
+          <CardHeader
+            title="Segunda Licenciatura / Mudança de Curso"
+            subtitle="Sem aproveitamento de créditos — entra sempre no 1º ano do curso novo."
+          />
+          <CardBody>
+            <MudarCursoForm alunoId={aluno.id} cursos={outrosCursos} />
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`} />

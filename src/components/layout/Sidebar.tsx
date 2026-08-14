@@ -56,6 +56,7 @@ function AdminNav() {
         label="Gestão Académica"
         icon={<Layers size={18} />}
         items={[
+          { href: "/admin/academico/configuracao", label: "Configuração Académica" },
           { href: "/admin/cursos", label: "Cursos" },
           { href: "/admin/disciplinas", label: "Disciplinas" },
           { href: "/admin/curriculo", label: "Plano Curricular" },

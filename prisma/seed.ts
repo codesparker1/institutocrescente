@@ -209,9 +209,10 @@ async function main() {
       // repetente de demonstração (turmaEngInf3) existir sempre, sem depender do pick() aleatório.
       // índices 4, 6, 8 (Eng. Informática, pares) também fixados no 1º ano — junto com o índice 0,
       // dão 4 alunos garantidos em turmaEngInf1/progI para os 4 estados de demonstração da Fase 6
-      // (dispensado, admitido a exame aprovado, em recurso aprovado, reprovado).
+      // (dispensado, admitido a exame aprovado, em recurso aprovado, reprovado). índice 10 igual,
+      // fixado no 1º ano para o cenário de suspensão/reativação da Fase 8b (rematrícula).
       const anoCurricular =
-        index === 0 || index === 4 || index === 6 || index === 8
+        index === 0 || index === 4 || index === 6 || index === 8 || index === 10
           ? 1
           : index === 2
             ? 3
@@ -227,7 +228,10 @@ async function main() {
           curso,
           anoIngresso: pick([2023, 2024, 2025]),
           anoCurricular,
-          status: chance(0.9) ? "ATIVO" : "TRANCADO",
+          // Índices usados em cenários determinísticos (0,2,4,6,8,10) ficam sempre ATIVO aqui —
+          // o cenário de suspensão da Fase 8b (índice 10) aplica o TRANCADO explicitamente depois,
+          // para não depender de uma coincidência de 10% e poder quebrar o login de demo (índice 0).
+          status: [0, 2, 4, 6, 8, 10].includes(index) ? "ATIVO" : chance(0.9) ? "ATIVO" : "TRANCADO",
         },
       });
     }),
@@ -406,6 +410,65 @@ async function main() {
         update: { valor: nota.valor },
       });
     }
+  }
+
+  console.log("A criar configuração académica e turmas de 2027 (rematrícula, Fase 8b)...");
+  // limiteReprovacoes=0 é só para os cenários de demonstração ficarem claros com os alunos já
+  // seedados (Marta/Isabel/Adriana com 0 reprovações avançam; Carla com 1 fica retida) — o DAAC
+  // pode alterar isto a qualquer momento em Admin > Configuração Académica.
+  await prisma.configuracaoAcademica.upsert({
+    where: { id: "config" },
+    update: {},
+    create: {
+      id: "config",
+      limiteReprovacoes: 0,
+      regraRetencao: "SO_REPROVADAS",
+      matriculaInicio: daysAgo(15),
+      matriculaFim: daysAgo(-45),
+    },
+  });
+
+  const cadeiraProgI = cadeirasCurricularesPorChave.get(`${cursoEngInf.id}:${progI.id}:1:1`)!;
+  const cadeiraProgII = cadeirasCurricularesPorChave.get(`${cursoEngInf.id}:${progII.id}:2:1`)!;
+
+  const turmaEngInf1_2027 = await prisma.turma.create({
+    data: { cursoId: cursoEngInf.id, anoCurricular: 1, periodo: "MATUTINO", anoLetivo: 2027 },
+  });
+  const turmaEngInf2_2027 = await prisma.turma.create({
+    data: { cursoId: cursoEngInf.id, anoCurricular: 2, periodo: "MATUTINO", anoLetivo: 2027 },
+  });
+  await prisma.turmaDisciplina.create({
+    data: {
+      turmaId: turmaEngInf1_2027.id,
+      disciplinaId: progI.id,
+      cadeiraCurricularId: cadeiraProgI,
+      professorId: profAntonio.id,
+      semestre: 1,
+      sala: "Lab 1",
+    },
+  });
+  await prisma.turmaDisciplina.create({
+    data: {
+      turmaId: turmaEngInf2_2027.id,
+      disciplinaId: progII.id,
+      cadeiraCurricularId: cadeiraProgII,
+      professorId: profAntonio.id,
+      semestre: 1,
+      sala: "Lab 1",
+    },
+  });
+  // Deliberadamente sem sincronizarInscricoesTurma aqui — estas turmas ficam vazias de propósito,
+  // para a Secretaria testar "Processar Rematrícula" ao vivo em alunos/[id] durante a semana de
+  // testes (Marta/Isabel/Adriana avançam para cá; Carla fica retida em turmaEngInf1_2027).
+
+  console.log("A suspender um aluno de demonstração que não rematriculou (TRANCADO)...");
+  const alunoSuspenso = alunos[10]; // Sandra Vieira Dias — par, Eng. Informática, 1º ano (mesma turma de Marta)
+  const matriculaSuspensa = matriculas.find((m) => m.alunoId === alunoSuspenso.id);
+  if (matriculaSuspensa) {
+    await prisma.$transaction([
+      prisma.aluno.update({ where: { id: alunoSuspenso.id }, data: { status: "TRANCADO" } }),
+      prisma.matricula.update({ where: { id: matriculaSuspensa.id }, data: { status: "TRANCADA" } }),
+    ]);
   }
 
   console.log("A criar utilizadores de demonstração...");
