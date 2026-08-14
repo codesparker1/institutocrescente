@@ -9,6 +9,7 @@ import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
 import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatDate } from "@/lib/utils";
+import { calcularNotaFinal, extrairNotasPorEpoca, EPOCA_LABEL } from "@/lib/avaliacao";
 
 interface AlunoDashboardProps {
   alunoId: string;
@@ -41,8 +42,15 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     },
   });
 
-  const todasNotas = inscricoes.flatMap((i) => i.notas.map((n) => Number(n.valor)));
-  const mediaGeral = todasNotas.length > 0 ? todasNotas.reduce((a, b) => a + b, 0) / todasNotas.length : null;
+  const notasFinais = inscricoes
+    .map((i) =>
+      calcularNotaFinal(extrairNotasPorEpoca(i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }))), {
+        permiteDispensa: i.permiteDispensaAplicada,
+        notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
+      }).notaFinal,
+    )
+    .filter((n): n is number => n !== null);
+  const mediaGeral = notasFinais.length > 0 ? notasFinais.reduce((a, b) => a + b, 0) / notasFinais.length : null;
 
   const todasFrequencias = inscricoes.flatMap((i) => i.frequencias);
   const presencas = todasFrequencias.filter((f) => f.presente).length;
@@ -131,7 +139,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
                 <div key={prova.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                   <div>
                     <p className="font-medium text-navy-800">
-                      {prova.nome} · {prova.disciplinaNome}
+                      {EPOCA_LABEL[prova.epoca]} · {prova.disciplinaNome}
                     </p>
                     <p className="text-xs text-navy-400">{prova.sala ?? "Sala a confirmar"}</p>
                   </div>
@@ -162,7 +170,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
                     ? "—"
                     : inscricao.notas.length === 0
                       ? "Sem notas"
-                      : inscricao.notas.map((n) => `${n.avaliacao.nome}: ${Number(n.valor)}`).join(" · ")}
+                      : inscricao.notas.map((n) => `${EPOCA_LABEL[n.avaliacao.epoca]}: ${Number(n.valor)}`).join(" · ")}
                 </span>
               </div>
             ))}

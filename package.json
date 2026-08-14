@@ -9,7 +9,8 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "stress": "node scripts/stress/run.mjs",
-    "test:workflow": "tsx scripts/e2e-workflow/run.ts"
+    "test:workflow": "tsx scripts/e2e-workflow/run.ts",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

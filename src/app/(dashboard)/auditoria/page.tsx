@@ -111,7 +111,14 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                     <Td>
                       <Badge tone={ROLE_TONE[log.userRole]}>{log.userRole}</Badge>
                     </Td>
-                    <Td>{log.action}</Td>
+                    <Td>
+                      {log.action}
+                      {log.valorAnterior !== null || log.valorNovo !== null ? (
+                        <span className="mt-0.5 block font-mono text-xs text-navy-400">
+                          {log.valorAnterior ?? "—"} → {log.valorNovo ?? "—"}
+                        </span>
+                      ) : null}
+                    </Td>
                     <Td className="text-navy-400">{log.entityType}</Td>
                     <Td className="font-mono text-xs text-navy-400">{log.ipAddress ?? "—"}</Td>
                   </Tr>

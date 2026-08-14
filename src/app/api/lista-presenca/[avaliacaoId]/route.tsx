@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { getConjuntoAlunosEmDivida } from "@/lib/financeiro";
 import { ListaPresencaDocument } from "@/components/pdf/ListaPresencaDocument";
+import { EPOCA_LABEL } from "@/lib/avaliacao";
 
 export const runtime = "nodejs";
 
@@ -13,14 +14,10 @@ interface RouteParams {
   params: Promise<{ avaliacaoId: string }>;
 }
 
-function epocaProvaLabel(tipo: string, nome: string): string {
-  if (tipo === "EXAME_FINAL") return "Época de Exame";
-  return `Época Normal — ${nome}`;
-}
-
 export async function GET(_req: Request, { params }: RouteParams) {
   const session = await auth();
-  if (!session?.user || !["ADMIN", "SECRETARIA", "PROFESSOR"].includes(session.user.role)) {
+  // DAAC estava em falta desde a criação do papel na Fase 1 — a whitelist nunca foi atualizada.
+  if (!session?.user || !["ADMIN", "SECRETARIA", "PROFESSOR", "DAAC"].includes(session.user.role)) {
     return new Response("Não autorizado", { status: 403 });
   }
 
@@ -64,7 +61,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       curso={avaliacao.turmaDisciplina.turma.curso.nome}
       disciplina={avaliacao.turmaDisciplina.disciplina.nome}
       anoTurma={`${avaliacao.turmaDisciplina.turma.anoCurricular}º Ano`}
-      epocaProva={epocaProvaLabel(avaliacao.tipo, avaliacao.nome)}
+      epocaProva={EPOCA_LABEL[avaliacao.epoca]}
       docente={avaliacao.turmaDisciplina.professor.nome}
       dataHora={formatDate(avaliacao.data)}
       alunos={alunosElegiveis.map((aluno, index) => ({
@@ -78,7 +75,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
   return new Response(new Uint8Array(pdfBuffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="lista-presenca-${avaliacao.nome}.pdf"`,
+      "Content-Disposition": `inline; filename="lista-presenca-${avaliacao.epoca}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

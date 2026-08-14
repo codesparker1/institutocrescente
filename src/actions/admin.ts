@@ -12,7 +12,13 @@ import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma } from "@/lib/curriculo";
 
-async function audit(session: SessionComUser, action: string, entityType: string, entityId?: string) {
+async function audit(
+  session: SessionComUser,
+  action: string,
+  entityType: string,
+  entityId?: string,
+  valores?: { valorAnterior?: string; valorNovo?: string },
+) {
   await registrarAuditoria({
     userId: session.user.id,
     userName: session.user.name ?? session.user.email ?? "Utilizador",
@@ -20,6 +26,8 @@ async function audit(session: SessionComUser, action: string, entityType: string
     action,
     entityType,
     entityId,
+    valorAnterior: valores?.valorAnterior,
+    valorNovo: valores?.valorNovo,
   });
 }
 
@@ -76,11 +84,18 @@ export async function atualizarValorPropinaCursoAction(
   });
   if (!parsed.success) return { error: "Valor inválido." };
 
+  const cursoAntes = await prisma.curso.findUnique({ where: { id: parsed.data.cursoId } });
   const curso = await prisma.curso.update({
     where: { id: parsed.data.cursoId },
     data: { valorPropina: parsed.data.valorPropina },
   });
-  await audit(session, `Atualizou o valor da propina de ${curso.nome} para ${parsed.data.valorPropina} Kz`, "Curso", curso.id);
+  await audit(
+    session,
+    `Atualizou o valor da propina de ${curso.nome} para ${parsed.data.valorPropina} Kz`,
+    "Curso",
+    curso.id,
+    cursoAntes ? { valorAnterior: `${Number(cursoAntes.valorPropina)} Kz`, valorNovo: `${parsed.data.valorPropina} Kz` } : undefined,
+  );
 
   revalidatePath("/admin/cursos");
   return {};
@@ -160,6 +175,13 @@ const CadeiraCurricularSchema = z.object({
   semestre: z.coerce.number("Indique o semestre").int().min(1, "Semestre inválido").max(2, "Semestre inválido"),
 });
 
+const RegrasDispensaSchema = z.object({
+  cadeiraCurricularId: z.string().min(1),
+  // Select (não checkbox) para evitar a armadilha do z.coerce.boolean() com strings: "false" também é truthy.
+  permiteDispensa: z.enum(["true", "false"]).transform((v) => v === "true"),
+  notaMinimaDispensa: z.coerce.number().min(0, "Nota entre 0 e 20").max(20, "Nota entre 0 e 20"),
+});
+
 const CAMPOS_CADEIRA_CURRICULAR = ["cursoId", "disciplinaId", "anoCurricular", "semestre"] as const;
 export type CreateCadeiraCurricularState = FormState<Record<(typeof CAMPOS_CADEIRA_CURRICULAR)[number], string>>;
 
@@ -190,6 +212,34 @@ export async function createCadeiraCurricularAction(
       values: extrairValores(formData, CAMPOS_CADEIRA_CURRICULAR),
     };
   }
+
+  revalidatePath("/admin/curriculo");
+  return {};
+}
+
+export async function atualizarRegrasCadeiraCurricularAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = RegrasDispensaSchema.safeParse({
+    cadeiraCurricularId: formData.get("cadeiraCurricularId"),
+    permiteDispensa: formData.get("permiteDispensa"),
+    notaMinimaDispensa: formData.get("notaMinimaDispensa"),
+  });
+  if (!parsed.success) return { error: "Dados inválidos." };
+
+  const cadeira = await prisma.cadeiraCurricular.update({
+    where: { id: parsed.data.cadeiraCurricularId },
+    data: { permiteDispensa: parsed.data.permiteDispensa, notaMinimaDispensa: parsed.data.notaMinimaDispensa },
+    include: { disciplina: true },
+  });
+  await audit(
+    session,
+    `Atualizou as regras de dispensa de ${cadeira.disciplina.nome} (${cadeira.anoCurricular}º ano): ${parsed.data.permiteDispensa ? `dispensa a partir de ${parsed.data.notaMinimaDispensa}` : "sem dispensa"}`,
+    "CadeiraCurricular",
+    cadeira.id,
+  );
 
   revalidatePath("/admin/curriculo");
   return {};
@@ -485,11 +535,18 @@ export async function atualizarValorEmolumentoAction(
   });
   if (!parsed.success) return { error: "Valor inválido." };
 
+  const emolumentoAntes = await prisma.emolumento.findUnique({ where: { id: parsed.data.emolumentoId } });
   const emolumento = await prisma.emolumento.update({
     where: { id: parsed.data.emolumentoId },
     data: { valor: parsed.data.valor },
   });
-  await audit(session, `Atualizou o valor de ${emolumento.nome} para ${parsed.data.valor} Kz`, "Emolumento", emolumento.id);
+  await audit(
+    session,
+    `Atualizou o valor de ${emolumento.nome} para ${parsed.data.valor} Kz`,
+    "Emolumento",
+    emolumento.id,
+    emolumentoAntes ? { valorAnterior: `${Number(emolumentoAntes.valor)} Kz`, valorNovo: `${parsed.data.valor} Kz` } : undefined,
+  );
 
   revalidatePath("/admin/emolumentos");
   revalidatePath("/emolumentos");

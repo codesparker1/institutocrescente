@@ -208,6 +208,8 @@ export async function atualizarCategoriaEstudanteAction(
     action: `Alterou a categoria de ${aluno.nome} de ${CATEGORIA_LABEL[aluno.categoria]} para ${CATEGORIA_LABEL[parsed.data.categoria]}`,
     entityType: "Aluno",
     entityId: aluno.id,
+    valorAnterior: CATEGORIA_LABEL[aluno.categoria],
+    valorNovo: CATEGORIA_LABEL[parsed.data.categoria],
   });
 
   revalidatePath(`/alunos/${aluno.id}`);

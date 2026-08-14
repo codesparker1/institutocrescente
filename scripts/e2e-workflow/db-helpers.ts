@@ -35,10 +35,9 @@ export async function getSeededContext() {
   if (!turmaDisciplina) throw new Error("TurmaDisciplina de Programação I não encontrada.");
 
   const avaliacao = await prisma.avaliacao.findFirst({
-    where: { turmaDisciplinaId: turmaDisciplina.id, nome: { contains: "1" } },
-    orderBy: { data: "asc" },
+    where: { turmaDisciplinaId: turmaDisciplina.id, epoca: "P1" },
   });
-  if (!avaliacao) throw new Error("Avaliação '1.ª Prova' não encontrada.");
+  if (!avaliacao) throw new Error("Avaliação P1 não encontrada.");
 
   const alunoEmDivida = await prisma.aluno.findUnique({ where: { email: "aluno@ispc.ao" } });
   if (!alunoEmDivida) throw new Error("aluno@ispc.ao (seed) não encontrado.");

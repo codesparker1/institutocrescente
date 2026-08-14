@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeLancarNota } from "@/lib/permissions";
+import { EPOCA_LABEL } from "@/lib/avaliacao";
 
 const LancarNotaSchema = z.object({
   avaliacaoId: z.string().min(1),
@@ -42,10 +43,11 @@ export async function lancarNotaAction(_prevState: LancarNotaState, formData: Fo
   if (!avaliacao) {
     return { error: "Avaliação não encontrada." };
   }
-  // DAAC lança qualquer nota, a qualquer momento; PROFESSOR só as suas próprias disciplinas.
-  // ADMIN e SECRETARIA não lançam notas — decisão deliberada (MD §3), dá integridade ao sistema.
-  if (!podeLancarNota(session.user, avaliacao.turmaDisciplina)) {
-    return { error: "Sem permissão para lançar notas nesta disciplina." };
+  // DAAC lança qualquer nota, a qualquer momento (ignora prazoAberto); PROFESSOR só as suas
+  // próprias disciplinas e só dentro do prazo de lançamento (MD §4.3).
+  const prazoAberto = avaliacao.prazoLancamento >= new Date();
+  if (!podeLancarNota(session.user, avaliacao.turmaDisciplina, prazoAberto)) {
+    return { error: prazoAberto ? "Sem permissão para lançar notas nesta disciplina." : "Prazo de lançamento encerrado. Peça ao DAAC para lançar ou corrigir esta nota." };
   }
 
   // A inscrição tem de estar ativa e pertencer a esta turma-disciplina — cobre repetentes,
@@ -87,10 +89,12 @@ export async function lancarNotaAction(_prevState: LancarNotaState, formData: Fo
     userName: session.user.name ?? session.user.email ?? "Utilizador",
     userRole: session.user.role,
     action: notaExistente
-      ? `Atualizou a nota de ${nota.inscricaoCadeira.aluno.nome} em "${nota.avaliacao.nome}" para ${parsed.data.valor}`
-      : `Lançou a nota de ${nota.inscricaoCadeira.aluno.nome} em "${nota.avaliacao.nome}": ${parsed.data.valor}`,
+      ? `Atualizou a nota de ${nota.inscricaoCadeira.aluno.nome} em "${EPOCA_LABEL[nota.avaliacao.epoca]}" para ${parsed.data.valor}`
+      : `Lançou a nota de ${nota.inscricaoCadeira.aluno.nome} em "${EPOCA_LABEL[nota.avaliacao.epoca]}": ${parsed.data.valor}`,
     entityType: "Nota",
     entityId: nota.id,
+    valorAnterior: notaExistente ? String(Number(notaExistente.valor)) : null,
+    valorNovo: String(parsed.data.valor),
   });
 
   revalidatePath(`/notas`);

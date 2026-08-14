@@ -10,7 +10,9 @@ interface RegistrarAuditoriaInput {
   action: string;
   entityType: string;
   entityId?: string | null;
-  details?: string | null;
+  /** Valor estruturado antes/depois (§7) — só onde faz sentido: notas, pagamentos, preços, categoria. */
+  valorAnterior?: string | null;
+  valorNovo?: string | null;
 }
 
 async function getClientIp(): Promise<string | null> {
@@ -32,7 +34,8 @@ export async function registrarAuditoria(input: RegistrarAuditoriaInput): Promis
         action: input.action,
         entityType: input.entityType,
         entityId: input.entityId ?? null,
-        details: input.details ?? null,
+        valorAnterior: input.valorAnterior ?? null,
+        valorNovo: input.valorNovo ?? null,
         ipAddress,
       },
     });

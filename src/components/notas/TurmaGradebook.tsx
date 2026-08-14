@@ -1,28 +1,42 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
+import { Badge } from "@/components/ui/Badge";
 import { GradeCell } from "./GradeCell";
 import { AttendanceChip } from "./AttendanceChip";
 import { CreateAulaForm } from "./CreateAulaForm";
 import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
+import { calcularNotaFinal, extrairNotasPorEpoca, EPOCA_LABEL, EPOCA_ORDEM, ESTADO_LABEL, type EstadoAvaliacao } from "@/lib/avaliacao";
+
+const ESTADO_TONE: Record<EstadoAvaliacao, "success" | "warning" | "danger" | "neutral"> = {
+  EM_CURSO: "neutral",
+  DISPENSADO: "success",
+  ADMITIDO_A_EXAME: "warning",
+  EM_RECURSO: "warning",
+  EM_EXAME_ESPECIAL: "warning",
+  APROVADO: "success",
+  REPROVADO: "danger",
+};
 
 interface TurmaGradebookProps {
   turmaDisciplinaId: string;
   backHref: string;
   editable: boolean;
+  /** DAAC ignora sempre o prazo de lançamento (§4.3) — false para a página do professor. */
+  podeIgnorarPrazo?: boolean;
 }
 
-export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: TurmaGradebookProps) {
+export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, podeIgnorarPrazo = false }: TurmaGradebookProps) {
   const turmaDisciplina = await prisma.turmaDisciplina.findUnique({
     where: { id: turmaDisciplinaId },
     include: {
       disciplina: true,
       professor: true,
       turma: { include: { curso: true } },
-      avaliacoes: { orderBy: { data: "asc" } },
+      avaliacoes: true,
       horarioSlots: true,
       inscricoes: { where: { ativa: true }, include: { aluno: true }, orderBy: { aluno: { nome: "asc" } } },
       aulas: {
@@ -39,12 +53,21 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
 
   if (!turmaDisciplina) notFound();
 
+  const avaliacoesOrdenadas = [...turmaDisciplina.avaliacoes].sort(
+    (a, b) => EPOCA_ORDEM.indexOf(a.epoca) - EPOCA_ORDEM.indexOf(b.epoca),
+  );
+
   const notas = await prisma.nota.findMany({
     where: { avaliacao: { turmaDisciplinaId } },
+    include: { avaliacao: { select: { epoca: true } } },
   });
   const notaPorCelula = new Map<string, number>();
+  const notasPorInscricao = new Map<string, typeof notas>();
   for (const nota of notas) {
     notaPorCelula.set(`${nota.inscricaoCadeiraId}:${nota.avaliacaoId}`, Number(nota.valor));
+    const lista = notasPorInscricao.get(nota.inscricaoCadeiraId) ?? [];
+    lista.push(nota);
+    notasPorInscricao.set(nota.inscricaoCadeiraId, lista);
   }
 
   const inscricoes = turmaDisciplina.inscricoes;
@@ -55,18 +78,14 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
   const hojeIsoValor = toIsoDate(new Date());
   const proximoDiaLabel = datasValidas.find((d) => d.iso !== hojeIsoValor)?.label ?? datasValidas[0]?.label ?? null;
   const aulaDeHojeJaExiste = turmaDisciplina.aulas.some((a) => toIsoDate(a.data) === hojeIsoValor);
+  const agora = new Date();
 
-  function calcularNotaGeral(inscricaoCadeiraId: string): number | null {
-    let soma = 0;
-    let temNota = false;
-    for (const avaliacao of turmaDisciplina!.avaliacoes) {
-      const valor = notaPorCelula.get(`${inscricaoCadeiraId}:${avaliacao.id}`);
-      if (valor !== undefined) {
-        soma += valor * Number(avaliacao.peso);
-        temNota = true;
-      }
-    }
-    return temNota ? soma : null;
+  function calcularEstado(inscricao: (typeof inscricoes)[number]) {
+    const notasDaInscricao = notasPorInscricao.get(inscricao.id)?.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao })) ?? [];
+    return calcularNotaFinal(extrairNotasPorEpoca(notasDaInscricao), {
+      permiteDispensa: inscricao.permiteDispensaAplicada,
+      notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+    });
   }
 
   return (
@@ -85,23 +104,40 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
       </div>
 
       <Card>
-        <CardHeader title="Pauta de notas" subtitle={editable ? "Clique num campo e prima Tab/Enter para gravar" : "Modo de visualização"} />
-        {inscricoes.length === 0 || turmaDisciplina.avaliacoes.length === 0 ? (
+        <CardHeader
+          title="Pauta de notas"
+          subtitle={editable ? "Clique num campo e prima Tab/Enter para gravar" : "Modo de visualização"}
+          action={
+            <a
+              href={`/api/pauta/${turmaDisciplina.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-navy-400 hover:bg-navy-50 hover:text-navy-700"
+              aria-label="Imprimir pauta"
+              title="Imprimir pauta"
+            >
+              <Printer size={14} />
+              Imprimir
+            </a>
+          }
+        />
+        {inscricoes.length === 0 || avaliacoesOrdenadas.length === 0 ? (
           <EmptyState message="Sem alunos ou avaliações registadas para esta disciplina." />
         ) : (
           <Table>
             <Thead>
               <tr>
                 <Th>Aluno</Th>
-                {turmaDisciplina.avaliacoes.map((avaliacao) => (
-                  <Th key={avaliacao.id}>{avaliacao.nome}</Th>
+                {avaliacoesOrdenadas.map((avaliacao) => (
+                  <Th key={avaliacao.id}>{EPOCA_LABEL[avaliacao.epoca]}</Th>
                 ))}
-                <Th>Nota Geral</Th>
+                <Th>Estado</Th>
+                <Th>Nota Final</Th>
               </tr>
             </Thead>
             <Tbody>
               {inscricoes.map((inscricao) => {
-                const notaGeral = calcularNotaGeral(inscricao.id);
+                const resultado = calcularEstado(inscricao);
                 return (
                   <Tr key={inscricao.id}>
                     <Td className="font-medium text-navy-900">
@@ -112,17 +148,20 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
                         </span>
                       ) : null}
                     </Td>
-                    {turmaDisciplina.avaliacoes.map((avaliacao) => (
+                    {avaliacoesOrdenadas.map((avaliacao) => (
                       <Td key={avaliacao.id}>
                         <GradeCell
                           avaliacaoId={avaliacao.id}
                           inscricaoCadeiraId={inscricao.id}
                           valorInicial={notaPorCelula.get(`${inscricao.id}:${avaliacao.id}`) ?? null}
-                          disabled={!editable}
+                          disabled={!editable || (!podeIgnorarPrazo && avaliacao.prazoLancamento < agora)}
                         />
                       </Td>
                     ))}
-                    <Td className="font-semibold text-navy-900">{notaGeral !== null ? notaGeral.toFixed(1) : "—"}</Td>
+                    <Td>
+                      <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
+                    </Td>
+                    <Td className="font-semibold text-navy-900">{resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}</Td>
                   </Tr>
                 );
               })}

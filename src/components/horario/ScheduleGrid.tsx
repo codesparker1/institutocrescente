@@ -3,6 +3,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
 import { DIA_SEMANA_LABEL, formatDate } from "@/lib/utils";
+import { EPOCA_LABEL } from "@/lib/avaliacao";
 import { deleteHorarioSlotAction, deleteProvaAction } from "@/actions/horario";
 import { CreateProvaForm } from "./CreateProvaForm";
 import { CreateHorarioSlotForm } from "./CreateHorarioSlotForm";
@@ -47,7 +48,7 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
                 <div key={prova.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-4 py-2.5 text-sm">
                   <div>
                     <p className="font-medium text-navy-800">
-                      {prova.nome} · {prova.disciplina.nome}
+                      {EPOCA_LABEL[prova.epoca]} · {prova.disciplina.nome}
                     </p>
                     <p className="text-xs text-navy-400">
                       {prova.cursoAnoLabel ? `${prova.cursoAnoLabel} · ` : ""}

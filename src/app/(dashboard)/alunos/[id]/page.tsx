@@ -13,6 +13,7 @@ import { RepeticaoForm } from "@/components/alunos/RepeticaoForm";
 import { formatDate, formatCurrency, PERIODO_LABEL } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { podeRegistarPagamento, podeGerirCurriculo } from "@/lib/permissions";
+import { EPOCA_LABEL } from "@/lib/avaliacao";
 import type { AlunoStatus } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
@@ -165,7 +166,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                     <Td>
                       {inscricao.notas.length === 0
                         ? "—"
-                        : inscricao.notas.map((n) => `${n.avaliacao.nome}: ${n.valor}`).join(" · ")}
+                        : inscricao.notas.map((n) => `${EPOCA_LABEL[n.avaliacao.epoca]}: ${n.valor}`).join(" · ")}
                     </Td>
                   </Tr>
                 ))}

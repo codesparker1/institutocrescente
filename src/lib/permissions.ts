@@ -21,11 +21,11 @@ interface Cadeira {
 }
 
 /**
- * DAAC lança qualquer nota, de qualquer cadeira, a qualquer momento. PROFESSOR só lança
- * nas suas próprias disciplinas e só com o prazo aberto. ADMIN e SECRETARIA não lançam
+ * DAAC lança qualquer nota, de qualquer cadeira, a qualquer momento — ignora `prazoAberto`,
+ * o que é também o mecanismo de reabertura (§4.3): não há um fluxo separado de "reabrir prazo",
+ * o DAAC simplesmente continua a poder agir depois do prazo fechar para o professor. PROFESSOR
+ * só lança nas suas próprias disciplinas e só com o prazo aberto. ADMIN e SECRETARIA não lançam
  * notas — decisão deliberada do MD ("é a separação que dá integridade ao sistema").
- *
- * `prazoAberto` assume `true` até a Fase 6 introduzir prazos reais de lançamento por avaliação.
  */
 export function podeLancarNota(user: CapabilityUser, cadeira: Cadeira, prazoAberto = true): boolean {
   if (user.role === "DAAC") return true;

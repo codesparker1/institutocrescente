@@ -6,6 +6,7 @@ import { Select } from "@/components/ui/Select";
 import { DateSelect } from "@/components/ui/DateSelect";
 import { Button } from "@/components/ui/Button";
 import { createProvaAction, type CreateProvaState } from "@/actions/horario";
+import { EPOCA_LABEL, EPOCA_ORDEM } from "@/lib/avaliacao";
 
 const initialState: CreateProvaState = {};
 
@@ -23,12 +24,11 @@ export function CreateProvaForm({ disciplinas }: CreateProvaFormProps) {
 
   const primeiroErro =
     state.error ??
-    state.fieldErrors?.nome ??
     state.fieldErrors?.data ??
     state.fieldErrors?.sala ??
-    state.fieldErrors?.peso ??
+    state.fieldErrors?.prazoLancamento ??
     state.fieldErrors?.turmaDisciplinaId ??
-    state.fieldErrors?.tipo;
+    state.fieldErrors?.epoca;
 
   return (
     <div className="flex flex-col gap-2">
@@ -45,11 +45,12 @@ export function CreateProvaForm({ disciplinas }: CreateProvaFormProps) {
             </option>
           ))}
         </Select>
-        <Input name="nome" placeholder="Nome" required className="w-32 text-xs" defaultValue={state.values?.nome} />
-        <Select name="tipo" required defaultValue={state.values?.tipo ?? "TESTE"} className="w-32 text-xs">
-          <option value="TESTE">Teste</option>
-          <option value="TRABALHO">Trabalho</option>
-          <option value="EXAME_FINAL">Exame Final</option>
+        <Select name="epoca" required defaultValue={state.values?.epoca ?? "P1"} className="w-36 text-xs">
+          {EPOCA_ORDEM.map((epoca) => (
+            <option key={epoca} value={epoca}>
+              {EPOCA_LABEL[epoca]}
+            </option>
+          ))}
         </Select>
         <DateSelect
           name="data"
@@ -58,17 +59,15 @@ export function CreateProvaForm({ disciplinas }: CreateProvaFormProps) {
           defaultValue={state.values?.data}
         />
         <Input name="sala" placeholder="Sala" required className="w-24 text-xs" defaultValue={state.values?.sala} />
-        <Input
-          name="peso"
-          type="number"
-          step="0.1"
-          min={0}
-          max={1}
-          placeholder="Peso"
-          required
-          defaultValue={state.values?.peso ?? 0.3}
-          className="w-16 text-xs"
-        />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-navy-400">Prazo de lançamento</span>
+          <DateSelect
+            name="prazoLancamento"
+            minYear={new Date().getFullYear() - 1}
+            maxYear={new Date().getFullYear() + 2}
+            defaultValue={state.values?.prazoLancamento}
+          />
+        </div>
         <Button type="submit" variant="ghost" className="text-xs" disabled={isPending}>
           {isPending ? "A agendar..." : "Agendar"}
         </Button>

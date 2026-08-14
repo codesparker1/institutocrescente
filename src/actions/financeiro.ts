@@ -67,6 +67,8 @@ export async function togglePropinaAction(formData: FormData): Promise<{ error?:
       action: `Confirmou o pagamento de ${mesReferenciaLabel(mesReferencia)} do aluno ${propina.aluno.nome} (${propina.aluno.curso}, ${propina.aluno.anoCurricular}º Ano)`,
       entityType: "Cobranca",
       entityId: propina.id,
+      valorAnterior: "Pendente",
+      valorNovo: "Pago",
     });
   } else {
     const mesPosteriorPago = outrosMeses.find(
@@ -95,6 +97,8 @@ export async function togglePropinaAction(formData: FormData): Promise<{ error?:
       action: `Reverteu o pagamento de ${mesReferenciaLabel(mesReferencia)} do aluno ${propina.aluno.nome} (${propina.aluno.curso}, ${propina.aluno.anoCurricular}º Ano)`,
       entityType: "Cobranca",
       entityId: propina.id,
+      valorAnterior: "Pago",
+      valorNovo: "Pendente",
     });
   }
 
@@ -129,6 +133,8 @@ export async function toggleMultaAction(formData: FormData): Promise<{ error?: s
     action: `${paga ? "Confirmou" : "Reverteu"} o pagamento de uma multa do aluno ${multa.aluno.nome} (${multa.aluno.curso}, ${multa.aluno.anoCurricular}º Ano)`,
     entityType: "Cobranca",
     entityId: multa.id,
+    valorAnterior: paga ? "Pendente" : "Pago",
+    valorNovo: paga ? "Pago" : "Pendente",
   });
 
   revalidarFinanceiro(multa.alunoId);

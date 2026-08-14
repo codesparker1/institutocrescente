@@ -38,7 +38,7 @@ export async function criarTentativaRepeticaoAction(
     prisma.aluno.findUnique({ where: { id: parsed.data.alunoId } }),
     prisma.turmaDisciplina.findUnique({
       where: { id: parsed.data.turmaDisciplinaId },
-      include: { disciplina: true },
+      include: { disciplina: true, cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true } } },
     }),
     prisma.inscricaoCadeira.findMany({
       where: { alunoId: parsed.data.alunoId, cadeiraCurricularId: parsed.data.cadeiraCurricularId },
@@ -66,6 +66,10 @@ export async function criarTentativaRepeticaoAction(
         turmaDisciplinaId: parsed.data.turmaDisciplinaId,
         tentativa: proximaTentativa,
         ativa: true,
+        // Congelamento de regras (§4.1.1) — a regra de dispensa desta nova tentativa é a atual da
+        // cadeira; a tentativa anterior mantém a regra que tinha quando foi criada.
+        permiteDispensaAplicada: turmaDisciplina.cadeiraCurricular.permiteDispensa,
+        notaMinimaDispensaAplicada: turmaDisciplina.cadeiraCurricular.notaMinimaDispensa,
       },
     });
   });

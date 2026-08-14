@@ -15,5 +15,12 @@ export default async function NotasGradebookPage({ params }: NotasGradebookPageP
   // Só o DAAC lança notas sem restrições aqui — ADMIN é read-only sobre dados académicos (MD §3).
   const editable = session.user.role === "DAAC";
 
-  return <TurmaGradebook turmaDisciplinaId={turmaDisciplinaId} backHref={`/notas/${turmaId}`} editable={editable} />;
+  return (
+    <TurmaGradebook
+      turmaDisciplinaId={turmaDisciplinaId}
+      backHref={`/notas/${turmaId}`}
+      editable={editable}
+      podeIgnorarPrazo={editable}
+    />
+  );
 }

@@ -7,6 +7,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, type SessionComUser } from "@/lib/permissions";
+import { EPOCA_LABEL } from "@/lib/avaliacao";
 
 async function audit(session: SessionComUser, action: string, entityType: string, entityId?: string) {
   await registrarAuditoria({
@@ -77,16 +78,20 @@ export async function deleteHorarioSlotAction(formData: FormData) {
   revalidatePath("/horario");
 }
 
-const ProvaSchema = z.object({
-  turmaDisciplinaId: z.string().min(1, "Disciplina é obrigatória"),
-  nome: z.string().min(2, "Nome é obrigatório"),
-  tipo: z.enum(["TESTE", "TRABALHO", "EXAME_FINAL"], { message: "Tipo inválido" }),
-  data: z.string().min(1, "Data é obrigatória"),
-  sala: z.string().min(1, "Sala é obrigatória"),
-  peso: z.coerce.number("Indique o peso").min(0, "Peso entre 0 e 1").max(1, "Peso entre 0 e 1"),
-});
+const ProvaSchema = z
+  .object({
+    turmaDisciplinaId: z.string().min(1, "Disciplina é obrigatória"),
+    epoca: z.enum(["P1", "P2", "EXAME", "RECURSO", "EXAME_ESPECIAL"], { message: "Época inválida" }),
+    data: z.string().min(1, "Data é obrigatória"),
+    sala: z.string().min(1, "Sala é obrigatória"),
+    prazoLancamento: z.string().min(1, "Prazo de lançamento é obrigatório"),
+  })
+  .refine((v) => new Date(v.prazoLancamento) >= new Date(v.data), {
+    message: "O prazo de lançamento não pode ser antes da data da prova",
+    path: ["prazoLancamento"],
+  });
 
-const CAMPOS_PROVA = ["turmaDisciplinaId", "nome", "tipo", "data", "sala", "peso"] as const;
+const CAMPOS_PROVA = ["turmaDisciplinaId", "epoca", "data", "sala", "prazoLancamento"] as const;
 export type CreateProvaState = FormState<Record<(typeof CAMPOS_PROVA)[number], string>>;
 
 export async function createProvaAction(
@@ -96,16 +101,16 @@ export async function createProvaAction(
   const session = await requireGerirCurriculo();
   const parsed = ProvaSchema.safeParse({
     turmaDisciplinaId: formData.get("turmaDisciplinaId"),
-    nome: formData.get("nome"),
-    tipo: formData.get("tipo"),
+    epoca: formData.get("epoca"),
     data: formData.get("data"),
     sala: formData.get("sala"),
-    peso: formData.get("peso"),
+    prazoLancamento: formData.get("prazoLancamento"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_PROVA);
 
   const dataProva = new Date(parsed.data.data);
-  if (Number.isNaN(dataProva.getTime())) {
+  const prazoLancamento = new Date(parsed.data.prazoLancamento);
+  if (Number.isNaN(dataProva.getTime()) || Number.isNaN(prazoLancamento.getTime())) {
     return {
       fieldErrors: { data: "Data inválida" },
       values: extrairValores(formData, CAMPOS_PROVA),
@@ -114,13 +119,24 @@ export async function createProvaAction(
 
   try {
     const prova = await prisma.avaliacao.create({
-      data: { ...parsed.data, data: dataProva },
+      data: {
+        turmaDisciplinaId: parsed.data.turmaDisciplinaId,
+        epoca: parsed.data.epoca,
+        sala: parsed.data.sala,
+        data: dataProva,
+        prazoLancamento,
+      },
       include: { turmaDisciplina: { include: { disciplina: true } } },
     });
-    await audit(session, `Agendou "${prova.nome}" para ${prova.turmaDisciplina.disciplina.nome}`, "Avaliacao", prova.id);
+    await audit(
+      session,
+      `Agendou "${EPOCA_LABEL[prova.epoca]}" para ${prova.turmaDisciplina.disciplina.nome}`,
+      "Avaliacao",
+      prova.id,
+    );
   } catch {
     return {
-      error: "Não foi possível agendar a prova.",
+      error: "Não foi possível agendar a prova (pode já existir uma avaliação desta época para esta disciplina).",
       values: extrairValores(formData, CAMPOS_PROVA),
     };
   }
@@ -137,7 +153,7 @@ export async function deleteProvaAction(formData: FormData) {
       where: { id },
       include: { turmaDisciplina: { include: { disciplina: true } } },
     });
-    await audit(session, `Removeu "${prova.nome}" de ${prova.turmaDisciplina.disciplina.nome}`, "Avaliacao", id);
+    await audit(session, `Removeu "${EPOCA_LABEL[prova.epoca]}" de ${prova.turmaDisciplina.disciplina.nome}`, "Avaliacao", id);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
       throw new Error("Não é possível remover: já existem notas lançadas para esta avaliação.");

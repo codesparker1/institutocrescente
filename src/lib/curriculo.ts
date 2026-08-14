@@ -12,7 +12,10 @@ import { prisma } from "@/lib/prisma";
 export async function sincronizarInscricoesTurma(turmaId: string): Promise<void> {
   const [matriculas, turmaDisciplinas] = await Promise.all([
     prisma.matricula.findMany({ where: { turmaId, status: "ATIVA" }, select: { alunoId: true } }),
-    prisma.turmaDisciplina.findMany({ where: { turmaId }, select: { id: true, cadeiraCurricularId: true } }),
+    prisma.turmaDisciplina.findMany({
+      where: { turmaId },
+      select: { id: true, cadeiraCurricularId: true, cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true } } },
+    }),
   ]);
   if (matriculas.length === 0 || turmaDisciplinas.length === 0) return;
 
@@ -25,6 +28,8 @@ export async function sincronizarInscricoesTurma(turmaId: string): Promise<void>
   });
   const jaInscrito = new Set(inscricoesExistentes.map((i) => `${i.alunoId}:${i.cadeiraCurricularId}`));
 
+  // Congelamento de regras (§4.1.1, Fase 6): copia as regras de dispensa da cadeira NESTE momento
+  // — calcularNotaFinal usa sempre estes valores, nunca os atuais da CadeiraCurricular.
   const novasInscricoes = alunoIds.flatMap((alunoId) =>
     turmaDisciplinas
       .filter((td) => !jaInscrito.has(`${alunoId}:${td.cadeiraCurricularId}`))
@@ -34,6 +39,8 @@ export async function sincronizarInscricoesTurma(turmaId: string): Promise<void>
         turmaDisciplinaId: td.id,
         tentativa: 1,
         ativa: true,
+        permiteDispensaAplicada: td.cadeiraCurricular.permiteDispensa,
+        notaMinimaDispensaAplicada: td.cadeiraCurricular.notaMinimaDispensa,
       })),
   );
 

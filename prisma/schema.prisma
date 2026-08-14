@@ -36,10 +36,15 @@ enum CategoriaEstudante {
   COMPARTICIPADA
 }
 
-enum AvaliacaoTipo {
-  TESTE
-  TRABALHO
-  EXAME_FINAL
+/// As 5 épocas fixas do MD §10 — cada TurmaDisciplina tem no máximo uma Avaliacao por época
+/// (@@unique abaixo). Substitui o antigo AvaliacaoTipo livre (TESTE/TRABALHO/EXAME_FINAL) com
+/// peso arbitrário: a fórmula de cálculo é fixa por contrato, não há avaliações livres a pesar.
+enum Epoca {
+  P1
+  P2
+  EXAME
+  RECURSO
+  EXAME_ESPECIAL
 }
 
 enum Periodo {
@@ -147,6 +152,10 @@ model CadeiraCurricular {
   disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
   anoCurricular Int
   semestre      Int
+  /// Regras de dispensa (§4.1.1), geridas pelo DAAC. Algumas cadeiras podem não permitir dispensa
+  /// (ex. laboratórios). Copiadas para InscricaoCadeira no momento da inscrição — ver nota lá.
+  permiteDispensa    Boolean @default(true)
+  notaMinimaDispensa Decimal @default(14) @db.Decimal(4, 2)
 
   turmaDisciplinas TurmaDisciplina[]
   inscricoes       InscricaoCadeira[]
@@ -233,6 +242,11 @@ model InscricaoCadeira {
   tentativa           Int               @default(1)
   ativa               Boolean           @default(true)
   createdAt           DateTime          @default(now())
+  /// Congelamento de regras (§4.1.1, Fase 6): copiado de CadeiraCurricular no momento da criação
+  /// desta inscrição. calcularNotaFinal usa sempre estes valores, nunca os atuais da cadeira — uma
+  /// nota já lançada é facto histórico, mudar a regra no ano seguinte não reabre contas antigas.
+  permiteDispensaAplicada    Boolean
+  notaMinimaDispensaAplicada Decimal @db.Decimal(4, 2)
 
   notas       Nota[]
   frequencias Frequencia[]
@@ -240,17 +254,22 @@ model InscricaoCadeira {
   @@unique([alunoId, cadeiraCurricularId, tentativa])
 }
 
+/// Uma prova de uma época fixa (§4.1/§4.3). No máximo uma por TurmaDisciplina×época — a fórmula
+/// de cálculo (calcularNotaFinal) só conhece estes 5 pontos, não uma lista livre de provas.
 model Avaliacao {
   id                String          @id @default(cuid())
   turmaDisciplinaId String
   turmaDisciplina   TurmaDisciplina @relation(fields: [turmaDisciplinaId], references: [id], onDelete: Cascade)
-  tipo              AvaliacaoTipo
-  peso              Decimal         @db.Decimal(4, 2)
+  epoca             Epoca
   data              DateTime
-  nome              String
   sala              String?
+  /// Fechado o prazo, o PROFESSOR deixa de poder lançar/corrigir notas desta avaliação — o DAAC
+  /// ignora sempre este campo (podeLancarNota), o que já é o mecanismo de reabertura.
+  prazoLancamento   DateTime
 
   notas Nota[]
+
+  @@unique([turmaDisciplinaId, epoca])
 }
 
 model Nota {
@@ -295,7 +314,10 @@ model AuditLog {
   action     String
   entityType String
   entityId   String?
-  details    String?
+  /// Valor estruturado antes/depois (§7) — só preenchido onde faz sentido (notas, pagamentos,
+  /// preços, categoria). Substitui `details`, que nunca chegou a ser usado por nenhum call site.
+  valorAnterior String?
+  valorNovo     String?
   ipAddress  String?
   createdAt  DateTime @default(now())
 

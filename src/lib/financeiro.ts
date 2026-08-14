@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
+import { ehVencidoAlemDaTolerancia } from "@/lib/divida";
 
 export { mesReferenciaLabel } from "@/lib/utils";
 
@@ -17,12 +18,6 @@ async function getConfiguracaoFinanceira() {
       ultimaGeracaoEm: null,
     }
   );
-}
-
-function ehVencidoAlemDaTolerancia(dataVencimento: Date, toleranciaDias: number, agora: Date): boolean {
-  const limite = new Date(dataVencimento);
-  limite.setDate(limite.getDate() + toleranciaDias);
-  return agora > limite;
 }
 
 function inicioDoDia(data: Date): Date {

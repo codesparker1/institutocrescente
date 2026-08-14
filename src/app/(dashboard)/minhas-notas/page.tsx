@@ -6,6 +6,17 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
+import { calcularNotaFinal, extrairNotasPorEpoca, EPOCA_LABEL, ESTADO_LABEL, type EstadoAvaliacao } from "@/lib/avaliacao";
+
+const ESTADO_TONE: Record<EstadoAvaliacao, "success" | "warning" | "danger" | "neutral"> = {
+  EM_CURSO: "neutral",
+  DISPENSADO: "success",
+  ADMITIDO_A_EXAME: "warning",
+  EM_RECURSO: "warning",
+  EM_EXAME_ESPECIAL: "warning",
+  APROVADO: "success",
+  REPROVADO: "danger",
+};
 
 export default async function MinhasNotasPage() {
   const session = await auth();
@@ -26,9 +37,11 @@ export default async function MinhasNotasPage() {
   }
 
   // Por InscricaoCadeira, não por Matricula — cobre repetentes, cujas cadeiras podem estar
-  // ligadas a uma Turma de um ano anterior ao ano curricular atual do aluno (§4.2).
+  // ligadas a uma Turma de um ano anterior ao ano curricular atual do aluno (§4.2). Inclui
+  // tentativas inativas (histórico académico, Fase 8) — antes só a ativa era visível ao aluno,
+  // e uma tentativa reprovada desaparecia assim que a repetição era criada.
   const inscricoes = await prisma.inscricaoCadeira.findMany({
-    where: { alunoId: session.user.alunoId, ativa: true },
+    where: { alunoId: session.user.alunoId },
     include: {
       turmaDisciplina: {
         include: {
@@ -39,19 +52,15 @@ export default async function MinhasNotasPage() {
       },
       notas: { include: { avaliacao: true } },
     },
+    orderBy: [{ turmaDisciplina: { disciplina: { nome: "asc" } } }, { tentativa: "asc" }],
   });
 
-  function calcularNotaGeral(inscricao: (typeof inscricoes)[number]): number | null {
-    let soma = 0;
-    let temNota = false;
-    for (const avaliacao of inscricao.turmaDisciplina.avaliacoes) {
-      const nota = inscricao.notas.find((n) => n.avaliacaoId === avaliacao.id);
-      if (nota) {
-        soma += Number(nota.valor) * Number(avaliacao.peso);
-        temNota = true;
-      }
-    }
-    return temNota ? soma : null;
+  function calcularEstado(inscricao: (typeof inscricoes)[number]) {
+    const notas = inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
+    return calcularNotaFinal(extrairNotasPorEpoca(notas), {
+      permiteDispensa: inscricao.permiteDispensaAplicada,
+      notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+    });
   }
 
   const grupos = new Map<string, { label: string; inscricoesPorSemestre: Map<number, typeof inscricoes> }>();
@@ -97,19 +106,25 @@ export default async function MinhasNotasPage() {
                         <tr>
                           <Th>Disciplina</Th>
                           <Th>Notas</Th>
-                          <Th>Nota Geral</Th>
+                          <Th>Estado</Th>
+                          <Th>Nota Final</Th>
                         </tr>
                       </Thead>
                       <Tbody>
                         {inscricoesSemestre.map((inscricao) => {
-                          const notaGeral = calcularNotaGeral(inscricao);
+                          const resultado = calcularEstado(inscricao);
                           return (
-                            <Tr key={inscricao.id}>
+                            <Tr key={inscricao.id} className={!inscricao.ativa ? "opacity-60" : undefined}>
                               <Td className="font-medium text-navy-900">
                                 {inscricao.turmaDisciplina.disciplina.nome}
                                 {inscricao.tentativa > 1 ? (
                                   <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
                                     {inscricao.tentativa}ª tentativa
+                                  </span>
+                                ) : null}
+                                {!inscricao.ativa ? (
+                                  <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">
+                                    Histórico
                                   </span>
                                 ) : null}
                               </Td>
@@ -122,14 +137,17 @@ export default async function MinhasNotasPage() {
                                       const nota = inscricao.notas.find((n) => n.avaliacaoId === av.id);
                                       return (
                                         <Badge key={av.id} tone={nota ? "info" : "neutral"}>
-                                          {av.nome}: {nota ? Number(nota.valor) : "—"}
+                                          {EPOCA_LABEL[av.epoca]}: {nota ? Number(nota.valor) : "—"}
                                         </Badge>
                                       );
                                     })}
                                   </div>
                                 )}
                               </Td>
-                              <Td className="font-semibold text-navy-900">{notaGeral !== null ? notaGeral.toFixed(1) : "—"}</Td>
+                              <Td>
+                                <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
+                              </Td>
+                              <Td className="font-semibold text-navy-900">{resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}</Td>
                             </Tr>
                           );
                         })}

@@ -57,7 +57,7 @@ async function main() {
 
   console.log("A ler contexto seedado (turma, disciplina, avaliação, aluno em dívida)...");
   const ctx = await getSeededContext();
-  console.log(`  turma=${ctx.turma.id} turmaDisciplina=${ctx.turmaDisciplina.id} avaliacao="${ctx.avaliacao.nome}"`);
+  console.log(`  turma=${ctx.turma.id} turmaDisciplina=${ctx.turmaDisciplina.id} avaliacao="${ctx.avaliacao.epoca}"`);
   console.log(`  aluno em dívida (seed): ${ctx.alunoEmDivida.nome} <${ctx.alunoEmDivida.email}>`);
   if (!ctx.bloqueioAtivo) {
     console.log("  AVISO: bloqueioAtivo está desligado na ConfiguracaoFinanceira — a exclusão do PDF não vai acontecer.");

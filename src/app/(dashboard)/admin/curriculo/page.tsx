@@ -6,6 +6,7 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Select } from "@/components/ui/Select";
 import { deleteCadeiraCurricularAction } from "@/actions/admin";
 import { CreateCadeiraCurricularForm } from "./CreateCadeiraCurricularForm";
+import { EditarRegrasCadeiraCurricular } from "./EditarRegrasCadeiraCurricular";
 
 interface AdminCurriculoPageProps {
   searchParams: Promise<{ cursoId?: string }>;
@@ -88,6 +89,7 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                     <Th>Ano</Th>
                     <Th>Semestre</Th>
                     <Th>Turmas a lecionar</Th>
+                    <Th>Regras de dispensa (§4.1.1)</Th>
                     <Th></Th>
                   </tr>
                 </Thead>
@@ -98,6 +100,13 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                       <Td>{cadeira.anoCurricular}º Ano</Td>
                       <Td>{cadeira.semestre}º Semestre</Td>
                       <Td>{cadeira._count.turmaDisciplinas}</Td>
+                      <Td>
+                        <EditarRegrasCadeiraCurricular
+                          cadeiraCurricularId={cadeira.id}
+                          permiteDispensa={cadeira.permiteDispensa}
+                          notaMinimaDispensa={Number(cadeira.notaMinimaDispensa)}
+                        />
+                      </Td>
                       <Td className="text-right">
                         <form action={deleteCadeiraCurricularAction}>
                           <input type="hidden" name="id" value={cadeira.id} />

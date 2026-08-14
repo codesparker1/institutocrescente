@@ -207,8 +207,15 @@ async function main() {
       // para cair sempre em turmaEngInf1 (que já tem avaliações seedadas) e reproduzir o fluxo de
       // demonstração (Secção 8) de forma determinística. alunos[2] fica fixado no 3º ano, para o
       // repetente de demonstração (turmaEngInf3) existir sempre, sem depender do pick() aleatório.
+      // índices 4, 6, 8 (Eng. Informática, pares) também fixados no 1º ano — junto com o índice 0,
+      // dão 4 alunos garantidos em turmaEngInf1/progI para os 4 estados de demonstração da Fase 6
+      // (dispensado, admitido a exame aprovado, em recurso aprovado, reprovado).
       const anoCurricular =
-        index === 0 ? 1 : index === 2 ? 3 : pick(curso === "Engenharia Informática" ? [1, 2, 3] : [1, 2]);
+        index === 0 || index === 4 || index === 6 || index === 8
+          ? 1
+          : index === 2
+            ? 3
+            : pick(curso === "Engenharia Informática" ? [1, 2, 3] : [1, 2]);
       return prisma.aluno.create({
         data: {
           numeroEstudante: `ISPC2026-${numero}`,
@@ -256,6 +263,9 @@ async function main() {
           turmaDisciplinaId: td.id,
           tentativa: 1,
           ativa: true,
+          // Regras de dispensa da CadeiraCurricular no momento da inscrição (defaults do seed).
+          permiteDispensaAplicada: true,
+          notaMinimaDispensaAplicada: 14,
         },
       });
       inscricaoPorAlunoETurmaDisciplina.set(`${matricula.alunoId}:${td.id}`, inscricao.id);
@@ -266,9 +276,9 @@ async function main() {
   for (const td of turmaDisciplinas) {
     const avaliacoes = await Promise.all(
       [
-        { nome: "1.ª Prova", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(45), sala: td.salaExame },
-        { nome: "2.ª Prova", tipo: "TESTE" as const, peso: 0.3, data: daysAgo(20), sala: td.salaExame },
-        { nome: "Exame Final", tipo: "EXAME_FINAL" as const, peso: 0.4, data: daysAgo(-10), sala: td.salaExame },
+        { epoca: "P1" as const, data: daysAgo(45), prazoLancamento: daysAgo(38), sala: td.salaExame },
+        { epoca: "P2" as const, data: daysAgo(20), prazoLancamento: daysAgo(13), sala: td.salaExame },
+        { epoca: "EXAME" as const, data: daysAgo(-10), prazoLancamento: daysAgo(-3), sala: td.salaExame },
       ].map((a) => prisma.avaliacao.create({ data: { ...a, turmaDisciplinaId: td.id } })),
     );
 
@@ -314,6 +324,8 @@ async function main() {
         turmaDisciplinaId: tdProgIIAno2.id,
         tentativa: 1,
         ativa: false,
+        permiteDispensaAplicada: true,
+        notaMinimaDispensaAplicada: 14,
       },
     });
     const inscricaoRepeticao = await prisma.inscricaoCadeira.create({
@@ -323,15 +335,75 @@ async function main() {
         turmaDisciplinaId: tdProgIIAno2.id,
         tentativa: 2,
         ativa: true,
+        permiteDispensaAplicada: true,
+        notaMinimaDispensaAplicada: 14,
       },
     });
-    const primeiraAvaliacaoProgII = await prisma.avaliacao.findFirst({
-      where: { turmaDisciplinaId: tdProgIIAno2.id },
-      orderBy: { data: "asc" },
+    const p1AvaliacaoProgII = await prisma.avaliacao.findFirst({
+      where: { turmaDisciplinaId: tdProgIIAno2.id, epoca: "P1" },
     });
-    if (primeiraAvaliacaoProgII) {
+    if (p1AvaliacaoProgII) {
       await prisma.nota.create({
-        data: { avaliacaoId: primeiraAvaliacaoProgII.id, inscricaoCadeiraId: inscricaoRepeticao.id, valor: 9 },
+        data: { avaliacaoId: p1AvaliacaoProgII.id, inscricaoCadeiraId: inscricaoRepeticao.id, valor: 9 },
+      });
+    }
+  }
+
+  console.log("A criar 4 cenários de demonstração do motor de avaliação (progI, turmaEngInf1)...");
+  const tdProgI = turmaDisciplinas.find((td) => td.turmaId === turmaEngInf1.id);
+  if (tdProgI) {
+    const [p1ProgI, p2ProgI, exameProgI] = await Promise.all(
+      (["P1", "P2", "EXAME"] as const).map((epoca) => prisma.avaliacao.findFirstOrThrow({ where: { turmaDisciplinaId: tdProgI.id, epoca } })),
+    );
+    const [recursoProgI, especialProgI] = await Promise.all([
+      prisma.avaliacao.create({
+        data: { turmaDisciplinaId: tdProgI.id, epoca: "RECURSO", data: daysAgo(-24), prazoLancamento: daysAgo(-17), sala: tdProgI.salaExame },
+      }),
+      prisma.avaliacao.create({
+        data: { turmaDisciplinaId: tdProgI.id, epoca: "EXAME_ESPECIAL", data: daysAgo(-38), prazoLancamento: daysAgo(-31), sala: tdProgI.salaExame },
+      }),
+    ]);
+
+    const inscricaoDe = (alunoId: string) => inscricaoPorAlunoETurmaDisciplina.get(`${alunoId}:${tdProgI.id}`);
+    const alunoPorIndice = (indice: number) => alunos[indice];
+
+    // Marta (índice 0, aluno@ispc.ao): dispensado — média (16+15)/2=15.5 >= 14.
+    const inscricaoDispensado = inscricaoDe(alunoPorIndice(0).id);
+    // Isabel (índice 4): admitido a exame, aprovado — (8+8+15)/3=10.33.
+    const inscricaoAprovadoExame = inscricaoDe(alunoPorIndice(4).id);
+    // Adriana (índice 6): reprovada no exame, aprovada no recurso (conta isolado) — recurso=14.
+    const inscricaoAprovadoRecurso = inscricaoDe(alunoPorIndice(6).id);
+    // Carla (índice 8): reprovada em todas as épocas até ao exame especial.
+    const inscricaoReprovado = inscricaoDe(alunoPorIndice(8).id);
+
+    const notasDemo: { avaliacaoId: string; inscricaoCadeiraId: string; valor: number }[] = [];
+    if (inscricaoDispensado) {
+      notasDemo.push({ avaliacaoId: p1ProgI.id, inscricaoCadeiraId: inscricaoDispensado, valor: 16 });
+      notasDemo.push({ avaliacaoId: p2ProgI.id, inscricaoCadeiraId: inscricaoDispensado, valor: 15 });
+    }
+    if (inscricaoAprovadoExame) {
+      notasDemo.push({ avaliacaoId: p1ProgI.id, inscricaoCadeiraId: inscricaoAprovadoExame, valor: 8 });
+      notasDemo.push({ avaliacaoId: p2ProgI.id, inscricaoCadeiraId: inscricaoAprovadoExame, valor: 8 });
+      notasDemo.push({ avaliacaoId: exameProgI.id, inscricaoCadeiraId: inscricaoAprovadoExame, valor: 15 });
+    }
+    if (inscricaoAprovadoRecurso) {
+      notasDemo.push({ avaliacaoId: p1ProgI.id, inscricaoCadeiraId: inscricaoAprovadoRecurso, valor: 5 });
+      notasDemo.push({ avaliacaoId: p2ProgI.id, inscricaoCadeiraId: inscricaoAprovadoRecurso, valor: 5 });
+      notasDemo.push({ avaliacaoId: exameProgI.id, inscricaoCadeiraId: inscricaoAprovadoRecurso, valor: 5 });
+      notasDemo.push({ avaliacaoId: recursoProgI.id, inscricaoCadeiraId: inscricaoAprovadoRecurso, valor: 14 });
+    }
+    if (inscricaoReprovado) {
+      notasDemo.push({ avaliacaoId: p1ProgI.id, inscricaoCadeiraId: inscricaoReprovado, valor: 3 });
+      notasDemo.push({ avaliacaoId: p2ProgI.id, inscricaoCadeiraId: inscricaoReprovado, valor: 3 });
+      notasDemo.push({ avaliacaoId: exameProgI.id, inscricaoCadeiraId: inscricaoReprovado, valor: 3 });
+      notasDemo.push({ avaliacaoId: recursoProgI.id, inscricaoCadeiraId: inscricaoReprovado, valor: 4 });
+      notasDemo.push({ avaliacaoId: especialProgI.id, inscricaoCadeiraId: inscricaoReprovado, valor: 5 });
+    }
+    for (const nota of notasDemo) {
+      await prisma.nota.upsert({
+        where: { avaliacaoId_inscricaoCadeiraId: { avaliacaoId: nota.avaliacaoId, inscricaoCadeiraId: nota.inscricaoCadeiraId } },
+        create: nota,
+        update: { valor: nota.valor },
       });
     }
   }
