@@ -60,7 +60,7 @@ export async function getSeededContext() {
     avaliacao,
     alunoEmDivida,
     matriculaEmDivida,
-    valorMensalPadrao: Number(config.valorMensalPadrao),
+    valorPropina: Number(turma.curso.valorPropina),
     bloqueioAtivo: config.bloqueioAtivo,
   };
 }
@@ -73,17 +73,18 @@ export async function matricularNovoAlunoComPropinaPendente(email: string, turma
     data: { alunoId: aluno.id, turmaId, status: "ATIVA" },
   });
 
-  const config = await prisma.configuracaoFinanceira.findUniqueOrThrow({ where: { id: "config" } });
+  const turma = await prisma.turma.findUniqueOrThrow({ where: { id: turmaId }, include: { curso: true } });
   const hoje = new Date();
   const mesReferencia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   const dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), 10);
 
-  const propina = await prisma.propina.create({
+  const propina = await prisma.cobranca.create({
     data: {
       matriculaId: matricula.id,
       alunoId: aluno.id,
+      tipo: "PROPINA",
       mesReferencia,
-      valorDevido: config.valorMensalPadrao,
+      valorDevido: turma.curso.valorPropina,
       dataVencimento,
       status: "PENDENTE",
     },

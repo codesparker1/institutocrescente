@@ -2,10 +2,8 @@ import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { Field, Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Button } from "@/components/ui/Button";
-import { createDisciplinaAction, deleteDisciplinaAction } from "@/actions/admin";
+import { deleteDisciplinaAction } from "@/actions/admin";
+import { CreateDisciplinaForm } from "./CreateDisciplinaForm";
 
 export default async function AdminDisciplinasPage() {
   const [cursos, disciplinas] = await Promise.all([
@@ -23,27 +21,7 @@ export default async function AdminDisciplinasPage() {
       <Card>
         <CardHeader title="Disciplinas" subtitle={`${disciplinas.length} disciplina(s)`} />
         <CardBody className="flex flex-col gap-4">
-          <form action={createDisciplinaAction} className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
-            <Field label="Nome" htmlFor="disc-nome">
-              <Input id="disc-nome" name="nome" required placeholder="Cálculo I" />
-            </Field>
-            <Field label="Código" htmlFor="disc-codigo">
-              <Input id="disc-codigo" name="codigo" required placeholder="ENG-301" />
-            </Field>
-            <Field label="Carga horária" htmlFor="disc-carga">
-              <Input id="disc-carga" name="cargaHoraria" type="number" min={1} required defaultValue={45} />
-            </Field>
-            <Field label="Curso" htmlFor="disc-curso">
-              <Select id="disc-curso" name="cursoId" required>
-                {cursos.map((curso) => (
-                  <option key={curso.id} value={curso.id}>
-                    {curso.nome}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Button type="submit">Adicionar</Button>
-          </form>
+          <CreateDisciplinaForm cursos={cursos} />
 
           {disciplinas.length === 0 ? (
             <EmptyState message="Nenhuma disciplina cadastrada." />

@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/Table";
 import { ScheduleGrid, type TurmaDisciplinaComHorario } from "@/components/horario/ScheduleGrid";
 import { PERIODO_LABEL } from "@/lib/utils";
+import { podeGerirCurriculo } from "@/lib/permissions";
 
 const TURMA_DISCIPLINA_INCLUDE = {
   disciplina: true,
@@ -44,11 +45,16 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       subtitle = "Horário das suas disciplinas.";
     } else {
       if (!session.user.alunoId) redirect("/dashboard");
-      const matricula = await prisma.matricula.findFirst({
-        where: { alunoId: session.user.alunoId, status: "ATIVA" },
-        include: { turma: { include: { turmaDisciplinas: { include: TURMA_DISCIPLINA_INCLUDE } } } },
+      // Por InscricaoCadeira, não pela Matricula — um repetente frequenta cadeiras cujas
+      // TurmaDisciplina pertencem a uma Turma de ano diferente da sua matrícula atual (§4.2).
+      const inscricoes = await prisma.inscricaoCadeira.findMany({
+        where: { alunoId: session.user.alunoId, ativa: true },
+        include: { turmaDisciplina: { include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } } } },
       });
-      turmaDisciplinas = matricula?.turma.turmaDisciplinas ?? [];
+      turmaDisciplinas = inscricoes.map((i) => ({
+        ...i.turmaDisciplina,
+        cursoAnoLabel: `${i.turmaDisciplina.turma.curso.nome} · ${i.turmaDisciplina.turma.anoCurricular}º Ano`,
+      }));
       subtitle = "O seu horário de aulas e provas.";
     }
 
@@ -128,7 +134,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
           <p className="text-sm font-medium text-navy-700">
             {turma.curso.nome} · {turma.anoCurricular}º Ano · {PERIODO_LABEL[turma.periodo]}
           </p>
-          <ScheduleGrid turmaDisciplinas={turma.turmaDisciplinas} view={view} editable={role === "ADMIN"} />
+          <ScheduleGrid turmaDisciplinas={turma.turmaDisciplinas} view={view} editable={podeGerirCurriculo(session.user)} />
         </>
       )}
     </div>

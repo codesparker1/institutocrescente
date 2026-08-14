@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   ADMIN
   SECRETARIA
+  DAAC
   PROFESSOR
   ALUNO
 }
@@ -25,6 +26,14 @@ enum MatriculaStatus {
   ATIVA
   TRANCADA
   CONCLUIDA
+}
+
+/// Classificação do estudante — apenas informativo/relatório. Não afeta propinas, multas
+/// ou bloqueio: confirmado com o diretor que bolseiros pagam propina integralmente (2026-08-13).
+enum CategoriaEstudante {
+  NORMAL
+  BOLSEIRO_INAGBE
+  COMPARTICIPADA
 }
 
 enum AvaliacaoTipo {
@@ -49,18 +58,22 @@ enum DiaSemana {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  name         String
-  email        String     @unique
-  passwordHash String
-  role         Role
-  professorId  String?    @unique
-  professor    Professor? @relation(fields: [professorId], references: [id])
-  alunoId      String?    @unique
-  aluno        Aluno?     @relation(fields: [alunoId], references: [id])
-  createdAt    DateTime   @default(now())
+  id              String     @id @default(cuid())
+  name            String
+  /// Obrigatório para staff (ADMIN/SECRETARIA/DAAC/PROFESSOR); alunos podem não ter email — nesse caso entram pelo numeroEstudante.
+  email           String?    @unique
+  /// Desnormalizado de Aluno.numeroEstudante para o login aceitar email OU nº de estudante sem join. Só preenchido para role=ALUNO.
+  numeroEstudante String?    @unique
+  passwordHash    String
+  deveTrocarSenha Boolean    @default(false)
+  role            Role
+  professorId     String?    @unique
+  professor       Professor? @relation(fields: [professorId], references: [id])
+  alunoId         String?    @unique
+  aluno           Aluno?     @relation(fields: [alunoId], references: [id])
+  createdAt       DateTime   @default(now())
 
-  propinasRegistadas               Propina[]                 @relation("PropinaRegistadaPor")
+  cobrancasRegistadas               Cobranca[]                @relation("CobrancaRegistadaPor")
   configuracoesFinanceirasAtualizadas ConfiguracaoFinanceira[] @relation("ConfigFinanceiraAtualizadaPor")
 }
 
@@ -80,29 +93,34 @@ model Aluno {
   id              String      @id @default(cuid())
   numeroEstudante String      @unique
   nome            String
-  email           String      @unique
-  telefone        String
+  email           String?     @unique
+  telefone        String?
   dataNascimento  DateTime
   genero          String
   curso           String
   anoIngresso     Int
   anoCurricular   Int         @default(1)
   status          AlunoStatus @default(ATIVO)
+  categoria       CategoriaEstudante @default(NORMAL)
   createdAt       DateTime    @default(now())
 
   matriculas Matricula[]
-  propinas   Propina[]
+  cobrancas  Cobranca[]
+  inscricoes InscricaoCadeira[]
   user       User?
 }
 
 model Curso {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   nome        String
-  codigo      String @unique
+  codigo      String  @unique
   duracaoAnos Int
+  /// Preço mensal da propina, definido pelo DAAC ao criar/editar o curso (MD §2).
+  valorPropina Decimal @default(15000) @db.Decimal(10, 2)
 
-  disciplinas Disciplina[]
-  turmas      Turma[]
+  disciplinas         Disciplina[]
+  turmas              Turma[]
+  cadeirasCurriculares CadeiraCurricular[]
 }
 
 model Disciplina {
@@ -113,7 +131,27 @@ model Disciplina {
   cursoId      String
   curso        Curso  @relation(fields: [cursoId], references: [id])
 
+  turmaDisciplinas     TurmaDisciplina[]
+  cadeirasCurriculares CadeiraCurricular[]
+}
+
+/// O "plano curricular": em que ano/semestre de um curso é que uma disciplina se leciona.
+/// Não existia nenhum conceito disto antes — a atribuição de disciplinas a turmas era livre,
+/// sem noção de "isto pertence ao 2º ano" (§4.2, correção do cliente: a cadeira é curso×disciplina×ano,
+/// não só a disciplina — a mesma disciplina pode ter pesos/regras diferentes consoante o curso).
+model CadeiraCurricular {
+  id            String @id @default(cuid())
+  cursoId       String
+  curso         Curso  @relation(fields: [cursoId], references: [id])
+  disciplinaId  String
+  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
+  anoCurricular Int
+  semestre      Int
+
   turmaDisciplinas TurmaDisciplina[]
+  inscricoes       InscricaoCadeira[]
+
+  @@unique([cursoId, disciplinaId, anoCurricular, semestre])
 }
 
 /// Uma "turma" é uma coorte de alunos: Curso + Ano curricular + Período, num ano letivo.
@@ -131,21 +169,26 @@ model Turma {
   @@unique([cursoId, anoCurricular, periodo, anoLetivo])
 }
 
-/// Uma disciplina lecionada por um professor dentro de uma turma (coorte). Cada disciplina tem o seu próprio semestre.
+/// Uma disciplina lecionada por um professor dentro de uma turma (coorte) — a oferta concreta de uma
+/// CadeiraCurricular num ano letivo. `semestre` é copiado da CadeiraCurricular escolhida na criação
+/// (deixa de ser um campo livre); mantido aqui por conveniência de query.
 model TurmaDisciplina {
-  id           String     @id @default(cuid())
-  turmaId      String
-  turma        Turma      @relation(fields: [turmaId], references: [id], onDelete: Cascade)
-  disciplinaId String
-  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
-  professorId  String
-  professor    Professor  @relation(fields: [professorId], references: [id])
-  semestre     Int
-  sala         String
+  id                  String            @id @default(cuid())
+  turmaId             String
+  turma               Turma             @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  disciplinaId        String
+  disciplina          Disciplina        @relation(fields: [disciplinaId], references: [id])
+  cadeiraCurricularId String
+  cadeiraCurricular   CadeiraCurricular @relation(fields: [cadeiraCurricularId], references: [id])
+  professorId         String
+  professor           Professor         @relation(fields: [professorId], references: [id])
+  semestre            Int
+  sala                String
 
   avaliacoes   Avaliacao[]
   aulas        Aula[]
   horarioSlots HorarioSlot[]
+  inscricoes   InscricaoCadeira[]
 
   @@unique([turmaId, disciplinaId])
 }
@@ -169,11 +212,32 @@ model Matricula {
   dataMatricula DateTime        @default(now())
   status        MatriculaStatus @default(ATIVA)
 
-  notas       Nota[]
-  frequencias Frequencia[]
-  propinas    Propina[]
+  cobrancas Cobranca[]
 
   @@unique([alunoId, turmaId])
+}
+
+/// A inscrição de um aluno numa CadeiraCurricular — é aqui, não na Matricula, que vive "está
+/// inscrito nesta disciplina", para suportar repetentes (§4.2): um aluno do 3º ano a repetir uma
+/// cadeira do 2º ano tem uma InscricaoCadeira própria, apontando para a TurmaDisciplina que
+/// atualmente lecciona essa cadeira, independente da Turma em que está matriculado este ano.
+/// Só pode haver uma tentativa ativa por cadeira de cada vez — aplicado em código, não em constraint.
+model InscricaoCadeira {
+  id                  String            @id @default(cuid())
+  alunoId             String
+  aluno               Aluno             @relation(fields: [alunoId], references: [id])
+  cadeiraCurricularId String
+  cadeiraCurricular   CadeiraCurricular @relation(fields: [cadeiraCurricularId], references: [id])
+  turmaDisciplinaId   String
+  turmaDisciplina     TurmaDisciplina   @relation(fields: [turmaDisciplinaId], references: [id])
+  tentativa           Int               @default(1)
+  ativa               Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+
+  notas       Nota[]
+  frequencias Frequencia[]
+
+  @@unique([alunoId, cadeiraCurricularId, tentativa])
 }
 
 model Avaliacao {
@@ -190,15 +254,15 @@ model Avaliacao {
 }
 
 model Nota {
-  id          String    @id @default(cuid())
-  avaliacaoId String
-  avaliacao   Avaliacao @relation(fields: [avaliacaoId], references: [id])
-  matriculaId String
-  matricula   Matricula @relation(fields: [matriculaId], references: [id])
-  valor       Decimal   @db.Decimal(4, 2)
-  lancadoEm   DateTime  @default(now())
+  id                 String           @id @default(cuid())
+  avaliacaoId        String
+  avaliacao          Avaliacao        @relation(fields: [avaliacaoId], references: [id])
+  inscricaoCadeiraId String
+  inscricaoCadeira   InscricaoCadeira @relation(fields: [inscricaoCadeiraId], references: [id])
+  valor              Decimal          @db.Decimal(4, 2)
+  lancadoEm          DateTime         @default(now())
 
-  @@unique([avaliacaoId, matriculaId])
+  @@unique([avaliacaoId, inscricaoCadeiraId])
 }
 
 model Aula {
@@ -212,15 +276,15 @@ model Aula {
 }
 
 model Frequencia {
-  id          String    @id @default(cuid())
-  aulaId      String
-  aula        Aula      @relation(fields: [aulaId], references: [id])
-  matriculaId String
-  matricula   Matricula @relation(fields: [matriculaId], references: [id])
-  presente    Boolean
-  justificada Boolean?
+  id                 String           @id @default(cuid())
+  aulaId             String
+  aula               Aula             @relation(fields: [aulaId], references: [id])
+  inscricaoCadeiraId String
+  inscricaoCadeira   InscricaoCadeira @relation(fields: [inscricaoCadeiraId], references: [id])
+  presente           Boolean
+  justificada        Boolean?
 
-  @@unique([aulaId, matriculaId])
+  @@unique([aulaId, inscricaoCadeiraId])
 }
 
 model AuditLog {
@@ -240,43 +304,76 @@ model AuditLog {
   @@index([createdAt])
 }
 
-enum PropinaStatus {
+enum CobrancaStatus {
   PENDENTE
   PAGO
 }
 
-/// Uma mensalidade (propina) devida por um aluno, referente a um mês de um ano letivo.
+/// Discriminador do tipo de cobrança (MD §2). PROPINA e MULTA são mensais (têm mesReferencia);
+/// os restantes são pontuais, gerados quando o aluno solicita/é sujeito ao respetivo evento.
+enum CobrancaTipo {
+  INSCRICAO
+  CONFIRMACAO
+  MATRICULA
+  PROPINA
+  MULTA
+  EMOLUMENTO
+}
+
+/// Um valor devido por um aluno — mensalidade, multa, ou outra cobrança pontual (MD §2).
 /// Ligada à Matricula para saber curso/turma na altura, mas a unicidade e os totais são por Aluno,
 /// para a dívida seguir o aluno mesmo que a matrícula mude.
-model Propina {
-  id             String        @id @default(cuid())
-  matriculaId    String
-  matricula      Matricula     @relation(fields: [matriculaId], references: [id])
+/// Único (alunoId, tipo, mesReferencia) — para PROPINA/MULTA impede duplicados no mesmo mês;
+/// para os tipos pontuais (mesReferencia null) não restringe, porque o Postgres trata NULL como
+/// distinto em índices únicos, logo cada pedido pontual cria a sua própria linha.
+model Cobranca {
+  id             String         @id @default(cuid())
+  matriculaId    String?
+  matricula      Matricula?     @relation(fields: [matriculaId], references: [id])
   alunoId        String
-  aluno          Aluno         @relation(fields: [alunoId], references: [id])
-  mesReferencia  DateTime
-  valorDevido    Decimal       @db.Decimal(10, 2)
-  valorPago      Decimal       @default(0) @db.Decimal(10, 2)
-  status         PropinaStatus @default(PENDENTE)
+  aluno          Aluno          @relation(fields: [alunoId], references: [id])
+  tipo           CobrancaTipo
+  mesReferencia  DateTime?
+  descricao      String?
+  valorDevido    Decimal        @db.Decimal(10, 2)
+  valorPago      Decimal        @default(0) @db.Decimal(10, 2)
+  status         CobrancaStatus @default(PENDENTE)
   dataVencimento DateTime
   dataPagamento  DateTime?
   registadoPorId String?
-  registadoPor   User?         @relation("PropinaRegistadaPor", fields: [registadoPorId], references: [id])
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  registadoPor   User?          @relation("CobrancaRegistadaPor", fields: [registadoPorId], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  @@unique([alunoId, mesReferencia])
-  @@index([alunoId])
+  @@unique([alunoId, tipo, mesReferencia])
+  @@index([alunoId, status])
   @@index([status])
+}
+
+/// Catálogo de emolumentos (declarações, certidões, etc.) gerido pelo DAAC — mesmo padrão de
+/// preço editável que Curso.valorPropina (§2.2). Só consulta para o aluno: o pedido e o pagamento
+/// são presenciais na secretaria, que regista a Cobranca já paga. O nome/valor são copiados para
+/// a Cobranca no momento do registo, por isso alterar o preço aqui não afeta pagamentos já feitos.
+model Emolumento {
+  id        String   @id @default(cuid())
+  nome      String
+  descricao String?
+  valor     Decimal  @db.Decimal(10, 2)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 /// Configuração singleton do bloqueio por dívida (id fixo "config").
 model ConfiguracaoFinanceira {
-  id                String   @id @default("config")
-  bloqueioAtivo     Boolean  @default(true)
-  toleranciaDias    Int      @default(5)
-  valorMensalPadrao Decimal  @default(15000) @db.Decimal(10, 2)
-  updatedAt         DateTime @updatedAt
-  updatedPorId      String?
-  updatedPor        User?    @relation("ConfigFinanceiraAtualizadaPor", fields: [updatedPorId], references: [id])
+  id              String    @id @default("config")
+  bloqueioAtivo   Boolean   @default(true)
+  toleranciaDias  Int       @default(0)
+  diaVencimento   Int       @default(10)
+  valorMulta      Decimal   @default(5000) @db.Decimal(10, 2)
+  /// Marca a última corrida da geração automática de propinas/multas — evita repeti-la em cada request (§2).
+  ultimaGeracaoEm DateTime?
+  updatedAt       DateTime  @updatedAt
+  updatedPorId    String?
+  updatedPor      User?     @relation("ConfigFinanceiraAtualizadaPor", fields: [updatedPorId], references: [id])
 }

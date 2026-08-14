@@ -6,8 +6,11 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/Table";
 import { Input, Field } from "@/components/ui/Input";
 import { PropinasMensais } from "@/components/financeiro/PropinasMensais";
+import { MultasPendentes } from "@/components/financeiro/MultasPendentes";
+import { EmolumentosPagos } from "@/components/financeiro/EmolumentosPagos";
+import { RegistarPagamentoEmolumentoForm } from "@/components/financeiro/RegistarPagamentoEmolumentoForm";
 import { formatCurrency } from "@/lib/utils";
-import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
+import { getEstadoFinanceiroAluno, getCatalogoEmolumentos, getEmolumentosPagos } from "@/lib/financeiro";
 
 interface RegistoPageProps {
   searchParams: Promise<{ q?: string; alunoId?: string }>;
@@ -32,7 +35,13 @@ export default async function RegistoPropinasPage({ searchParams }: RegistoPageP
     ? await prisma.aluno.findUnique({ where: { id: alunoId } })
     : null;
 
-  const estadoFinanceiro = alunoSelecionado ? await getEstadoFinanceiroAluno(alunoSelecionado.id) : null;
+  const [estadoFinanceiro, catalogoEmolumentos, emolumentosPagos] = alunoSelecionado
+    ? await Promise.all([
+        getEstadoFinanceiroAluno(alunoSelecionado.id),
+        getCatalogoEmolumentos(),
+        getEmolumentosPagos(alunoSelecionado.id),
+      ])
+    : [null, [], []];
 
   return (
     <div className="flex flex-col gap-6">
@@ -112,6 +121,18 @@ export default async function RegistoPropinasPage({ searchParams }: RegistoPageP
               </p>
               <PropinasMensais meses={estadoFinanceiro.meses} editable />
             </div>
+
+            <MultasPendentes multas={estadoFinanceiro.multas} editable />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {alunoSelecionado ? (
+        <Card>
+          <CardHeader title="Emolumentos" subtitle="Pedido e pagamento presenciais — regista aqui depois de cobrar." />
+          <CardBody className="flex flex-col gap-4">
+            <RegistarPagamentoEmolumentoForm alunoId={alunoSelecionado.id} emolumentos={catalogoEmolumentos} />
+            <EmolumentosPagos emolumentos={emolumentosPagos} editable />
           </CardBody>
         </Card>
       ) : null}

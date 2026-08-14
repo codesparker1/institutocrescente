@@ -3,11 +3,9 @@ import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { Field, Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { createTurmaAction, deleteTurmaAction } from "@/actions/admin";
+import { deleteTurmaAction } from "@/actions/admin";
+import { CreateTurmaForm } from "./CreateTurmaForm";
 import { PERIODO_LABEL } from "@/lib/utils";
 
 export default async function AdminTurmasPage() {
@@ -31,37 +29,7 @@ export default async function AdminTurmasPage() {
       <Card>
         <CardHeader title="Turmas" subtitle={`${turmas.length} turma(s)`} />
         <CardBody className="flex flex-col gap-4">
-          <form action={createTurmaAction} className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
-            <Field label="Curso" htmlFor="turma-curso">
-              <Select id="turma-curso" name="cursoId" required>
-                {cursos.map((curso) => (
-                  <option key={curso.id} value={curso.id}>
-                    {curso.nome}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Ano curricular" htmlFor="turma-anocurricular">
-              <Select id="turma-anocurricular" name="anoCurricular" required defaultValue="1">
-                {[1, 2, 3, 4, 5, 6].map((ano) => (
-                  <option key={ano} value={ano}>
-                    {ano}º Ano
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Período" htmlFor="turma-periodo">
-              <Select id="turma-periodo" name="periodo" required defaultValue="MATUTINO">
-                <option value="MATUTINO">Matutino</option>
-                <option value="VESPERTINO">Vespertino</option>
-                <option value="NOTURNO">Noturno</option>
-              </Select>
-            </Field>
-            <Field label="Ano letivo" htmlFor="turma-ano">
-              <Input id="turma-ano" name="anoLetivo" type="number" required defaultValue={2026} />
-            </Field>
-            <Button type="submit">Criar turma</Button>
-          </form>
+          <CreateTurmaForm cursos={cursos} />
 
           {turmas.length === 0 ? (
             <EmptyState message="Nenhuma turma cadastrada." />

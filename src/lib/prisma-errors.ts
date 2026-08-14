@@ -1,0 +1,6 @@
+import { Prisma } from "@/generated/prisma/client";
+
+/** True quando o erro é uma violação de chave estrangeira (P2003) — ex: apagar um registo ainda referenciado por outro. */
+export function isForeignKeyViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003";
+}

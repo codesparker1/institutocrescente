@@ -17,37 +17,38 @@ interface AlunoDashboardProps {
 export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   const bloqueio = await verificarBloqueioAluno(alunoId);
 
-  const aluno = await prisma.aluno.findUnique({
-    where: { id: alunoId },
-    include: {
-      matriculas: {
-        where: { status: "ATIVA" },
-        include: {
-          turma: {
-            include: {
-              curso: true,
-              turmaDisciplinas: { include: { disciplina: true, professor: true, horarioSlots: true, avaliacoes: true } },
-            },
-          },
-          notas: { include: { avaliacao: { include: { turmaDisciplina: { include: { disciplina: true } } } } } },
-          frequencias: true,
-        },
-      },
-    },
-  });
+  const aluno = await prisma.aluno.findUnique({ where: { id: alunoId } });
 
   if (!aluno) {
     return <EmptyState message="Aluno não encontrado." />;
   }
 
-  const todasNotas = aluno.matriculas.flatMap((m) => m.notas.map((n) => Number(n.valor)));
+  // Por InscricaoCadeira, não por Matricula — cobre cadeiras repetidas noutra Turma (§4.2).
+  const inscricoes = await prisma.inscricaoCadeira.findMany({
+    where: { alunoId, ativa: true },
+    include: {
+      turmaDisciplina: {
+        include: {
+          disciplina: true,
+          professor: true,
+          horarioSlots: true,
+          avaliacoes: true,
+          turma: { include: { curso: true } },
+        },
+      },
+      notas: { include: { avaliacao: true } },
+      frequencias: true,
+    },
+  });
+
+  const todasNotas = inscricoes.flatMap((i) => i.notas.map((n) => Number(n.valor)));
   const mediaGeral = todasNotas.length > 0 ? todasNotas.reduce((a, b) => a + b, 0) / todasNotas.length : null;
 
-  const todasFrequencias = aluno.matriculas.flatMap((m) => m.frequencias);
+  const todasFrequencias = inscricoes.flatMap((i) => i.frequencias);
   const presencas = todasFrequencias.filter((f) => f.presente).length;
   const percentualPresenca = todasFrequencias.length > 0 ? Math.round((presencas / todasFrequencias.length) * 100) : null;
 
-  const todasDisciplinas = aluno.matriculas.flatMap((m) => m.turma.turmaDisciplinas);
+  const todasDisciplinas = inscricoes.map((i) => i.turmaDisciplina);
 
   const proximasAulas = todasDisciplinas
     .flatMap((td) => td.horarioSlots.map((slot) => ({ ...slot, disciplinaNome: td.disciplina.nome })))
@@ -77,7 +78,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           { label: "Nº Estudante", value: aluno.numeroEstudante },
           { label: "Curso", value: aluno.curso },
           { label: "Ano", value: `${aluno.anoCurricular}º Ano` },
-          { label: "Email", value: aluno.email },
+          { label: "Email", value: aluno.email ?? "—" },
         ]}
       />
 
@@ -148,28 +149,23 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           <EmptyState message="Sem matrículas ativas." />
         ) : (
           <CardBody className="flex flex-col gap-2">
-            {aluno.matriculas.map((matricula) =>
-              matricula.turma.turmaDisciplinas.map((td) => {
-                const notasDisciplina = matricula.notas.filter((n) => n.avaliacao.turmaDisciplina.id === td.id);
-                return (
-                  <div key={td.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
-                    <div>
-                      <p className="font-medium text-navy-800">{td.disciplina.nome}</p>
-                      <p className="text-xs text-navy-400">
-                        {td.professor.nome} · {PERIODO_LABEL[matricula.turma.periodo]}
-                      </p>
-                    </div>
-                    <span className="text-xs text-navy-400">
-                      {bloqueio.bloqueado
-                        ? "—"
-                        : notasDisciplina.length === 0
-                          ? "Sem notas"
-                          : notasDisciplina.map((n) => `${n.avaliacao.nome}: ${Number(n.valor)}`).join(" · ")}
-                    </span>
-                  </div>
-                );
-              }),
-            )}
+            {inscricoes.map((inscricao) => (
+              <div key={inscricao.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
+                <div>
+                  <p className="font-medium text-navy-800">{inscricao.turmaDisciplina.disciplina.nome}</p>
+                  <p className="text-xs text-navy-400">
+                    {inscricao.turmaDisciplina.professor.nome} · {PERIODO_LABEL[inscricao.turmaDisciplina.turma.periodo]}
+                  </p>
+                </div>
+                <span className="text-xs text-navy-400">
+                  {bloqueio.bloqueado
+                    ? "—"
+                    : inscricao.notas.length === 0
+                      ? "Sem notas"
+                      : inscricao.notas.map((n) => `${n.avaliacao.nome}: ${Number(n.valor)}`).join(" · ")}
+                </span>
+              </div>
+            ))}
           </CardBody>
         )}
       </Card>

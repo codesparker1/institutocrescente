@@ -15,14 +15,14 @@ interface LoginFormProps {
 
 export function LoginForm({ callbackUrl }: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
-  const [email, setEmail] = useState("");
+  const [identificador, setIdentificador] = useState("");
   const [password, setPassword] = useState("");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-navy-950 px-4 py-12">
       <DemoAccountsPanel
         onSelect={(demoEmail, demoPassword) => {
-          setEmail(demoEmail);
+          setIdentificador(demoEmail);
           setPassword(demoPassword);
         }}
       />
@@ -38,19 +38,31 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
           </div>
         </div>
 
-        <form action={formAction} className="flex flex-col gap-4 rounded-xl border border-navy-800 bg-navy-900 p-6 shadow-xl">
+        <form
+          action={(formData) => {
+            // O FormData já foi serializado neste ponto, por isso limpar a senha aqui é seguro:
+            // numa tentativa falhada o email fica preenchido e só a senha é reintroduzida.
+            formAction(formData);
+            setPassword("");
+          }}
+          className="flex flex-col gap-4 rounded-xl border border-navy-800 bg-navy-900 p-6 shadow-xl"
+        >
           <input type="hidden" name="callbackUrl" value={callbackUrl} />
 
-          <Field label="Email" htmlFor="email" labelProps={{ className: "text-sm font-medium text-navy-100" }}>
+          <Field
+            label="Email ou nº de estudante"
+            htmlFor="identificador"
+            labelProps={{ className: "text-sm font-medium text-navy-100" }}
+          >
             <Input
-              id="email"
-              name="email"
-              type="email"
+              id="identificador"
+              name="identificador"
+              type="text"
               required
-              placeholder="secretaria@ispc.ao"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="secretaria@ispc.ao ou ISPC2026-0001"
+              autoComplete="username"
+              value={identificador}
+              onChange={(e) => setIdentificador(e.target.value)}
             />
           </Field>
 

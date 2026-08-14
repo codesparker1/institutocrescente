@@ -57,16 +57,18 @@ const ALUNO_NOMES: [string, string][] = [
 async function main() {
   console.log("A limpar dados existentes...");
   await prisma.$transaction([
-    prisma.propina.deleteMany(),
+    prisma.cobranca.deleteMany(),
     prisma.configuracaoFinanceira.deleteMany(),
     prisma.auditLog.deleteMany(),
     prisma.frequencia.deleteMany(),
     prisma.aula.deleteMany(),
     prisma.nota.deleteMany(),
     prisma.avaliacao.deleteMany(),
+    prisma.inscricaoCadeira.deleteMany(),
     prisma.horarioSlot.deleteMany(),
     prisma.matricula.deleteMany(),
     prisma.turmaDisciplina.deleteMany(),
+    prisma.cadeiraCurricular.deleteMany(),
     prisma.turma.deleteMany(),
     prisma.disciplina.deleteMany(),
     prisma.curso.deleteMany(),
@@ -77,10 +79,10 @@ async function main() {
 
   console.log("A criar cursos e disciplinas...");
   const cursoEngInf = await prisma.curso.create({
-    data: { nome: "Engenharia Informática", codigo: "ENG-INF", duracaoAnos: 4 },
+    data: { nome: "Engenharia Informática", codigo: "ENG-INF", duracaoAnos: 4, valorPropina: 18000 },
   });
   const cursoGestao = await prisma.curso.create({
-    data: { nome: "Gestão de Empresas", codigo: "GESTAO", duracaoAnos: 3 },
+    data: { nome: "Gestão de Empresas", codigo: "GESTAO", duracaoAnos: 3, valorPropina: 15000 },
   });
 
   const [progI, progII, basesDados, redes] = await Promise.all(
@@ -161,12 +163,30 @@ async function main() {
     ] },
   ];
 
+  console.log("A definir o plano curricular (cadeira = curso × disciplina × ano × semestre)...");
+  const cadeirasCurricularesPorChave = new Map<string, string>();
+  for (const td of turmaDisciplinasData) {
+    const chave = `${td.turma.cursoId}:${td.disciplina.id}:${td.turma.anoCurricular}:${td.semestre}`;
+    if (cadeirasCurricularesPorChave.has(chave)) continue;
+    const cadeira = await prisma.cadeiraCurricular.create({
+      data: {
+        cursoId: td.turma.cursoId,
+        disciplinaId: td.disciplina.id,
+        anoCurricular: td.turma.anoCurricular,
+        semestre: td.semestre,
+      },
+    });
+    cadeirasCurricularesPorChave.set(chave, cadeira.id);
+  }
+
   const turmaDisciplinas = [];
   for (const td of turmaDisciplinasData) {
+    const chave = `${td.turma.cursoId}:${td.disciplina.id}:${td.turma.anoCurricular}:${td.semestre}`;
     const created = await prisma.turmaDisciplina.create({
       data: {
         turmaId: td.turma.id,
         disciplinaId: td.disciplina.id,
+        cadeiraCurricularId: cadeirasCurricularesPorChave.get(chave)!,
         professorId: td.professor.id,
         semestre: td.semestre,
         sala: td.sala,
@@ -185,8 +205,10 @@ async function main() {
       const numero = String(index + 1).padStart(4, "0");
       // alunos[0] (usado no login de demo aluno@ispc.ao) fica fixado no 1º ano de Eng. Informática,
       // para cair sempre em turmaEngInf1 (que já tem avaliações seedadas) e reproduzir o fluxo de
-      // demonstração (Secção 8) de forma determinística.
-      const anoCurricular = index === 0 ? 1 : pick(curso === "Engenharia Informática" ? [1, 2, 3] : [1, 2]);
+      // demonstração (Secção 8) de forma determinística. alunos[2] fica fixado no 3º ano, para o
+      // repetente de demonstração (turmaEngInf3) existir sempre, sem depender do pick() aleatório.
+      const anoCurricular =
+        index === 0 ? 1 : index === 2 ? 3 : pick(curso === "Engenharia Informática" ? [1, 2, 3] : [1, 2]);
       return prisma.aluno.create({
         data: {
           numeroEstudante: `ISPC2026-${numero}`,
@@ -222,6 +244,24 @@ async function main() {
     matriculas.push(matricula);
   }
 
+  console.log("A inscrever alunos nas cadeiras curriculares das suas turmas...");
+  const inscricaoPorAlunoETurmaDisciplina = new Map<string, string>();
+  for (const td of turmaDisciplinas) {
+    const matriculasTurma = matriculas.filter((m) => m.turmaId === td.turmaId);
+    for (const matricula of matriculasTurma) {
+      const inscricao = await prisma.inscricaoCadeira.create({
+        data: {
+          alunoId: matricula.alunoId,
+          cadeiraCurricularId: td.cadeiraCurricularId,
+          turmaDisciplinaId: td.id,
+          tentativa: 1,
+          ativa: true,
+        },
+      });
+      inscricaoPorAlunoETurmaDisciplina.set(`${matricula.alunoId}:${td.id}`, inscricao.id);
+    }
+  }
+
   console.log("A criar avaliações, notas, aulas e frequência...");
   for (const td of turmaDisciplinas) {
     const avaliacoes = await Promise.all(
@@ -236,8 +276,9 @@ async function main() {
     for (const avaliacao of avaliacoes) {
       for (const matricula of matriculasTurma) {
         if (chance(0.8)) {
+          const inscricaoId = inscricaoPorAlunoETurmaDisciplina.get(`${matricula.alunoId}:${td.id}`)!;
           await prisma.nota.create({
-            data: { avaliacaoId: avaliacao.id, matriculaId: matricula.id, valor: randomInt(8, 19) },
+            data: { avaliacaoId: avaliacao.id, inscricaoCadeiraId: inscricaoId, valor: randomInt(8, 19) },
           });
         }
       }
@@ -248,16 +289,50 @@ async function main() {
         data: { turmaDisciplinaId: td.id, data: daysAgo(semana * 7) },
       });
       for (const matricula of matriculasTurma) {
+        const inscricaoId = inscricaoPorAlunoETurmaDisciplina.get(`${matricula.alunoId}:${td.id}`)!;
         const presente = chance(0.9);
         await prisma.frequencia.create({
           data: {
             aulaId: aula.id,
-            matriculaId: matricula.id,
+            inscricaoCadeiraId: inscricaoId,
             presente,
             justificada: presente ? null : chance(0.5),
           },
         });
       }
+    }
+  }
+
+  console.log("A criar um repetente de demonstração (3º ano a repetir uma cadeira do 2º)...");
+  const matriculaRepetente = matriculas.find((m) => m.turmaId === turmaEngInf3.id);
+  const tdProgIIAno2 = turmaDisciplinas.find((td) => td.turmaId === turmaEngInf2.id && td.disciplinaId === progII.id);
+  if (matriculaRepetente && tdProgIIAno2) {
+    await prisma.inscricaoCadeira.create({
+      data: {
+        alunoId: matriculaRepetente.alunoId,
+        cadeiraCurricularId: tdProgIIAno2.cadeiraCurricularId,
+        turmaDisciplinaId: tdProgIIAno2.id,
+        tentativa: 1,
+        ativa: false,
+      },
+    });
+    const inscricaoRepeticao = await prisma.inscricaoCadeira.create({
+      data: {
+        alunoId: matriculaRepetente.alunoId,
+        cadeiraCurricularId: tdProgIIAno2.cadeiraCurricularId,
+        turmaDisciplinaId: tdProgIIAno2.id,
+        tentativa: 2,
+        ativa: true,
+      },
+    });
+    const primeiraAvaliacaoProgII = await prisma.avaliacao.findFirst({
+      where: { turmaDisciplinaId: tdProgIIAno2.id },
+      orderBy: { data: "asc" },
+    });
+    if (primeiraAvaliacaoProgII) {
+      await prisma.nota.create({
+        data: { avaliacaoId: primeiraAvaliacaoProgII.id, inscricaoCadeiraId: inscricaoRepeticao.id, valor: 9 },
+      });
     }
   }
 
@@ -299,14 +374,14 @@ async function main() {
     ),
   );
 
-  console.log("A criar propinas (módulo financeiro)...");
+  console.log("A criar cobranças (módulo financeiro)...");
   const VALOR_PROPINA_POR_CURSO: Record<string, number> = {
-    "Engenharia Informática": 18000,
-    "Gestão de Empresas": 15000,
+    "Engenharia Informática": Number(cursoEngInf.valorPropina),
+    "Gestão de Empresas": Number(cursoGestao.valorPropina),
   };
 
   await prisma.configuracaoFinanceira.create({
-    data: { id: "config", bloqueioAtivo: true, toleranciaDias: 5, valorMensalPadrao: 15000 },
+    data: { id: "config", bloqueioAtivo: true, toleranciaDias: 0, diaVencimento: 10, valorMulta: 5000 },
   });
 
   // Perfil de dívida: quantos dos últimos 6 meses (a contar do mais recente) ficam PENDENTE.
@@ -334,10 +409,11 @@ async function main() {
       const dataVencimento = new Date(base.getFullYear(), base.getMonth(), 8);
       const estaPendente = i < mesesPendentes;
 
-      await prisma.propina.create({
+      const propina = await prisma.cobranca.create({
         data: {
           matriculaId: matricula.id,
           alunoId: aluno.id,
+          tipo: "PROPINA",
           mesReferencia,
           valorDevido,
           valorPago: estaPendente ? 0 : valorDevido,
@@ -347,8 +423,32 @@ async function main() {
           registadoPorId: estaPendente ? null : userSecretaria.id,
         },
       });
+
+      // Multa de demonstração — só para a propina mais antiga em dívida do aluno "em dívida crónica" (Secção 8).
+      if (estaPendente && i === 5 && mesesPendentes >= 5) {
+        await prisma.cobranca.create({
+          data: {
+            matriculaId: matricula.id,
+            alunoId: aluno.id,
+            tipo: "MULTA",
+            mesReferencia,
+            valorDevido: 5000,
+            status: "PENDENTE",
+            dataVencimento: propina.dataVencimento,
+          },
+        });
+      }
     }
   }
+
+  console.log("A criar catálogo de emolumentos...");
+  await prisma.emolumento.createMany({
+    data: [
+      { nome: "Declaração de matrícula", descricao: "Comprova a matrícula no ano letivo corrente", valor: 3000 },
+      { nome: "Certidão de notas", descricao: "Histórico de notas até à data do pedido", valor: 5000 },
+      { nome: "Cartão de estudante (2ª via)", descricao: "Reemissão por perda ou dano", valor: 4000 },
+    ],
+  });
 
   console.log("A criar registos de auditoria iniciais...");
   await prisma.auditLog.createMany({
@@ -378,7 +478,7 @@ async function main() {
         userName: "Secretaria ISPC",
         userRole: "SECRETARIA",
         action: `Confirmou o pagamento de propina de um aluno`,
-        entityType: "Propina",
+        entityType: "Cobranca",
         ipAddress: "197.221.16.40",
       },
     ],

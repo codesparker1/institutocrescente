@@ -10,6 +10,7 @@ import type { Prisma, Role } from "@/generated/prisma/client";
 const ROLE_TONE: Record<Role, "info" | "success" | "warning" | "neutral"> = {
   ADMIN: "info",
   SECRETARIA: "success",
+  DAAC: "info",
   PROFESSOR: "warning",
   ALUNO: "neutral",
 };
@@ -65,6 +66,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
               <option value="">Todos os papéis</option>
               <option value="ADMIN">Administrador</option>
               <option value="SECRETARIA">Secretaria</option>
+              <option value="DAAC">DAAC</option>
               <option value="PROFESSOR">Professor</option>
               <option value="ALUNO">Aluno</option>
             </Select>

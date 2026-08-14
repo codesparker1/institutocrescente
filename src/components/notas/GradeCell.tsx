@@ -6,14 +6,13 @@ import { lancarNotaAction } from "@/actions/notas";
 import { cn } from "@/lib/utils";
 
 interface GradeCellProps {
-  turmaDisciplinaId: string;
   avaliacaoId: string;
-  matriculaId: string;
+  inscricaoCadeiraId: string;
   valorInicial: number | null;
   disabled?: boolean;
 }
 
-export function GradeCell({ turmaDisciplinaId, avaliacaoId, matriculaId, valorInicial, disabled }: GradeCellProps) {
+export function GradeCell({ avaliacaoId, inscricaoCadeiraId, valorInicial, disabled }: GradeCellProps) {
   const [valor, setValor] = useState(valorInicial?.toString() ?? "");
   const [savedFlash, setSavedFlash] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -22,9 +21,8 @@ export function GradeCell({ turmaDisciplinaId, avaliacaoId, matriculaId, valorIn
   function handleBlur() {
     if (disabled || valor === "") return;
     const formData = new FormData();
-    formData.set("turmaDisciplinaId", turmaDisciplinaId);
     formData.set("avaliacaoId", avaliacaoId);
-    formData.set("matriculaId", matriculaId);
+    formData.set("inscricaoCadeiraId", inscricaoCadeiraId);
     formData.set("valor", valor);
 
     startTransition(async () => {

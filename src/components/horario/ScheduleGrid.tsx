@@ -1,14 +1,11 @@
 import { Trash2, Printer } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { TimeSelect } from "@/components/ui/TimeSelect";
-import { DateSelect } from "@/components/ui/DateSelect";
-import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/Table";
 import { DIA_SEMANA_LABEL, formatDate } from "@/lib/utils";
-import { createHorarioSlotAction, deleteHorarioSlotAction, createProvaAction, deleteProvaAction } from "@/actions/horario";
+import { deleteHorarioSlotAction, deleteProvaAction } from "@/actions/horario";
+import { CreateProvaForm } from "./CreateProvaForm";
+import { CreateHorarioSlotForm } from "./CreateHorarioSlotForm";
 import type { Avaliacao, Disciplina, HorarioSlot } from "@/generated/prisma/client";
 
 const DIAS = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"] as const;
@@ -90,27 +87,9 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
           <Card>
             <CardBody>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-navy-400">Agendar prova</p>
-              <form action={createProvaAction} className="flex flex-wrap items-end gap-2">
-                <Select name="turmaDisciplinaId" required defaultValue={turmaDisciplinas[0]?.id} className="w-44 text-xs">
-                  {turmaDisciplinas.map((td) => (
-                    <option key={td.id} value={td.id}>
-                      {td.disciplina.nome}
-                    </option>
-                  ))}
-                </Select>
-                <Input name="nome" placeholder="Nome" required className="w-32 text-xs" />
-                <Select name="tipo" required defaultValue="TESTE" className="w-32 text-xs">
-                  <option value="TESTE">Teste</option>
-                  <option value="TRABALHO">Trabalho</option>
-                  <option value="EXAME_FINAL">Exame Final</option>
-                </Select>
-                <DateSelect name="data" minYear={new Date().getFullYear() - 1} maxYear={new Date().getFullYear() + 2} />
-                <Input name="sala" placeholder="Sala" required className="w-24 text-xs" />
-                <Input name="peso" type="number" step="0.1" min={0} max={1} placeholder="Peso" required defaultValue={0.3} className="w-16 text-xs" />
-                <Button type="submit" variant="ghost" className="text-xs">
-                  Agendar
-                </Button>
-              </form>
+              <CreateProvaForm
+                disciplinas={turmaDisciplinas.map((td) => ({ id: td.id, nome: td.disciplina.nome }))}
+              />
             </CardBody>
           </Card>
         ) : null}
@@ -164,29 +143,9 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
         <Card>
           <CardBody>
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-navy-400">Adicionar aula ao horário</p>
-            <form action={createHorarioSlotAction} className="flex flex-wrap items-end gap-2">
-              <Select name="turmaDisciplinaId" required defaultValue={turmaDisciplinas[0]?.id} className="w-44 text-xs">
-                {turmaDisciplinas.map((td) => (
-                  <option key={td.id} value={td.id}>
-                    {td.disciplina.nome}
-                  </option>
-                ))}
-              </Select>
-              <Select name="diaSemana" required defaultValue="SEGUNDA" className="w-32 text-xs">
-                {DIAS.map((dia) => (
-                  <option key={dia} value={dia}>
-                    {DIA_SEMANA_LABEL[dia]}
-                  </option>
-                ))}
-              </Select>
-              <TimeSelect name="horaInicio" defaultValue="08:00" required />
-              <span className="text-xs text-navy-400">até</span>
-              <TimeSelect name="horaFim" defaultValue="10:00" required />
-              <Input name="sala" placeholder="Sala" required className="w-24 text-xs" />
-              <Button type="submit" variant="ghost" className="text-xs">
-                Adicionar
-              </Button>
-            </form>
+            <CreateHorarioSlotForm
+              disciplinas={turmaDisciplinas.map((td) => ({ id: td.id, nome: td.disciplina.nome }))}
+            />
           </CardBody>
         </Card>
       ) : null}

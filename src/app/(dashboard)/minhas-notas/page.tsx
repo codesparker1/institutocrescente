@@ -25,37 +25,50 @@ export default async function MinhasNotasPage() {
     );
   }
 
-  const matriculas = await prisma.matricula.findMany({
-    where: { alunoId: session.user.alunoId, status: "ATIVA" },
+  // Por InscricaoCadeira, não por Matricula — cobre repetentes, cujas cadeiras podem estar
+  // ligadas a uma Turma de um ano anterior ao ano curricular atual do aluno (§4.2).
+  const inscricoes = await prisma.inscricaoCadeira.findMany({
+    where: { alunoId: session.user.alunoId, ativa: true },
     include: {
-      turma: {
+      turmaDisciplina: {
         include: {
-          curso: true,
-          turmaDisciplinas: { include: { disciplina: true, avaliacoes: { orderBy: { data: "asc" } } } },
+          disciplina: true,
+          turma: { include: { curso: true } },
+          avaliacoes: { orderBy: { data: "asc" } },
         },
       },
       notas: { include: { avaliacao: true } },
     },
   });
 
-  const notaPorCelula = new Map<string, number>();
-  for (const matricula of matriculas) {
-    for (const nota of matricula.notas) {
-      notaPorCelula.set(`${matricula.id}:${nota.avaliacaoId}`, Number(nota.valor));
-    }
-  }
-
-  function calcularNotaGeral(matriculaId: string, avaliacoes: { id: string; peso: unknown }[]): number | null {
+  function calcularNotaGeral(inscricao: (typeof inscricoes)[number]): number | null {
     let soma = 0;
     let temNota = false;
-    for (const avaliacao of avaliacoes) {
-      const valor = notaPorCelula.get(`${matriculaId}:${avaliacao.id}`);
-      if (valor !== undefined) {
-        soma += valor * Number(avaliacao.peso);
+    for (const avaliacao of inscricao.turmaDisciplina.avaliacoes) {
+      const nota = inscricao.notas.find((n) => n.avaliacaoId === avaliacao.id);
+      if (nota) {
+        soma += Number(nota.valor) * Number(avaliacao.peso);
         temNota = true;
       }
     }
     return temNota ? soma : null;
+  }
+
+  const grupos = new Map<string, { label: string; inscricoesPorSemestre: Map<number, typeof inscricoes> }>();
+  for (const inscricao of inscricoes) {
+    const turma = inscricao.turmaDisciplina.turma;
+    const chave = turma.id;
+    if (!grupos.has(chave)) {
+      grupos.set(chave, {
+        label: `${turma.curso.nome} · ${turma.anoCurricular}º Ano`,
+        inscricoesPorSemestre: new Map(),
+      });
+    }
+    const grupo = grupos.get(chave)!;
+    const semestre = inscricao.turmaDisciplina.semestre;
+    const lista = grupo.inscricoesPorSemestre.get(semestre) ?? [];
+    lista.push(inscricao);
+    grupo.inscricoesPorSemestre.set(semestre, lista);
   }
 
   return (
@@ -65,30 +78,20 @@ export default async function MinhasNotasPage() {
         <p className="text-sm text-navy-400">As suas notas, organizadas por ano do curso e semestre.</p>
       </div>
 
-      {matriculas.length === 0 ? (
-        <EmptyState message="Sem matrículas ativas." />
+      {grupos.size === 0 ? (
+        <EmptyState message="Sem cadeiras inscritas." />
       ) : (
-        matriculas.map((matricula) => {
-          const disciplinasPorSemestre = new Map<number, typeof matricula.turma.turmaDisciplinas>();
-          for (const td of matricula.turma.turmaDisciplinas) {
-            const lista = disciplinasPorSemestre.get(td.semestre) ?? [];
-            lista.push(td);
-            disciplinasPorSemestre.set(td.semestre, lista);
-          }
-          const semestres = [...disciplinasPorSemestre.keys()].sort((a, b) => a - b);
-
+        [...grupos.values()].map((grupo) => {
+          const semestres = [...grupo.inscricoesPorSemestre.keys()].sort((a, b) => a - b);
           return (
-            <div key={matricula.id} className="flex flex-col gap-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">
-                {matricula.turma.curso.nome} · {matricula.turma.anoCurricular}º Ano
-              </h2>
+            <div key={grupo.label} className="flex flex-col gap-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">{grupo.label}</h2>
 
-              {semestres.length === 0 ? (
-                <EmptyState message="Sem disciplinas atribuídas a esta turma." />
-              ) : (
-                semestres.map((semestre) => (
+              {semestres.map((semestre) => {
+                const inscricoesSemestre = grupo.inscricoesPorSemestre.get(semestre)!;
+                return (
                   <Card key={semestre}>
-                    <CardHeader title={`${semestre}º Semestre`} subtitle={`${disciplinasPorSemestre.get(semestre)!.length} disciplina(s)`} />
+                    <CardHeader title={`${semestre}º Semestre`} subtitle={`${inscricoesSemestre.length} disciplina(s)`} />
                     <Table>
                       <Thead>
                         <tr>
@@ -98,21 +101,28 @@ export default async function MinhasNotasPage() {
                         </tr>
                       </Thead>
                       <Tbody>
-                        {disciplinasPorSemestre.get(semestre)!.map((td) => {
-                          const notaGeral = calcularNotaGeral(matricula.id, td.avaliacoes);
+                        {inscricoesSemestre.map((inscricao) => {
+                          const notaGeral = calcularNotaGeral(inscricao);
                           return (
-                            <Tr key={td.id}>
-                              <Td className="font-medium text-navy-900">{td.disciplina.nome}</Td>
+                            <Tr key={inscricao.id}>
+                              <Td className="font-medium text-navy-900">
+                                {inscricao.turmaDisciplina.disciplina.nome}
+                                {inscricao.tentativa > 1 ? (
+                                  <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
+                                    {inscricao.tentativa}ª tentativa
+                                  </span>
+                                ) : null}
+                              </Td>
                               <Td>
-                                {td.avaliacoes.length === 0 ? (
+                                {inscricao.turmaDisciplina.avaliacoes.length === 0 ? (
                                   "—"
                                 ) : (
                                   <div className="flex flex-wrap gap-1.5">
-                                    {td.avaliacoes.map((av) => {
-                                      const valor = notaPorCelula.get(`${matricula.id}:${av.id}`);
+                                    {inscricao.turmaDisciplina.avaliacoes.map((av) => {
+                                      const nota = inscricao.notas.find((n) => n.avaliacaoId === av.id);
                                       return (
-                                        <Badge key={av.id} tone={valor !== undefined ? "info" : "neutral"}>
-                                          {av.nome}: {valor !== undefined ? valor : "—"}
+                                        <Badge key={av.id} tone={nota ? "info" : "neutral"}>
+                                          {av.nome}: {nota ? Number(nota.valor) : "—"}
                                         </Badge>
                                       );
                                     })}
@@ -126,8 +136,8 @@ export default async function MinhasNotasPage() {
                       </Tbody>
                     </Table>
                   </Card>
-                ))
-              )}
+                );
+              })}
             </div>
           );
         })

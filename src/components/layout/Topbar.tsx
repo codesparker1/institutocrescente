@@ -7,6 +7,7 @@ import type { Role } from "@/generated/prisma/client";
 const ROLE_LABEL: Record<Role, string> = {
   ADMIN: "Administrador",
   SECRETARIA: "Secretaria",
+  DAAC: "DAAC",
   PROFESSOR: "Professor",
   ALUNO: "Aluno",
 };

@@ -45,18 +45,35 @@ export function CreateProfessorForm() {
   }
 
   return (
-    <form action={formAction} className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
+    <form
+      key={JSON.stringify(state.values ?? {})}
+      action={formAction}
+      className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end"
+    >
       <Field label="Nome" htmlFor="prof-nome" error={state.fieldErrors?.nome}>
-        <Input id="prof-nome" name="nome" required placeholder="Eng. Carlos Neto" />
+        <Input id="prof-nome" name="nome" required placeholder="Eng. Carlos Neto" defaultValue={state.values?.nome} />
       </Field>
       <Field label="Email" htmlFor="prof-email" error={state.fieldErrors?.email}>
-        <Input id="prof-email" name="email" type="email" required placeholder="carlos.neto@ispc.ao" />
+        <Input
+          id="prof-email"
+          name="email"
+          type="email"
+          required
+          placeholder="carlos.neto@ispc.ao"
+          defaultValue={state.values?.email}
+        />
       </Field>
       <Field label="Telefone" htmlFor="prof-telefone" error={state.fieldErrors?.telefone}>
-        <PhoneInput id="prof-telefone" name="telefone" required />
+        <PhoneInput id="prof-telefone" name="telefone" required defaultValue={state.values?.telefone} />
       </Field>
       <Field label="Especialidade" htmlFor="prof-especialidade" error={state.fieldErrors?.especialidade}>
-        <Input id="prof-especialidade" name="especialidade" required placeholder="Engenharia Civil" />
+        <Input
+          id="prof-especialidade"
+          name="especialidade"
+          required
+          placeholder="Engenharia Civil"
+          defaultValue={state.values?.especialidade}
+        />
       </Field>
       {state.error ? <p className="sm:col-span-5 text-sm text-red-600">{state.error}</p> : null}
       <Button type="submit" disabled={isPending}>

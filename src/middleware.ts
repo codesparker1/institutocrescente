@@ -16,8 +16,9 @@ const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   { prefix: "/admin", roles: ["ADMIN"] },
   { prefix: "/auditoria", roles: ["ADMIN"] },
   { prefix: "/professor", roles: ["ADMIN", "PROFESSOR"] },
-  { prefix: "/notas", roles: ["ADMIN", "SECRETARIA"] },
+  { prefix: "/notas", roles: ["ADMIN", "DAAC"] },
   { prefix: "/minhas-notas", roles: ["ALUNO"] },
+  { prefix: "/financeiro", roles: ["ADMIN", "SECRETARIA", "ALUNO"] },
 ];
 
 export default auth((req) => {
@@ -28,6 +29,10 @@ export default auth((req) => {
     const loginUrl = new URL("/login", req.nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (req.auth?.user.deveTrocarSenha && pathname !== "/trocar-senha") {
+    return NextResponse.redirect(new URL("/trocar-senha", req.nextUrl.origin));
   }
 
   const role = req.auth?.user.role;
@@ -49,5 +54,7 @@ export const config = {
     "/auditoria/:path*",
     "/horario/:path*",
     "/minhas-notas/:path*",
+    "/financeiro/:path*",
+    "/trocar-senha",
   ],
 };

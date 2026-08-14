@@ -2,9 +2,9 @@ import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { Field, Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
-import { createCursoAction, deleteCursoAction } from "@/actions/admin";
+import { deleteCursoAction } from "@/actions/admin";
+import { CreateCursoForm } from "./CreateCursoForm";
+import { EditarValorPropinaCurso } from "./EditarValorPropinaCurso";
 
 export default async function AdminCursosPage() {
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
@@ -19,18 +19,7 @@ export default async function AdminCursosPage() {
       <Card>
         <CardHeader title="Cursos" subtitle={`${cursos.length} curso(s)`} />
         <CardBody className="flex flex-col gap-4">
-          <form action={createCursoAction} className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end">
-            <Field label="Nome" htmlFor="curso-nome">
-              <Input id="curso-nome" name="nome" required placeholder="Engenharia Civil" />
-            </Field>
-            <Field label="Código" htmlFor="curso-codigo">
-              <Input id="curso-codigo" name="codigo" required placeholder="ENG-CIV" />
-            </Field>
-            <Field label="Duração (anos)" htmlFor="curso-duracao">
-              <Input id="curso-duracao" name="duracaoAnos" type="number" min={1} max={8} required defaultValue={4} />
-            </Field>
-            <Button type="submit">Adicionar</Button>
-          </form>
+          <CreateCursoForm />
 
           {cursos.length === 0 ? (
             <EmptyState message="Nenhum curso cadastrado." />
@@ -41,6 +30,7 @@ export default async function AdminCursosPage() {
                   <Th>Nome</Th>
                   <Th>Código</Th>
                   <Th>Duração</Th>
+                  <Th>Propina mensal (Kz)</Th>
                   <Th></Th>
                 </tr>
               </Thead>
@@ -50,6 +40,9 @@ export default async function AdminCursosPage() {
                     <Td className="font-medium text-navy-900">{curso.nome}</Td>
                     <Td>{curso.codigo}</Td>
                     <Td>{curso.duracaoAnos} anos</Td>
+                    <Td>
+                      <EditarValorPropinaCurso cursoId={curso.id} valorPropina={Number(curso.valorPropina)} />
+                    </Td>
                     <Td className="text-right">
                       <form action={deleteCursoAction}>
                         <input type="hidden" name="id" value={curso.id} />

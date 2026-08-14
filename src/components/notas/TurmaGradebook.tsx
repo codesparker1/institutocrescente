@@ -4,11 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { Field, Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
 import { GradeCell } from "./GradeCell";
 import { AttendanceChip } from "./AttendanceChip";
-import { createAulaAction } from "@/actions/frequencia";
+import { CreateAulaForm } from "./CreateAulaForm";
 import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
 
 interface TurmaGradebookProps {
@@ -23,12 +21,18 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
     include: {
       disciplina: true,
       professor: true,
-      turma: { include: { curso: true, matriculas: { include: { aluno: true }, orderBy: { aluno: { nome: "asc" } } } } },
+      turma: { include: { curso: true } },
       avaliacoes: { orderBy: { data: "asc" } },
       horarioSlots: true,
+      inscricoes: { where: { ativa: true }, include: { aluno: true }, orderBy: { aluno: { nome: "asc" } } },
       aulas: {
         orderBy: { data: "desc" },
-        include: { frequencias: { include: { matricula: { include: { aluno: true } } }, orderBy: { matricula: { aluno: { nome: "asc" } } } } },
+        include: {
+          frequencias: {
+            include: { inscricaoCadeira: { include: { aluno: true } } },
+            orderBy: { inscricaoCadeira: { aluno: { nome: "asc" } } },
+          },
+        },
       },
     },
   });
@@ -40,10 +44,10 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
   });
   const notaPorCelula = new Map<string, number>();
   for (const nota of notas) {
-    notaPorCelula.set(`${nota.matriculaId}:${nota.avaliacaoId}`, Number(nota.valor));
+    notaPorCelula.set(`${nota.inscricaoCadeiraId}:${nota.avaliacaoId}`, Number(nota.valor));
   }
 
-  const matriculas = turmaDisciplina.turma.matriculas;
+  const inscricoes = turmaDisciplina.inscricoes;
   const diasLetivos = [...new Set(turmaDisciplina.horarioSlots.map((s) => s.diaSemana))];
   const datasValidas = proximasDatasValidas(diasLetivos);
   const hoje = diaSemanaHoje();
@@ -52,11 +56,11 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
   const proximoDiaLabel = datasValidas.find((d) => d.iso !== hojeIsoValor)?.label ?? datasValidas[0]?.label ?? null;
   const aulaDeHojeJaExiste = turmaDisciplina.aulas.some((a) => toIsoDate(a.data) === hojeIsoValor);
 
-  function calcularNotaGeral(matriculaId: string): number | null {
+  function calcularNotaGeral(inscricaoCadeiraId: string): number | null {
     let soma = 0;
     let temNota = false;
     for (const avaliacao of turmaDisciplina!.avaliacoes) {
-      const valor = notaPorCelula.get(`${matriculaId}:${avaliacao.id}`);
+      const valor = notaPorCelula.get(`${inscricaoCadeiraId}:${avaliacao.id}`);
       if (valor !== undefined) {
         soma += valor * Number(avaliacao.peso);
         temNota = true;
@@ -82,7 +86,7 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
 
       <Card>
         <CardHeader title="Pauta de notas" subtitle={editable ? "Clique num campo e prima Tab/Enter para gravar" : "Modo de visualização"} />
-        {matriculas.length === 0 || turmaDisciplina.avaliacoes.length === 0 ? (
+        {inscricoes.length === 0 || turmaDisciplina.avaliacoes.length === 0 ? (
           <EmptyState message="Sem alunos ou avaliações registadas para esta disciplina." />
         ) : (
           <Table>
@@ -96,18 +100,24 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
               </tr>
             </Thead>
             <Tbody>
-              {matriculas.map((matricula) => {
-                const notaGeral = calcularNotaGeral(matricula.id);
+              {inscricoes.map((inscricao) => {
+                const notaGeral = calcularNotaGeral(inscricao.id);
                 return (
-                  <Tr key={matricula.id}>
-                    <Td className="font-medium text-navy-900">{matricula.aluno.nome}</Td>
+                  <Tr key={inscricao.id}>
+                    <Td className="font-medium text-navy-900">
+                      {inscricao.aluno.nome}
+                      {inscricao.tentativa > 1 ? (
+                        <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
+                          {inscricao.tentativa}ª tentativa
+                        </span>
+                      ) : null}
+                    </Td>
                     {turmaDisciplina.avaliacoes.map((avaliacao) => (
                       <Td key={avaliacao.id}>
                         <GradeCell
-                          turmaDisciplinaId={turmaDisciplina.id}
                           avaliacaoId={avaliacao.id}
-                          matriculaId={matricula.id}
-                          valorInicial={notaPorCelula.get(`${matricula.id}:${avaliacao.id}`) ?? null}
+                          inscricaoCadeiraId={inscricao.id}
+                          valorInicial={notaPorCelula.get(`${inscricao.id}:${avaliacao.id}`) ?? null}
                           disabled={!editable}
                         />
                       </Td>
@@ -145,7 +155,7 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
                       <AttendanceChip
                         key={freq.id}
                         frequenciaId={freq.id}
-                        nome={freq.matricula.aluno.nome}
+                        nome={freq.inscricaoCadeira.aluno.nome}
                         presenteInicial={freq.presente}
                         disabled={!editable}
                       />
@@ -171,16 +181,11 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable }: 
             ) : (
               <div className="flex flex-col gap-3 border-t border-navy-50 pt-4">
                 <p className="text-xs font-medium text-emerald-700">Hoje ({DIA_SEMANA_LABEL[hoje]}) é dia de aula desta disciplina.</p>
-                <form action={createAulaAction} className="flex flex-wrap items-end gap-3">
-                  <input type="hidden" name="turmaDisciplinaId" value={turmaDisciplina.id} />
-                  <input type="hidden" name="data" value={hojeIsoValor} />
-                  <Field label="Tema (opcional)" htmlFor="aula-tema">
-                    <Input id="aula-tema" name="tema" placeholder="Ex: Revisão para o teste" />
-                  </Field>
-                  <Button type="submit" variant="ghost">
-                    Adicionar aula de hoje ({formatDate(new Date())})
-                  </Button>
-                </form>
+                <CreateAulaForm
+                  turmaDisciplinaId={turmaDisciplina.id}
+                  dataIso={hojeIsoValor}
+                  dataLabel={formatDate(new Date())}
+                />
               </div>
             )
           ) : null}

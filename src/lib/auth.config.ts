@@ -11,6 +11,7 @@ export const authConfig: NextAuthConfig = {
         token.role = user.role;
         token.professorId = user.professorId;
         token.alunoId = user.alunoId;
+        token.deveTrocarSenha = user.deveTrocarSenha;
       }
       return token;
     },
@@ -19,6 +20,7 @@ export const authConfig: NextAuthConfig = {
       session.user.role = token.role;
       session.user.professorId = token.professorId;
       session.user.alunoId = token.alunoId;
+      session.user.deveTrocarSenha = token.deveTrocarSenha;
       return session;
     },
   },

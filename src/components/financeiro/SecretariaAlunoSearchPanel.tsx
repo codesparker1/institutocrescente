@@ -185,7 +185,7 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
               <div className="flex flex-col gap-1.5 text-sm">
                 <InfoRow label="Curso" value={aSelecionado.curso} />
                 <InfoRow label="Ano" value={`${aSelecionado.anoCurricular}º Ano`} />
-                <InfoRow label="Email" value={aSelecionado.email} />
+                <InfoRow label="Email" value={aSelecionado.email ?? "—"} />
               </div>
               {estado ? (
                 <div

@@ -44,7 +44,13 @@ export function NovoAlunoForm({ turmas }: NovoAlunoFormProps) {
             <div className="text-sm">
               <p className="font-semibold text-navy-800">Credenciais de acesso (mostradas apenas agora)</p>
               <p className="mt-1 text-navy-600">
-                Email: <span className="font-mono">{state.success.email}</span>
+                Login: <span className="font-mono">{state.success.numeroEstudante}</span>
+                {state.success.email ? (
+                  <>
+                    {" "}
+                    ou <span className="font-mono">{state.success.email}</span>
+                  </>
+                ) : null}
               </p>
               <p className="text-navy-600">
                 Senha temporária: <span className="font-mono font-semibold">{state.success.senhaTemporaria}</span>
@@ -78,32 +84,54 @@ export function NovoAlunoForm({ turmas }: NovoAlunoFormProps) {
         {turmas.length === 0 ? (
           <EmptyState message="Nenhuma turma cadastrada. Crie uma turma primeiro em Admin > Turmas para poder matricular alunos." />
         ) : (
-          <form action={formAction} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <form
+            key={JSON.stringify(state.values ?? {})}
+            action={formAction}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+          >
             <Field label="Nome completo" htmlFor="nome" error={state.fieldErrors?.nome}>
-              <Input id="nome" name="nome" required placeholder="Ex: Marta Kiala" />
+              <Input id="nome" name="nome" required placeholder="Ex: Marta Kiala" defaultValue={state.values?.nome} />
             </Field>
 
-            <Field label="Email" htmlFor="email" error={state.fieldErrors?.email}>
-              <Input id="email" name="email" type="email" required placeholder="marta.kiala@aluno.ispc.ao" />
+            <Field label="Email (opcional)" htmlFor="email" error={state.fieldErrors?.email}>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="marta.kiala@aluno.ispc.ao"
+                defaultValue={state.values?.email}
+              />
             </Field>
 
-            <Field label="Telefone" htmlFor="telefone" error={state.fieldErrors?.telefone}>
-              <PhoneInput id="telefone" name="telefone" required />
+            <Field label="Telefone (opcional)" htmlFor="telefone" error={state.fieldErrors?.telefone}>
+              <PhoneInput id="telefone" name="telefone" defaultValue={state.values?.telefone} />
             </Field>
 
             <Field label="Data de nascimento" htmlFor="dataNascimento" error={state.fieldErrors?.dataNascimento}>
-              <DateSelect name="dataNascimento" maxYear={new Date().getFullYear() - 15} />
+              <DateSelect
+                name="dataNascimento"
+                maxYear={new Date().getFullYear() - 15}
+                defaultValue={state.values?.dataNascimento}
+              />
             </Field>
 
             <Field label="Género" htmlFor="genero" error={state.fieldErrors?.genero}>
-              <Select id="genero" name="genero" required defaultValue="Feminino">
+              <Select id="genero" name="genero" required defaultValue={state.values?.genero ?? "Feminino"}>
                 <option value="Feminino">Feminino</option>
                 <option value="Masculino">Masculino</option>
               </Select>
             </Field>
 
+            <Field label="Categoria do estudante" htmlFor="categoria" error={state.fieldErrors?.categoria}>
+              <Select id="categoria" name="categoria" defaultValue={state.values?.categoria ?? "NORMAL"}>
+                <option value="NORMAL">Normal</option>
+                <option value="BOLSEIRO_INAGBE">Bolseiro INAGBE</option>
+                <option value="COMPARTICIPADA">Comparticipada</option>
+              </Select>
+            </Field>
+
             <Field label="Turma" htmlFor="turmaId" error={state.fieldErrors?.turmaId}>
-              <Select id="turmaId" name="turmaId" required defaultValue={turmas[0]?.id}>
+              <Select id="turmaId" name="turmaId" required defaultValue={state.values?.turmaId ?? turmas[0]?.id}>
                 {turmas.map((turma) => (
                   <option key={turma.id} value={turma.id}>
                     {turma.label}

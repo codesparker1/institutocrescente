@@ -8,13 +8,25 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { formatDate } from "@/lib/utils";
-import type { AlunoStatus, Prisma } from "@/generated/prisma/client";
+import type { AlunoStatus, CategoriaEstudante, Prisma } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
   ATIVO: "success",
   TRANCADO: "warning",
   FORMADO: "neutral",
   DESISTENTE: "danger",
+};
+
+const CATEGORIA_LABEL: Record<CategoriaEstudante, string> = {
+  NORMAL: "Normal",
+  BOLSEIRO_INAGBE: "Bolseiro INAGBE",
+  COMPARTICIPADA: "Comparticipada",
+};
+
+const CATEGORIA_TONE: Record<CategoriaEstudante, "neutral" | "info"> = {
+  NORMAL: "neutral",
+  BOLSEIRO_INAGBE: "info",
+  COMPARTICIPADA: "info",
 };
 
 interface AlunosPageProps {
@@ -106,6 +118,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                   <Th>Nome</Th>
                   <Th>Curso</Th>
                   <Th>Ano</Th>
+                  <Th>Categoria</Th>
                   <Th>Estado</Th>
                   <Th>Registado em</Th>
                 </tr>
@@ -121,6 +134,9 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                     </Td>
                     <Td>{aluno.curso}</Td>
                     <Td>{aluno.anoCurricular}º Ano</Td>
+                    <Td>
+                      <Badge tone={CATEGORIA_TONE[aluno.categoria]}>{CATEGORIA_LABEL[aluno.categoria]}</Badge>
+                    </Td>
                     <Td>
                       <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
                     </Td>

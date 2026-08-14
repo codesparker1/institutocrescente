@@ -33,12 +33,9 @@ export async function GET(_req: Request, { params }: RouteParams) {
         include: {
           disciplina: true,
           professor: true,
-          turma: {
-            include: {
-              curso: true,
-              matriculas: { where: { status: "ATIVA" }, include: { aluno: true } },
-            },
-          },
+          turma: { include: { curso: true } },
+          // Roster por cadeira, não por coorte — inclui repetentes de outras turmas (§4.2).
+          inscricoes: { where: { ativa: true }, include: { aluno: true } },
         },
       },
     },
@@ -50,7 +47,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
     return new Response("Não autorizado", { status: 403 });
   }
 
-  const alunosDaTurma = avaliacao.turmaDisciplina.turma.matriculas.map((m) => m.aluno);
+  const alunosDaTurma = avaliacao.turmaDisciplina.inscricoes.map((i) => i.aluno);
   const alunosEmDivida = await getConjuntoAlunosEmDivida(alunosDaTurma.map((a) => a.id));
 
   const alunosElegiveis = alunosDaTurma

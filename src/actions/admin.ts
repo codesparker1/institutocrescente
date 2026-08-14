@@ -4,25 +4,15 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { gerarSenhaTemporaria } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
+import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
+import { isForeignKeyViolation } from "@/lib/prisma-errors";
+import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
+import { sincronizarInscricoesTurma } from "@/lib/curriculo";
 
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Sem permissão para esta ação.");
-  }
-  return session;
-}
-
-async function audit(
-  session: Awaited<ReturnType<typeof requireAdmin>>,
-  action: string,
-  entityType: string,
-  entityId?: string,
-) {
+async function audit(session: SessionComUser, action: string, entityType: string, entityId?: string) {
   await registrarAuditoria({
     userId: session.user.id,
     userName: session.user.name ?? session.user.email ?? "Utilizador",
@@ -34,57 +24,190 @@ async function audit(
 }
 
 const CursoSchema = z.object({
-  nome: z.string().min(2),
-  codigo: z.string().min(2),
-  duracaoAnos: z.coerce.number().int().min(1).max(8),
+  nome: z.string().min(2, "Nome é obrigatório"),
+  codigo: z.string().min(2, "Código é obrigatório"),
+  duracaoAnos: z.coerce.number("Indique a duração").int().min(1, "Mínimo 1 ano").max(8, "Máximo 8 anos"),
+  valorPropina: z.coerce.number("Indique o valor da propina").min(0, "O valor não pode ser negativo"),
 });
 
-export async function createCursoAction(formData: FormData) {
-  const session = await requireAdmin();
-  const data = CursoSchema.parse({
+const CAMPOS_CURSO = ["nome", "codigo", "duracaoAnos", "valorPropina"] as const;
+export type CreateCursoState = FormState<Record<(typeof CAMPOS_CURSO)[number], string>>;
+
+export async function createCursoAction(
+  _prevState: CreateCursoState,
+  formData: FormData,
+): Promise<CreateCursoState> {
+  const session = await requireGerirCurriculo();
+  const parsed = CursoSchema.safeParse({
     nome: formData.get("nome"),
     codigo: formData.get("codigo"),
     duracaoAnos: formData.get("duracaoAnos"),
+    valorPropina: formData.get("valorPropina"),
   });
-  const curso = await prisma.curso.create({ data });
-  await audit(session, `Criou o curso ${curso.nome}`, "Curso", curso.id);
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CURSO);
+
+  try {
+    const curso = await prisma.curso.create({ data: parsed.data });
+    await audit(session, `Criou o curso ${curso.nome}`, "Curso", curso.id);
+  } catch {
+    return {
+      error: "Não foi possível criar o curso (código já existe?).",
+      values: extrairValores(formData, CAMPOS_CURSO),
+    };
+  }
+
   revalidatePath("/admin/cursos");
+  return {};
+}
+
+const ValorPropinaCursoSchema = z.object({
+  cursoId: z.string().min(1),
+  valorPropina: z.coerce.number("Indique o valor da propina").min(0, "O valor não pode ser negativo"),
+});
+
+export async function atualizarValorPropinaCursoAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = ValorPropinaCursoSchema.safeParse({
+    cursoId: formData.get("cursoId"),
+    valorPropina: formData.get("valorPropina"),
+  });
+  if (!parsed.success) return { error: "Valor inválido." };
+
+  const curso = await prisma.curso.update({
+    where: { id: parsed.data.cursoId },
+    data: { valorPropina: parsed.data.valorPropina },
+  });
+  await audit(session, `Atualizou o valor da propina de ${curso.nome} para ${parsed.data.valorPropina} Kz`, "Curso", curso.id);
+
+  revalidatePath("/admin/cursos");
+  return {};
 }
 
 export async function deleteCursoAction(formData: FormData) {
-  const session = await requireAdmin();
+  const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
-  const curso = await prisma.curso.delete({ where: { id } });
-  await audit(session, `Removeu o curso ${curso.nome}`, "Curso", id);
+  try {
+    const curso = await prisma.curso.delete({ where: { id } });
+    await audit(session, `Removeu o curso ${curso.nome}`, "Curso", id);
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error("Não é possível remover: este curso ainda tem disciplinas ou turmas associadas.");
+    }
+    throw error;
+  }
   revalidatePath("/admin/cursos");
 }
 
 const DisciplinaSchema = z.object({
-  nome: z.string().min(2),
-  codigo: z.string().min(2),
-  cargaHoraria: z.coerce.number().int().min(1),
-  cursoId: z.string().min(1),
+  nome: z.string().min(2, "Nome é obrigatório"),
+  codigo: z.string().min(2, "Código é obrigatório"),
+  cargaHoraria: z.coerce.number("Indique a carga horária").int().min(1, "Carga horária inválida"),
+  cursoId: z.string().min(1, "Curso é obrigatório"),
 });
 
-export async function createDisciplinaAction(formData: FormData) {
-  const session = await requireAdmin();
-  const data = DisciplinaSchema.parse({
+const CAMPOS_DISCIPLINA = ["nome", "codigo", "cargaHoraria", "cursoId"] as const;
+export type CreateDisciplinaState = FormState<Record<(typeof CAMPOS_DISCIPLINA)[number], string>>;
+
+export async function createDisciplinaAction(
+  _prevState: CreateDisciplinaState,
+  formData: FormData,
+): Promise<CreateDisciplinaState> {
+  const session = await requireGerirCurriculo();
+  const parsed = DisciplinaSchema.safeParse({
     nome: formData.get("nome"),
     codigo: formData.get("codigo"),
     cargaHoraria: formData.get("cargaHoraria"),
     cursoId: formData.get("cursoId"),
   });
-  const disciplina = await prisma.disciplina.create({ data });
-  await audit(session, `Criou a disciplina ${disciplina.nome}`, "Disciplina", disciplina.id);
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_DISCIPLINA);
+
+  try {
+    const disciplina = await prisma.disciplina.create({ data: parsed.data });
+    await audit(session, `Criou a disciplina ${disciplina.nome}`, "Disciplina", disciplina.id);
+  } catch {
+    return {
+      error: "Não foi possível criar a disciplina (código já existe?).",
+      values: extrairValores(formData, CAMPOS_DISCIPLINA),
+    };
+  }
+
   revalidatePath("/admin/disciplinas");
+  return {};
 }
 
 export async function deleteDisciplinaAction(formData: FormData) {
-  const session = await requireAdmin();
+  const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
-  const disciplina = await prisma.disciplina.delete({ where: { id } });
-  await audit(session, `Removeu a disciplina ${disciplina.nome}`, "Disciplina", id);
+  try {
+    const disciplina = await prisma.disciplina.delete({ where: { id } });
+    await audit(session, `Removeu a disciplina ${disciplina.nome}`, "Disciplina", id);
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error("Não é possível remover: esta disciplina ainda está atribuída a turmas.");
+    }
+    throw error;
+  }
   revalidatePath("/admin/disciplinas");
+}
+
+const CadeiraCurricularSchema = z.object({
+  cursoId: z.string().min(1, "Curso é obrigatório"),
+  disciplinaId: z.string().min(1, "Disciplina é obrigatória"),
+  anoCurricular: z.coerce.number("Indique o ano").int().min(1, "Mínimo 1º ano").max(8, "Máximo 8º ano"),
+  semestre: z.coerce.number("Indique o semestre").int().min(1, "Semestre inválido").max(2, "Semestre inválido"),
+});
+
+const CAMPOS_CADEIRA_CURRICULAR = ["cursoId", "disciplinaId", "anoCurricular", "semestre"] as const;
+export type CreateCadeiraCurricularState = FormState<Record<(typeof CAMPOS_CADEIRA_CURRICULAR)[number], string>>;
+
+export async function createCadeiraCurricularAction(
+  _prevState: CreateCadeiraCurricularState,
+  formData: FormData,
+): Promise<CreateCadeiraCurricularState> {
+  const session = await requireGerirCurriculo();
+  const parsed = CadeiraCurricularSchema.safeParse({
+    cursoId: formData.get("cursoId"),
+    disciplinaId: formData.get("disciplinaId"),
+    anoCurricular: formData.get("anoCurricular"),
+    semestre: formData.get("semestre"),
+  });
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CADEIRA_CURRICULAR);
+
+  try {
+    const cadeira = await prisma.cadeiraCurricular.create({ data: parsed.data, include: { disciplina: true } });
+    await audit(
+      session,
+      `Adicionou ${cadeira.disciplina.nome} ao plano curricular (${cadeira.anoCurricular}º ano, ${cadeira.semestre}º semestre)`,
+      "CadeiraCurricular",
+      cadeira.id,
+    );
+  } catch {
+    return {
+      error: "Não foi possível adicionar (esta disciplina já está neste ano/semestre do curso?).",
+      values: extrairValores(formData, CAMPOS_CADEIRA_CURRICULAR),
+    };
+  }
+
+  revalidatePath("/admin/curriculo");
+  return {};
+}
+
+export async function deleteCadeiraCurricularAction(formData: FormData) {
+  const session = await requireGerirCurriculo();
+  const id = String(formData.get("id"));
+  try {
+    const cadeira = await prisma.cadeiraCurricular.delete({ where: { id }, include: { disciplina: true } });
+    await audit(session, `Removeu ${cadeira.disciplina.nome} do plano curricular`, "CadeiraCurricular", id);
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error("Não é possível remover: já existem turmas ou inscrições a usar esta cadeira do plano curricular.");
+    }
+    throw error;
+  }
+  revalidatePath("/admin/curriculo");
 }
 
 const ProfessorSchema = z.object({
@@ -94,9 +217,13 @@ const ProfessorSchema = z.object({
   especialidade: z.string().min(2, "Especialidade é obrigatória"),
 });
 
+const CAMPOS_PROFESSOR = ["nome", "email", "telefone", "especialidade"] as const;
+type CampoProfessor = (typeof CAMPOS_PROFESSOR)[number];
+
 export interface CreateProfessorState {
   error?: string;
   fieldErrors?: Record<string, string>;
+  values?: Record<CampoProfessor, string>;
   success?: {
     professorId: string;
     nome: string;
@@ -109,7 +236,7 @@ export async function createProfessorAction(
   _prevState: CreateProfessorState,
   formData: FormData,
 ): Promise<CreateProfessorState> {
-  const session = await requireAdmin();
+  const session = await requireGerirContas();
 
   const parsed = ProfessorSchema.safeParse({
     nome: formData.get("nome"),
@@ -119,11 +246,7 @@ export async function createProfessorAction(
   });
 
   if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const issue of parsed.error.issues) {
-      fieldErrors[String(issue.path[0])] = issue.message;
-    }
-    return { fieldErrors };
+    return erroDeValidacao(parsed.error, formData, CAMPOS_PROFESSOR);
   }
 
   const senhaTemporaria = gerarSenhaTemporaria();
@@ -138,6 +261,7 @@ export async function createProfessorAction(
           name: parsed.data.nome,
           email: parsed.data.email,
           passwordHash,
+          deveTrocarSenha: true,
           role: "PROFESSOR",
           professorId: novoProfessor.id,
         },
@@ -146,7 +270,10 @@ export async function createProfessorAction(
     });
     professorId = professor.id;
   } catch {
-    return { error: "Não foi possível criar o professor (email já registado?)." };
+    return {
+      error: "Não foi possível criar o professor (email já registado?).",
+      values: extrairValores(formData, CAMPOS_PROFESSOR),
+    };
   }
 
   await audit(session, `Criou o professor ${parsed.data.nome}`, "Professor", professorId);
@@ -163,78 +290,233 @@ export async function createProfessorAction(
 }
 
 export async function deleteProfessorAction(formData: FormData) {
-  const session = await requireAdmin();
+  const session = await requireGerirContas();
   const id = String(formData.get("id"));
-  const professor = await prisma.professor.delete({ where: { id } });
-  await audit(session, `Removeu o professor ${professor.nome}`, "Professor", id);
+  try {
+    const professor = await prisma.professor.delete({ where: { id } });
+    await audit(session, `Removeu o professor ${professor.nome}`, "Professor", id);
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error("Não é possível remover: este professor ainda tem disciplinas atribuídas.");
+    }
+    throw error;
+  }
   revalidatePath("/admin/professores");
 }
 
 const TurmaSchema = z.object({
-  cursoId: z.string().min(1),
-  anoCurricular: z.coerce.number().int().min(1).max(8),
-  periodo: z.enum(["MATUTINO", "VESPERTINO", "NOTURNO"]),
-  anoLetivo: z.coerce.number().int().min(2000).max(2100),
+  cursoId: z.string().min(1, "Curso é obrigatório"),
+  anoCurricular: z.coerce.number("Indique o ano").int().min(1, "Mínimo 1º ano").max(8, "Máximo 8º ano"),
+  periodo: z.enum(["MATUTINO", "VESPERTINO", "NOTURNO"], { message: "Período inválido" }),
+  anoLetivo: z.coerce.number("Indique o ano letivo").int().min(2000, "Ano letivo inválido").max(2100, "Ano letivo inválido"),
 });
 
-export async function createTurmaAction(formData: FormData) {
-  const session = await requireAdmin();
-  const data = TurmaSchema.parse({
+const CAMPOS_TURMA = ["cursoId", "anoCurricular", "periodo", "anoLetivo"] as const;
+export type CreateTurmaState = FormState<Record<(typeof CAMPOS_TURMA)[number], string>>;
+
+export async function createTurmaAction(
+  _prevState: CreateTurmaState,
+  formData: FormData,
+): Promise<CreateTurmaState> {
+  const session = await requireGerirCurriculo();
+  const parsed = TurmaSchema.safeParse({
     cursoId: formData.get("cursoId"),
     anoCurricular: formData.get("anoCurricular"),
     periodo: formData.get("periodo"),
     anoLetivo: formData.get("anoLetivo"),
   });
-  const turma = await prisma.turma.create({ data, include: { curso: true } });
-  await audit(
-    session,
-    `Criou a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`,
-    "Turma",
-    turma.id,
-  );
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_TURMA);
+
+  try {
+    const turma = await prisma.turma.create({ data: parsed.data, include: { curso: true } });
+    await audit(
+      session,
+      `Criou a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`,
+      "Turma",
+      turma.id,
+    );
+  } catch {
+    return {
+      error: "Não foi possível criar a turma (já existe uma igual para este curso, ano e período?).",
+      values: extrairValores(formData, CAMPOS_TURMA),
+    };
+  }
+
   revalidatePath("/admin/turmas");
+  return {};
 }
 
 export async function deleteTurmaAction(formData: FormData) {
-  const session = await requireAdmin();
+  const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
-  const turma = await prisma.turma.delete({ where: { id }, include: { curso: true } });
-  await audit(session, `Removeu a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`, "Turma", id);
+  try {
+    const turma = await prisma.turma.delete({ where: { id }, include: { curso: true } });
+    await audit(session, `Removeu a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`, "Turma", id);
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error("Não é possível remover: esta turma ainda tem alunos matriculados ou disciplinas atribuídas.");
+    }
+    throw error;
+  }
   revalidatePath("/admin/turmas");
 }
 
 const TurmaDisciplinaSchema = z.object({
-  turmaId: z.string().min(1),
-  disciplinaId: z.string().min(1),
-  professorId: z.string().min(1),
-  semestre: z.coerce.number().int().min(1).max(2),
-  sala: z.string().min(1),
+  turmaId: z.string().min(1, "Turma é obrigatória"),
+  cadeiraCurricularId: z.string().min(1, "Cadeira é obrigatória"),
+  professorId: z.string().min(1, "Professor é obrigatório"),
+  sala: z.string().min(1, "Sala é obrigatória"),
 });
 
-export async function createTurmaDisciplinaAction(formData: FormData) {
-  const session = await requireAdmin();
-  const data = TurmaDisciplinaSchema.parse({
+const CAMPOS_TURMA_DISCIPLINA = ["turmaId", "cadeiraCurricularId", "professorId", "sala"] as const;
+export type CreateTurmaDisciplinaState = FormState<Record<(typeof CAMPOS_TURMA_DISCIPLINA)[number], string>>;
+
+export async function createTurmaDisciplinaAction(
+  _prevState: CreateTurmaDisciplinaState,
+  formData: FormData,
+): Promise<CreateTurmaDisciplinaState> {
+  const session = await requireGerirCurriculo();
+  const parsed = TurmaDisciplinaSchema.safeParse({
     turmaId: formData.get("turmaId"),
-    disciplinaId: formData.get("disciplinaId"),
+    cadeiraCurricularId: formData.get("cadeiraCurricularId"),
     professorId: formData.get("professorId"),
-    semestre: formData.get("semestre"),
     sala: formData.get("sala"),
   });
-  const turmaDisciplina = await prisma.turmaDisciplina.create({
-    data,
-    include: { disciplina: true },
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_TURMA_DISCIPLINA);
+
+  const cadeiraCurricular = await prisma.cadeiraCurricular.findUnique({
+    where: { id: parsed.data.cadeiraCurricularId },
   });
-  await audit(session, `Atribuiu ${turmaDisciplina.disciplina.nome} à turma`, "TurmaDisciplina", turmaDisciplina.id);
-  revalidatePath(`/admin/turmas/${data.turmaId}`);
+  if (!cadeiraCurricular) {
+    return {
+      fieldErrors: { cadeiraCurricularId: "Cadeira curricular inválida." },
+      values: extrairValores(formData, CAMPOS_TURMA_DISCIPLINA),
+    };
+  }
+
+  try {
+    const turmaDisciplina = await prisma.turmaDisciplina.create({
+      data: {
+        turmaId: parsed.data.turmaId,
+        cadeiraCurricularId: parsed.data.cadeiraCurricularId,
+        disciplinaId: cadeiraCurricular.disciplinaId,
+        semestre: cadeiraCurricular.semestre,
+        professorId: parsed.data.professorId,
+        sala: parsed.data.sala,
+      },
+      include: { disciplina: true },
+    });
+    await audit(session, `Atribuiu ${turmaDisciplina.disciplina.nome} à turma`, "TurmaDisciplina", turmaDisciplina.id);
+  } catch {
+    return {
+      error: "Não foi possível atribuir a disciplina (já está atribuída a esta turma?).",
+      values: extrairValores(formData, CAMPOS_TURMA_DISCIPLINA),
+    };
+  }
+
+  // Alunos já matriculados nesta turma que ainda não tinham esta cadeira ficam inscritos agora.
+  await sincronizarInscricoesTurma(parsed.data.turmaId);
+
+  revalidatePath(`/admin/turmas/${parsed.data.turmaId}`);
+  return {};
 }
 
 export async function deleteTurmaDisciplinaAction(formData: FormData) {
-  const session = await requireAdmin();
+  const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
-  const turmaDisciplina = await prisma.turmaDisciplina.delete({
-    where: { id },
-    include: { disciplina: true },
+  let turmaId: string;
+  try {
+    const turmaDisciplina = await prisma.turmaDisciplina.delete({
+      where: { id },
+      include: { disciplina: true },
+    });
+    await audit(session, `Removeu ${turmaDisciplina.disciplina.nome} da turma`, "TurmaDisciplina", id);
+    turmaId = turmaDisciplina.turmaId;
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error("Não é possível remover: esta disciplina ainda tem alunos inscritos, avaliações ou aulas registadas na turma.");
+    }
+    throw error;
+  }
+  revalidatePath(`/admin/turmas/${turmaId}`);
+}
+
+const EmolumentoSchema = z.object({
+  nome: z.string().min(2, "Nome é obrigatório"),
+  descricao: z.string().optional(),
+  valor: z.coerce.number("Indique o valor").min(0, "O valor não pode ser negativo"),
+});
+
+const CAMPOS_EMOLUMENTO = ["nome", "descricao", "valor"] as const;
+export type CreateEmolumentoState = FormState<Record<(typeof CAMPOS_EMOLUMENTO)[number], string>>;
+
+export async function createEmolumentoAction(
+  _prevState: CreateEmolumentoState,
+  formData: FormData,
+): Promise<CreateEmolumentoState> {
+  const session = await requireGerirCurriculo();
+  const parsed = EmolumentoSchema.safeParse({
+    nome: formData.get("nome"),
+    descricao: formData.get("descricao") || undefined,
+    valor: formData.get("valor"),
   });
-  await audit(session, `Removeu ${turmaDisciplina.disciplina.nome} da turma`, "TurmaDisciplina", id);
-  revalidatePath(`/admin/turmas/${turmaDisciplina.turmaId}`);
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_EMOLUMENTO);
+
+  const emolumento = await prisma.emolumento.create({ data: parsed.data });
+  await audit(session, `Criou o emolumento ${emolumento.nome}`, "Emolumento", emolumento.id);
+
+  revalidatePath("/admin/emolumentos");
+  return {};
+}
+
+const AtualizarEmolumentoSchema = z.object({
+  emolumentoId: z.string().min(1),
+  valor: z.coerce.number("Indique o valor").min(0, "O valor não pode ser negativo"),
+});
+
+export async function atualizarValorEmolumentoAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = AtualizarEmolumentoSchema.safeParse({
+    emolumentoId: formData.get("emolumentoId"),
+    valor: formData.get("valor"),
+  });
+  if (!parsed.success) return { error: "Valor inválido." };
+
+  const emolumento = await prisma.emolumento.update({
+    where: { id: parsed.data.emolumentoId },
+    data: { valor: parsed.data.valor },
+  });
+  await audit(session, `Atualizou o valor de ${emolumento.nome} para ${parsed.data.valor} Kz`, "Emolumento", emolumento.id);
+
+  revalidatePath("/admin/emolumentos");
+  revalidatePath("/emolumentos");
+  return {};
+}
+
+export async function toggleEmolumentoAtivoAction(formData: FormData) {
+  const session = await requireGerirCurriculo();
+  const id = String(formData.get("id"));
+  const emolumento = await prisma.emolumento.findUniqueOrThrow({ where: { id } });
+  const atualizado = await prisma.emolumento.update({ where: { id }, data: { ativo: !emolumento.ativo } });
+  await audit(
+    session,
+    `${atualizado.ativo ? "Reativou" : "Desativou"} o emolumento ${atualizado.nome}`,
+    "Emolumento",
+    id,
+  );
+
+  revalidatePath("/admin/emolumentos");
+  revalidatePath("/emolumentos");
+}
+
+export async function deleteEmolumentoAction(formData: FormData) {
+  const session = await requireGerirCurriculo();
+  const id = String(formData.get("id"));
+  const emolumento = await prisma.emolumento.delete({ where: { id } });
+  await audit(session, `Removeu o emolumento ${emolumento.nome}`, "Emolumento", id);
+
+  revalidatePath("/admin/emolumentos");
 }

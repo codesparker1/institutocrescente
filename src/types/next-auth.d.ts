@@ -6,6 +6,7 @@ declare module "next-auth" {
     role: Role;
     professorId: string | null;
     alunoId: string | null;
+    deveTrocarSenha: boolean;
   }
 
   interface Session {
@@ -14,6 +15,7 @@ declare module "next-auth" {
       role: Role;
       professorId: string | null;
       alunoId: string | null;
+      deveTrocarSenha: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -23,5 +25,6 @@ declare module "next-auth/jwt" {
     role: Role;
     professorId: string | null;
     alunoId: string | null;
+    deveTrocarSenha: boolean;
   }
 }

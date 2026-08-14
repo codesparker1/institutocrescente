@@ -58,7 +58,9 @@ function AdminNav() {
         items={[
           { href: "/admin/cursos", label: "Cursos" },
           { href: "/admin/disciplinas", label: "Disciplinas" },
+          { href: "/admin/curriculo", label: "Plano Curricular" },
           { href: "/admin/turmas", label: "Turmas" },
+          { href: "/admin/emolumentos", label: "Emolumentos" },
         ]}
       />
       <NavItem href="/horario" label="Horário e Provas" icon={<CalendarClock size={18} />} />
@@ -90,7 +92,14 @@ function SecretariaNav() {
     <>
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
       <NavItem href="/alunos" label="Alunos" icon={<Users size={18} />} />
-      <NavItem href="/financeiro/registo" label="Registo de Propinas" icon={<Wallet size={18} />} />
+      <NavGroup
+        label="Financeiro"
+        icon={<Wallet size={18} />}
+        items={[
+          { href: "/financeiro/registo", label: "Registo de Pagamentos" },
+          { href: "/financeiro/devedores", label: "Lista de Devedores" },
+        ]}
+      />
     </>
   );
 }
