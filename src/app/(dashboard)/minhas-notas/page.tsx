@@ -136,8 +136,13 @@ export default async function MinhasNotasPage() {
                                     {inscricao.turmaDisciplina.avaliacoes.map((av) => {
                                       const nota = inscricao.notas.find((n) => n.avaliacaoId === av.id);
                                       return (
-                                        <Badge key={av.id} tone={nota ? "info" : "neutral"}>
+                                        <Badge
+                                          key={av.id}
+                                          tone={nota?.automatica ? "danger" : nota ? "info" : "neutral"}
+                                          title={nota?.automatica ? "0 automático — prazo de lançamento expirado sem nota entregue" : undefined}
+                                        >
                                           {EPOCA_LABEL[av.epoca]}: {nota ? Number(nota.valor) : "—"}
+                                          {nota?.automatica ? " (falta)" : ""}
                                         </Badge>
                                       );
                                     })}

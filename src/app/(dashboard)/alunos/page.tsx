@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { formatDate } from "@/lib/utils";
+import { formatDate, parseIntParam } from "@/lib/utils";
 import type { AlunoStatus, CategoriaEstudante, Prisma } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
@@ -29,12 +29,15 @@ const CATEGORIA_TONE: Record<CategoriaEstudante, "neutral" | "info"> = {
   COMPARTICIPADA: "info",
 };
 
+const TAMANHO_PAGINA = 25;
+
 interface AlunosPageProps {
-  searchParams: Promise<{ q?: string; curso?: string; ano?: string; periodo?: string }>;
+  searchParams: Promise<{ q?: string; curso?: string; ano?: string; periodo?: string; pagina?: string }>;
 }
 
 export default async function AlunosPage({ searchParams }: AlunosPageProps) {
-  const { q, curso, ano, periodo } = await searchParams;
+  const { q, curso, ano, periodo, pagina } = await searchParams;
+  const paginaAtual = Math.max(1, parseIntParam(pagina) ?? 1);
 
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
 
@@ -47,22 +50,42 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
     ];
   }
   if (curso) where.curso = curso;
-  if (ano) where.anoCurricular = Number(ano);
+  const anoCurricular = parseIntParam(ano);
+  if (anoCurricular !== undefined) where.anoCurricular = anoCurricular;
   if (periodo) {
     where.matriculas = { some: { status: "ATIVA", turma: { periodo: periodo as "MATUTINO" | "VESPERTINO" | "NOTURNO" } } };
   }
 
+  const totalAlunos = await prisma.aluno.count({ where });
+  const totalPaginas = Math.max(1, Math.ceil(totalAlunos / TAMANHO_PAGINA));
+  // Uma página fora do intervalo (bookmark antigo, filtro que reduziu os resultados) volta à última
+  // válida em vez de devolver uma lista vazia sem explicação.
+  const paginaValida = Math.min(paginaAtual, totalPaginas);
+
   const alunos = await prisma.aluno.findMany({
     where,
     orderBy: { nome: "asc" },
-    take: 100,
+    take: TAMANHO_PAGINA,
+    skip: (paginaValida - 1) * TAMANHO_PAGINA,
   });
+
+  const queryBase = new URLSearchParams();
+  if (q) queryBase.set("q", q);
+  if (curso) queryBase.set("curso", curso);
+  if (ano) queryBase.set("ano", ano);
+  if (periodo) queryBase.set("periodo", periodo);
+
+  function hrefParaPagina(p: number): string {
+    const query = new URLSearchParams(queryBase);
+    query.set("pagina", String(p));
+    return `/alunos?${query.toString()}`;
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-navy-900">Alunos</h1>
+          <h1 className="text-xl font-bold text-navy-900">Gestão de Matrícula</h1>
           <p className="text-sm text-navy-400">Matrículas e gestão do percurso académico.</p>
         </div>
         <Link href="/alunos/novo">
@@ -74,7 +97,14 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
       </div>
 
       <Card>
-        <CardHeader title="Lista de alunos" subtitle={`${alunos.length} resultado(s)`} />
+        <CardHeader
+          title="Lista de alunos"
+          subtitle={
+            totalAlunos === 0
+              ? "0 resultados"
+              : `A mostrar ${(paginaValida - 1) * TAMANHO_PAGINA + 1}–${Math.min(paginaValida * TAMANHO_PAGINA, totalAlunos)} de ${totalAlunos}`
+          }
+        />
         <CardBody className="flex flex-col gap-4">
           <form className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
             <Input type="search" name="q" defaultValue={q} placeholder="Nome, nº ou email..." className="sm:col-span-2" />
@@ -146,6 +176,34 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
               </Tbody>
             </Table>
           )}
+
+          {totalPaginas > 1 ? (
+            <div className="flex items-center justify-between border-t border-navy-50 pt-4">
+              <Link
+                href={hrefParaPagina(paginaValida - 1)}
+                aria-disabled={paginaValida <= 1}
+                className={`flex items-center gap-1 rounded-lg border border-navy-100 px-3 py-1.5 text-sm font-medium ${
+                  paginaValida <= 1 ? "pointer-events-none text-navy-200" : "text-navy-600 hover:bg-navy-50"
+                }`}
+              >
+                <ChevronLeft size={16} />
+                Anterior
+              </Link>
+              <span className="text-sm text-navy-400">
+                Página {paginaValida} de {totalPaginas}
+              </span>
+              <Link
+                href={hrefParaPagina(paginaValida + 1)}
+                aria-disabled={paginaValida >= totalPaginas}
+                className={`flex items-center gap-1 rounded-lg border border-navy-100 px-3 py-1.5 text-sm font-medium ${
+                  paginaValida >= totalPaginas ? "pointer-events-none text-navy-200" : "text-navy-600 hover:bg-navy-50"
+                }`}
+              >
+                Seguinte
+                <ChevronRight size={16} />
+              </Link>
+            </div>
+          ) : null}
         </CardBody>
       </Card>
     </div>

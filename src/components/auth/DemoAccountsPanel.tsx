@@ -9,6 +9,7 @@ export const DEMO_PASSWORD = "Ispc@2026";
 const DEMO_ACCOUNTS = [
   { role: "Administrador", email: "admin@ispc.ao", tone: "bg-navy-700" },
   { role: "Secretaria", email: "secretaria@ispc.ao", tone: "bg-emerald-600" },
+  { role: "DAAC", email: "daac@ispc.ao", tone: "bg-purple-600" },
   { role: "Professor", email: "professor@ispc.ao", tone: "bg-gold-600" },
   { role: "Aluno", email: "aluno@ispc.ao", tone: "bg-navy-500" },
 ] as const;

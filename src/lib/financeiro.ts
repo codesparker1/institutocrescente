@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
 import { ehVencidoAlemDaTolerancia } from "@/lib/divida";
+import { getAgora } from "@/lib/tempo";
 
 export { mesReferenciaLabel } from "@/lib/utils";
 
@@ -32,7 +33,7 @@ function inicioDoDia(data: Date): Date {
  */
 export async function garantirCobrancasGeradas(): Promise<void> {
   const config = await getConfiguracaoFinanceira();
-  const agora = new Date();
+  const agora = getAgora();
 
   if (config.ultimaGeracaoEm && inicioDoDia(config.ultimaGeracaoEm).getTime() === inicioDoDia(agora).getTime()) {
     return;
@@ -115,7 +116,7 @@ export async function verificarBloqueioAluno(alunoId: string): Promise<EstadoBlo
     }),
   ]);
 
-  const agora = new Date();
+  const agora = getAgora();
   const mesesPendentes: MesPendente[] = cobrancasPendentes.map((c) => ({
     propinaId: c.id,
     mesReferencia: c.mesReferencia ?? c.dataVencimento,
@@ -150,7 +151,7 @@ export interface DevedorListItem {
 }
 
 export interface FiltrosListaDevedores {
-  sort?: "antiguidade" | "valor";
+  sort?: "antiguidade" | "valor" | "nome";
   curso?: string;
   turmaId?: string;
   anoLetivo?: number;
@@ -162,7 +163,7 @@ export interface FiltrosListaDevedores {
 export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Promise<DevedorListItem[]> {
   const { sort = "antiguidade", curso, turmaId, anoLetivo, periodo, categoria } = filtros;
   const config = await getConfiguracaoFinanceira();
-  const agora = new Date();
+  const agora = getAgora();
 
   const cobrancasPendentes = await prisma.cobranca.findMany({
     where: {
@@ -221,7 +222,11 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
   }
 
   const lista = [...porAluno.values()];
-  lista.sort((a, b) => (sort === "valor" ? b.valorEmDivida - a.valorEmDivida : b.antiguidadeDias - a.antiguidadeDias));
+  lista.sort((a, b) => {
+    if (sort === "valor") return b.valorEmDivida - a.valorEmDivida;
+    if (sort === "nome") return a.nome.localeCompare(b.nome, "pt");
+    return b.antiguidadeDias - a.antiguidadeDias;
+  });
   return lista;
 }
 
@@ -232,7 +237,7 @@ export async function getConjuntoAlunosEmDivida(alunoIds: string[]): Promise<Set
   const config = await getConfiguracaoFinanceira();
   if (!config.bloqueioAtivo) return new Set();
 
-  const agora = new Date();
+  const agora = getAgora();
   const cobrancasPendentes = await prisma.cobranca.findMany({
     where: { alunoId: { in: alunoIds }, status: "PENDENTE", tipo: { in: [...TIPOS_QUE_BLOQUEIAM] } },
   });

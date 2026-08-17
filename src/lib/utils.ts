@@ -5,6 +5,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Lê um inteiro de um searchParam sem confiar no valor — um URL editado à mão ou um bookmark
+ * antigo (`?ano=abc`, `?ano=`) produz `NaN`, e passar `NaN` a um filtro Prisma rebenta com
+ * PrismaClientValidationError em vez de simplesmente ignorar o filtro inválido.
+ */
+export function parseIntParam(valor: string | undefined): number | undefined {
+  if (!valor) return undefined;
+  const n = Number(valor);
+  return Number.isInteger(n) ? n : undefined;
+}
+
+/** O ano letivo é armazenado como o ano civil de início (ex.: 2026), mas a instituição designa-o
+ * sempre pelo par de anos que atravessa (ex.: "2026/2027") — nunca mostrar o número isolado. */
+export function formatAnoLetivo(anoLetivo: number): string {
+  return `${anoLetivo}/${anoLetivo + 1}`;
+}
+
 const CURRENCY = "Kz";
 
 export function formatCurrency(value: number | string): string {
@@ -69,6 +86,11 @@ export function mesReferenciaLabel(data: Date): string {
   return `${MESES_LABEL[data.getMonth()]}/${data.getFullYear()}`;
 }
 
+/** Chave de agrupamento por mês/ano — usada para casar uma multa por atraso com a mensalidade do mesmo mês. */
+export function chaveMes(data: Date): string {
+  return `${data.getFullYear()}-${data.getMonth()}`;
+}
+
 export const DIA_SEMANA_LABEL: Record<string, string> = {
   SEGUNDA: "Segunda",
   TERCA: "Terça",
@@ -88,12 +110,15 @@ export const PERIODO_LABEL: Record<string, string> = {
 
 const JS_DAY_TO_DIA_SEMANA = ["DOMINGO", "SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"];
 
-export function diaSemanaHoje(): string {
-  return JS_DAY_TO_DIA_SEMANA[new Date().getDay()];
+// `agora` como parâmetro (nunca lido internamente) para os chamadores do servidor poderem passar
+// um relógio simulado (src/lib/tempo.ts) sem este ficheiro precisar de "server-only" — é
+// importado por componentes cliente também, e esse import quebraria o build deles.
+export function diaSemanaHoje(agora: Date = new Date()): string {
+  return JS_DAY_TO_DIA_SEMANA[agora.getDay()];
 }
 
-export function diasAteProximo(diaSemana: string): number {
-  const hoje = JS_DAY_TO_DIA_SEMANA[new Date().getDay()];
+export function diasAteProximo(diaSemana: string, agora: Date = new Date()): number {
+  const hoje = JS_DAY_TO_DIA_SEMANA[agora.getDay()];
   const indiceHoje = DIA_SEMANA_ORDEM.indexOf(hoje);
   const indiceAlvo = DIA_SEMANA_ORDEM.indexOf(diaSemana);
   if (indiceHoje === -1 || indiceAlvo === -1) return 99;
@@ -114,10 +139,10 @@ export interface DataValida {
 }
 
 /** Gera as próximas datas (a partir de hoje) cujo dia da semana coincide com os dias letivos informados. */
-export function proximasDatasValidas(diasSemana: string[], quantidade = 8): DataValida[] {
+export function proximasDatasValidas(diasSemana: string[], quantidade = 8, agora: Date = new Date()): DataValida[] {
   const alvo = new Set(diasSemana);
   const datas: DataValida[] = [];
-  const cursor = new Date();
+  const cursor = new Date(agora);
 
   for (let i = 0; datas.length < quantidade && i < 60; i += 1) {
     const dia = JS_DAY_TO_DIA_SEMANA[cursor.getDay()];
@@ -133,9 +158,10 @@ export function proximasDatasValidas(diasSemana: string[], quantidade = 8): Data
 interface TurmaLabelInput {
   anoCurricular: number;
   periodo: string;
+  anoLetivo: number;
   curso: { nome: string };
 }
 
 export function turmaLabel(turma: TurmaLabelInput): string {
-  return `${turma.curso.nome} - ${turma.anoCurricular}º Ano - ${PERIODO_LABEL[turma.periodo]}`;
+  return `${turma.curso.nome} - ${turma.anoCurricular}º Ano - ${PERIODO_LABEL[turma.periodo]} - ${formatAnoLetivo(turma.anoLetivo)}`;
 }

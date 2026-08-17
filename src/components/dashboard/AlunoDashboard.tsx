@@ -9,7 +9,8 @@ import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
 import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatDate } from "@/lib/utils";
-import { calcularNotaFinal, extrairNotasPorEpoca, EPOCA_LABEL } from "@/lib/avaliacao";
+import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, EPOCA_LABEL } from "@/lib/avaliacao";
+import { getAgora } from "@/lib/tempo";
 
 interface AlunoDashboardProps {
   alunoId: string;
@@ -42,14 +43,19 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     },
   });
 
-  const notasFinais = inscricoes
-    .map((i) =>
-      calcularNotaFinal(extrairNotasPorEpoca(i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }))), {
-        permiteDispensa: i.permiteDispensaAplicada,
-        notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
-      }).notaFinal,
-    )
-    .filter((n): n is number => n !== null);
+  // Uma resolução por inscrição — reaproveitada tanto para a média geral como para filtrar quais
+  // épocas ainda são relevantes mostrar (§4.1/§4.3): um aluno dispensado ou já aprovado não deve
+  // ver Recurso/Exame Especial na lista de "próximas provas", mesmo que estejam agendados para a turma.
+  const resultadosPorInscricao = inscricoes.map((i) => {
+    const notasCadeira = extrairNotasPorEpoca(i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao })));
+    const resultado = calcularNotaFinal(notasCadeira, {
+      permiteDispensa: i.permiteDispensaAplicada,
+      notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
+    });
+    return { inscricao: i, notasCadeira, resultado };
+  });
+
+  const notasFinais = resultadosPorInscricao.map((r) => r.resultado.notaFinal).filter((n): n is number => n !== null);
   const mediaGeral = notasFinais.length > 0 ? notasFinais.reduce((a, b) => a + b, 0) / notasFinais.length : null;
 
   const todasFrequencias = inscricoes.flatMap((i) => i.frequencias);
@@ -57,16 +63,24 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   const percentualPresenca = todasFrequencias.length > 0 ? Math.round((presencas / todasFrequencias.length) * 100) : null;
 
   const todasDisciplinas = inscricoes.map((i) => i.turmaDisciplina);
+  const agora = getAgora();
 
   const proximasAulas = todasDisciplinas
     .flatMap((td) => td.horarioSlots.map((slot) => ({ ...slot, disciplinaNome: td.disciplina.nome })))
-    .sort((a, b) => diasAteProximo(a.diaSemana) - diasAteProximo(b.diaSemana))
+    .sort((a, b) => diasAteProximo(a.diaSemana, agora) - diasAteProximo(b.diaSemana, agora))
     .slice(0, 5);
 
-  const hoje = new Date();
-  const proximasProvas = todasDisciplinas
-    .flatMap((td) => td.avaliacoes.map((av) => ({ ...av, disciplinaNome: td.disciplina.nome })))
-    .filter((av) => av.data >= hoje)
+  // "Próximas" = relevantes para o estado atual do aluno E ainda sem nota lançada — uma época já
+  // graduada não é "próxima", é histórico (fica só em "Minhas disciplinas"/Minhas Notas). Sem este
+  // segundo filtro, ordenar por data traria exames antigos já resolvidos para o topo da lista.
+  const proximasProvas = resultadosPorInscricao
+    .flatMap(({ inscricao, notasCadeira, resultado }) => {
+      const visiveis = new Set(epocasVisiveis(notasCadeira, resultado.estado));
+      const comNota = new Set(inscricao.notas.map((n) => n.avaliacao.epoca));
+      return inscricao.turmaDisciplina.avaliacoes
+        .filter((av) => visiveis.has(av.epoca) && !comNota.has(av.epoca))
+        .map((av) => ({ ...av, disciplinaNome: inscricao.turmaDisciplina.disciplina.nome }));
+    })
     .sort((a, b) => a.data.getTime() - b.data.getTime())
     .slice(0, 5);
 
@@ -143,7 +157,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
                     </p>
                     <p className="text-xs text-navy-400">{prova.sala ?? "Sala a confirmar"}</p>
                   </div>
-                  <Badge tone="info">{formatDate(prova.data)}</Badge>
+                  <Badge tone={prova.data >= agora ? "info" : "neutral"}>{formatDate(prova.data)}</Badge>
                 </div>
               ))}
             </CardBody>

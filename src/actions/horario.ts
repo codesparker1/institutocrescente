@@ -7,7 +7,8 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, type SessionComUser } from "@/lib/permissions";
-import { EPOCA_LABEL } from "@/lib/avaliacao";
+import { EPOCA_LABEL, diasPrazoParaEpoca } from "@/lib/avaliacao";
+import { HORA_REGEX, encontrarConflito, type SlotExistente } from "@/lib/horario";
 
 async function audit(session: SessionComUser, action: string, entityType: string, entityId?: string) {
   await registrarAuditoria({
@@ -20,16 +21,27 @@ async function audit(session: SessionComUser, action: string, entityType: string
   });
 }
 
-const HorarioSlotSchema = z.object({
-  turmaDisciplinaId: z.string().min(1, "Disciplina é obrigatória"),
-  diaSemana: z.enum(["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"], { message: "Dia inválido" }),
-  horaInicio: z.string().min(4, "Hora de início é obrigatória"),
-  horaFim: z.string().min(4, "Hora de fim é obrigatória"),
-  sala: z.string().min(1, "Sala é obrigatória"),
-});
+const HorarioSlotSchema = z
+  .object({
+    turmaDisciplinaId: z.string().min(1, "Disciplina é obrigatória"),
+    diaSemana: z.enum(["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"], { message: "Dia inválido" }),
+    horaInicio: z.string().regex(HORA_REGEX, "Hora de início inválida (use HH:MM)"),
+    horaFim: z.string().regex(HORA_REGEX, "Hora de fim inválida (use HH:MM)"),
+    sala: z.string().min(1, "Sala é obrigatória"),
+  })
+  .refine((v) => v.horaFim > v.horaInicio, {
+    message: "A hora de fim tem de ser depois da hora de início",
+    path: ["horaFim"],
+  });
 
 const CAMPOS_HORARIO_SLOT = ["turmaDisciplinaId", "diaSemana", "horaInicio", "horaFim", "sala"] as const;
 export type CreateHorarioSlotState = FormState<Record<(typeof CAMPOS_HORARIO_SLOT)[number], string>>;
+
+const CONFLITO_LABEL: Record<"professor" | "sala" | "turma", string> = {
+  professor: "O professor já tem outra aula marcada neste horário",
+  sala: "Esta sala já está ocupada neste horário",
+  turma: "Esta turma já tem outra disciplina marcada neste horário",
+};
 
 export async function createHorarioSlotAction(
   _prevState: CreateHorarioSlotState,
@@ -44,6 +56,52 @@ export async function createHorarioSlotAction(
     sala: formData.get("sala"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_HORARIO_SLOT);
+
+  const alvo = await prisma.turmaDisciplina.findUnique({
+    where: { id: parsed.data.turmaDisciplinaId },
+    select: { professorId: true, turmaId: true },
+  });
+  if (!alvo) {
+    return {
+      fieldErrors: { turmaDisciplinaId: "Disciplina inválida." },
+      values: extrairValores(formData, CAMPOS_HORARIO_SLOT),
+    };
+  }
+
+  // Nada impedia até aqui um professor, sala ou turma ficarem com dois horários sobrepostos no
+  // mesmo dia — comb da simulação encontrou isto antes de a simulação sequer correr. Só compara
+  // slots do mesmo dia (o resto não pode conflituar por definição).
+  const candidatos = await prisma.horarioSlot.findMany({
+    where: { diaSemana: parsed.data.diaSemana },
+    include: { turmaDisciplina: { include: { disciplina: true } } },
+  });
+  const existentes: SlotExistente[] = candidatos.map((s) => ({
+    id: s.id,
+    diaSemana: s.diaSemana,
+    horaInicio: s.horaInicio,
+    horaFim: s.horaFim,
+    sala: s.sala,
+    professorId: s.turmaDisciplina.professorId,
+    turmaId: s.turmaDisciplina.turmaId,
+    disciplinaNome: s.turmaDisciplina.disciplina.nome,
+  }));
+  const conflito = encontrarConflito(
+    {
+      diaSemana: parsed.data.diaSemana,
+      horaInicio: parsed.data.horaInicio,
+      horaFim: parsed.data.horaFim,
+      sala: parsed.data.sala,
+      professorId: alvo.professorId,
+      turmaId: alvo.turmaId,
+    },
+    existentes,
+  );
+  if (conflito) {
+    return {
+      error: `${CONFLITO_LABEL[conflito.tipo]} (${conflito.slot.disciplinaNome}, ${conflito.slot.horaInicio}–${conflito.slot.horaFim}).`,
+      values: extrairValores(formData, CAMPOS_HORARIO_SLOT),
+    };
+  }
 
   try {
     const slot = await prisma.horarioSlot.create({
@@ -78,20 +136,14 @@ export async function deleteHorarioSlotAction(formData: FormData) {
   revalidatePath("/horario");
 }
 
-const ProvaSchema = z
-  .object({
-    turmaDisciplinaId: z.string().min(1, "Disciplina é obrigatória"),
-    epoca: z.enum(["P1", "P2", "EXAME", "RECURSO", "EXAME_ESPECIAL"], { message: "Época inválida" }),
-    data: z.string().min(1, "Data é obrigatória"),
-    sala: z.string().min(1, "Sala é obrigatória"),
-    prazoLancamento: z.string().min(1, "Prazo de lançamento é obrigatório"),
-  })
-  .refine((v) => new Date(v.prazoLancamento) >= new Date(v.data), {
-    message: "O prazo de lançamento não pode ser antes da data da prova",
-    path: ["prazoLancamento"],
-  });
+const ProvaSchema = z.object({
+  turmaDisciplinaId: z.string().min(1, "Disciplina é obrigatória"),
+  epoca: z.enum(["P1", "P2", "EXAME", "RECURSO", "EXAME_ESPECIAL"], { message: "Época inválida" }),
+  data: z.string().min(1, "Data é obrigatória"),
+  sala: z.string().min(1, "Sala é obrigatória"),
+});
 
-const CAMPOS_PROVA = ["turmaDisciplinaId", "epoca", "data", "sala", "prazoLancamento"] as const;
+const CAMPOS_PROVA = ["turmaDisciplinaId", "epoca", "data", "sala"] as const;
 export type CreateProvaState = FormState<Record<(typeof CAMPOS_PROVA)[number], string>>;
 
 export async function createProvaAction(
@@ -104,18 +156,20 @@ export async function createProvaAction(
     epoca: formData.get("epoca"),
     data: formData.get("data"),
     sala: formData.get("sala"),
-    prazoLancamento: formData.get("prazoLancamento"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_PROVA);
 
   const dataProva = new Date(parsed.data.data);
-  const prazoLancamento = new Date(parsed.data.prazoLancamento);
-  if (Number.isNaN(dataProva.getTime()) || Number.isNaN(prazoLancamento.getTime())) {
+  if (Number.isNaN(dataProva.getTime())) {
     return {
       fieldErrors: { data: "Data inválida" },
       values: extrairValores(formData, CAMPOS_PROVA),
     };
   }
+
+  const config = await prisma.configuracaoAcademica.upsert({ where: { id: "config" }, update: {}, create: { id: "config" } });
+  const dias = diasPrazoParaEpoca(config, parsed.data.epoca);
+  const prazoLancamento = new Date(dataProva.getFullYear(), dataProva.getMonth(), dataProva.getDate() + dias);
 
   try {
     const prova = await prisma.avaliacao.create({

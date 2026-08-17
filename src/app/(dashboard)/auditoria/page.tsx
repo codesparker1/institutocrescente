@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils";
+import { getAgora } from "@/lib/tempo";
 import type { Prisma, Role } from "@/generated/prisma/client";
 
 const ROLE_TONE: Record<Role, "info" | "success" | "warning" | "neutral"> = {
@@ -39,7 +40,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
     prisma.auditLog.count({ where }),
     prisma.auditLog.findMany({ distinct: ["entityType"], select: { entityType: true }, orderBy: { entityType: "asc" } }),
   ]);
-  const agora = new Date();
+  const agora = getAgora();
 
   return (
     <div className="flex flex-col gap-6">

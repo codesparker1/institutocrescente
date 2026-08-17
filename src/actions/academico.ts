@@ -6,18 +6,38 @@ import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireGerirCurriculo, requireRegistarPagamento } from "@/lib/permissions";
-import { sincronizarInscricoesTurma } from "@/lib/curriculo";
+import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { decidirRematricula, cadeirasARepetir } from "@/lib/academico";
+import { getAgora } from "@/lib/tempo";
 
 const ConfiguracaoAcademicaSchema = z.object({
   limiteReprovacoes: z.coerce.number("Indique o limite").int().min(0, "Mínimo 0"),
   regraRetencao: z.enum(["SO_REPROVADAS", "ANO_INTEIRO"], { message: "Regra inválida" }),
   matriculaInicio: z.string().min(1, "Data de início é obrigatória"),
   matriculaFim: z.string().min(1, "Data de fim é obrigatória"),
+  anoLetivoInicio: z.string().min(1, "Data de início é obrigatória"),
+  anoLetivoFim: z.string().min(1, "Data de fim é obrigatória"),
+  diasPrazoP1: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
+  diasPrazoP2: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
+  diasPrazoExame: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
+  diasPrazoRecurso: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
+  diasPrazoExameEspecial: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
 });
 
-const CAMPOS_CONFIG_ACADEMICA = ["limiteReprovacoes", "regraRetencao", "matriculaInicio", "matriculaFim"] as const;
+const CAMPOS_CONFIG_ACADEMICA = [
+  "limiteReprovacoes",
+  "regraRetencao",
+  "matriculaInicio",
+  "matriculaFim",
+  "anoLetivoInicio",
+  "anoLetivoFim",
+  "diasPrazoP1",
+  "diasPrazoP2",
+  "diasPrazoExame",
+  "diasPrazoRecurso",
+  "diasPrazoExameEspecial",
+] as const;
 export type ConfiguracaoAcademicaState = FormState<Record<(typeof CAMPOS_CONFIG_ACADEMICA)[number], string>> & {
   success?: boolean;
 };
@@ -32,6 +52,13 @@ export async function atualizarConfiguracaoAcademicaAction(
     regraRetencao: formData.get("regraRetencao"),
     matriculaInicio: formData.get("matriculaInicio"),
     matriculaFim: formData.get("matriculaFim"),
+    anoLetivoInicio: formData.get("anoLetivoInicio"),
+    anoLetivoFim: formData.get("anoLetivoFim"),
+    diasPrazoP1: formData.get("diasPrazoP1"),
+    diasPrazoP2: formData.get("diasPrazoP2"),
+    diasPrazoExame: formData.get("diasPrazoExame"),
+    diasPrazoRecurso: formData.get("diasPrazoRecurso"),
+    diasPrazoExameEspecial: formData.get("diasPrazoExameEspecial"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CONFIG_ACADEMICA);
 
@@ -44,23 +71,34 @@ export async function atualizarConfiguracaoAcademicaAction(
     };
   }
 
+  const anoLetivoInicio = new Date(parsed.data.anoLetivoInicio);
+  const anoLetivoFim = new Date(parsed.data.anoLetivoFim);
+  if (Number.isNaN(anoLetivoInicio.getTime()) || Number.isNaN(anoLetivoFim.getTime()) || anoLetivoFim < anoLetivoInicio) {
+    return {
+      fieldErrors: { anoLetivoFim: "A data de fim tem de ser depois da data de início" },
+      values: extrairValores(formData, CAMPOS_CONFIG_ACADEMICA),
+    };
+  }
+
+  const dados = {
+    limiteReprovacoes: parsed.data.limiteReprovacoes,
+    regraRetencao: parsed.data.regraRetencao,
+    matriculaInicio,
+    matriculaFim,
+    anoLetivoInicio,
+    anoLetivoFim,
+    diasPrazoP1: parsed.data.diasPrazoP1,
+    diasPrazoP2: parsed.data.diasPrazoP2,
+    diasPrazoExame: parsed.data.diasPrazoExame,
+    diasPrazoRecurso: parsed.data.diasPrazoRecurso,
+    diasPrazoExameEspecial: parsed.data.diasPrazoExameEspecial,
+    updatedPorId: session.user.id,
+  };
+
   await prisma.configuracaoAcademica.upsert({
     where: { id: "config" },
-    update: {
-      limiteReprovacoes: parsed.data.limiteReprovacoes,
-      regraRetencao: parsed.data.regraRetencao,
-      matriculaInicio,
-      matriculaFim,
-      updatedPorId: session.user.id,
-    },
-    create: {
-      id: "config",
-      limiteReprovacoes: parsed.data.limiteReprovacoes,
-      regraRetencao: parsed.data.regraRetencao,
-      matriculaInicio,
-      matriculaFim,
-      updatedPorId: session.user.id,
-    },
+    update: dados,
+    create: { id: "config", ...dados },
   });
 
   await registrarAuditoria({
@@ -74,6 +112,33 @@ export async function atualizarConfiguracaoAcademicaAction(
 
   revalidatePath("/admin/academico/configuracao");
   return { success: true };
+}
+
+/** Interruptor manual do DAAC entre 1º e 2º semestre — não depende de datas. Volta a 1º sozinho
+ * quando um novo ano letivo começa (garantirSuspensaoAutomatica). */
+export async function alterarSemestreAction(formData: FormData): Promise<void> {
+  const session = await requireGerirCurriculo();
+  const novoSemestre = Number(formData.get("semestre"));
+  if (novoSemestre !== 1 && novoSemestre !== 2) throw new Error("Semestre inválido.");
+
+  await prisma.configuracaoAcademica.upsert({
+    where: { id: "config" },
+    update: { semestreAtual: novoSemestre, updatedPorId: session.user.id },
+    create: { id: "config", semestreAtual: novoSemestre, updatedPorId: session.user.id },
+  });
+
+  await registrarAuditoria({
+    userId: session.user.id,
+    userName: session.user.name ?? session.user.email ?? "Utilizador",
+    userRole: session.user.role,
+    action: `Mudou o sistema para o ${novoSemestre}º Semestre`,
+    entityType: "ConfiguracaoAcademica",
+    entityId: "config",
+  });
+
+  revalidatePath("/admin/academico/configuracao");
+  revalidatePath("/professor");
+  revalidatePath("/horario");
 }
 
 export interface ProcessarRematriculaState {
@@ -100,7 +165,7 @@ export async function processarRematriculaAction(
   if (!config?.matriculaInicio || !config.matriculaFim) {
     return { error: "Defina o período de matrícula em Admin > Configuração Académica antes de processar rematrículas." };
   }
-  const agora = new Date();
+  const agora = getAgora();
   if (agora < config.matriculaInicio || agora > config.matriculaFim) {
     return { error: "Fora do período de matrícula — a rematrícula só pode ser processada dentro da janela configurada." };
   }
@@ -128,6 +193,13 @@ export async function processarRematriculaAction(
     });
     return { inscricao, estado: resultado.estado };
   });
+  const pendentes = avaliadas.filter((a) => a.estado === "EM_CURSO" || a.estado === "ADMITIDO_A_EXAME" || a.estado === "EM_RECURSO" || a.estado === "EM_EXAME_ESPECIAL");
+  if (pendentes.length > 0) {
+    return {
+      error: `${aluno.nome} tem cadeiras por avaliar (${pendentes.map((p) => p.inscricao.turmaDisciplina.disciplina.nome).join(", ")}) — a rematrícula só é possível depois do lançamento de notas.`,
+    };
+  }
+
   const reprovadas = avaliadas.filter((a) => a.estado === "REPROVADO");
   const aprovadas = avaliadas.filter((a) => a.estado === "APROVADO" || a.estado === "DISPENSADO");
 
@@ -167,7 +239,13 @@ export async function processarRematriculaAction(
   );
   const semOferta = repeticoes.filter((r) => !r.novaOferta);
 
-  await prisma.$transaction(async (tx) => {
+  // Cadeiras aprovadas/dispensadas que NÃO entram no conjunto a repetir (aRepetir) ficam
+  // definitivamente concluídas — têm de ser desativadas aqui, senão continuam `ativa=true`
+  // apontadas para a turma do ano que terminou (era exatamente esta a lacuna do bug original).
+  const idsARepetir = new Set(aRepetir.map((r) => r.inscricao.id));
+  const aprovadasQueFicam = aprovadas.filter((a) => !idsARepetir.has(a.inscricao.id));
+
+  const repeticoesCriadas = await prisma.$transaction(async (tx) => {
     await tx.matricula.update({ where: { id: matriculaAtual.id }, data: { status: "CONCLUIDA" } });
     await tx.matricula.create({ data: { alunoId, turmaId: turmaAlvo.id, status: "ATIVA" } });
     await tx.aluno.update({
@@ -175,6 +253,14 @@ export async function processarRematriculaAction(
       data: { anoCurricular: decisao.novoAnoCurricular, status: "ATIVO" },
     });
 
+    if (aprovadasQueFicam.length > 0) {
+      await tx.inscricaoCadeira.updateMany({
+        where: { id: { in: aprovadasQueFicam.map((a) => a.inscricao.id) } },
+        data: { ativa: false },
+      });
+    }
+
+    const criadas: { id: string; turmaDisciplinaId: string }[] = [];
     for (const { item, novaOferta } of repeticoes) {
       if (!novaOferta) continue;
       const tentativasAnteriores = await tx.inscricaoCadeira.findMany({
@@ -182,7 +268,7 @@ export async function processarRematriculaAction(
         orderBy: { tentativa: "desc" },
       });
       await tx.inscricaoCadeira.update({ where: { id: item.inscricao.id }, data: { ativa: false } });
-      await tx.inscricaoCadeira.create({
+      const nova = await tx.inscricaoCadeira.create({
         data: {
           alunoId,
           cadeiraCurricularId: item.inscricao.cadeiraCurricularId,
@@ -193,9 +279,14 @@ export async function processarRematriculaAction(
           notaMinimaDispensaAplicada: novaOferta.cadeiraCurricular.notaMinimaDispensa,
         },
       });
+      criadas.push({ id: nova.id, turmaDisciplinaId: nova.turmaDisciplinaId });
     }
+    return criadas;
   });
 
+  // Repete a meio do ano na disciplina de destino — sem isto fica invisível na marcação de
+  // presença das aulas já dadas, apesar de já aparecer na pauta (roster por InscricaoCadeira).
+  await backfillFrequenciasParaInscricoes(repeticoesCriadas);
   await sincronizarInscricoesTurma(turmaAlvo.id);
 
   const resultadoLabel =
@@ -256,7 +347,7 @@ export async function iniciarNovoCursoAction(
   if (!aluno) return { error: "Aluno não encontrado." };
   if (!novoCurso) return { error: "Curso não encontrado." };
 
-  const anoLetivoAlvo = new Date().getFullYear();
+  const anoLetivoAlvo = getAgora().getFullYear();
   const turmaAlvo = await prisma.turma.findFirst({
     where: {
       cursoId: novoCursoId,
@@ -275,12 +366,23 @@ export async function iniciarNovoCursoAction(
   });
   const cursoAntigo = matriculaAtiva?.turma.curso.nome ?? aluno.curso;
 
+  // Matricula é única por (alunoId, turmaId) — um aluno que muda de curso e depois volta ao curso
+  // de origem (mesmo ano letivo) já tem uma Matricula TRANCADA para essa mesma turma, e criar uma
+  // segunda rebentava com violação de unicidade. Reativa a que já existe em vez de duplicar.
+  const matriculaExistenteNaTurmaAlvo = await prisma.matricula.findUnique({
+    where: { alunoId_turmaId: { alunoId, turmaId: turmaAlvo.id } },
+  });
+
   await prisma.$transaction(async (tx) => {
     if (matriculaAtiva) {
       await tx.matricula.update({ where: { id: matriculaAtiva.id }, data: { status: "TRANCADA" } });
       await tx.inscricaoCadeira.updateMany({ where: { alunoId, ativa: true }, data: { ativa: false } });
     }
-    await tx.matricula.create({ data: { alunoId, turmaId: turmaAlvo.id, status: "ATIVA" } });
+    if (matriculaExistenteNaTurmaAlvo) {
+      await tx.matricula.update({ where: { id: matriculaExistenteNaTurmaAlvo.id }, data: { status: "ATIVA" } });
+    } else {
+      await tx.matricula.create({ data: { alunoId, turmaId: turmaAlvo.id, status: "ATIVA" } });
+    }
     await tx.aluno.update({ where: { id: alunoId }, data: { curso: novoCurso.nome, anoCurricular: 1, status: "ATIVO" } });
   });
 

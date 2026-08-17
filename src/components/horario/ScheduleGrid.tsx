@@ -2,8 +2,9 @@ import { Trash2, Printer } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
-import { DIA_SEMANA_LABEL, formatDate } from "@/lib/utils";
+import { DIA_SEMANA_LABEL, formatDate, cn } from "@/lib/utils";
 import { EPOCA_LABEL } from "@/lib/avaliacao";
+import { getAgora } from "@/lib/tempo";
 import { deleteHorarioSlotAction, deleteProvaAction } from "@/actions/horario";
 import { CreateProvaForm } from "./CreateProvaForm";
 import { CreateHorarioSlotForm } from "./CreateHorarioSlotForm";
@@ -33,6 +34,7 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
   }
 
   if (view === "provas") {
+    const agora = getAgora();
     const provas = turmaDisciplinas
       .flatMap((td) => td.avaliacoes.map((av) => ({ ...av, disciplina: td.disciplina, turmaDisciplinaId: td.id, cursoAnoLabel: td.cursoAnoLabel })))
       .sort((a, b) => a.data.getTime() - b.data.getTime());
@@ -44,42 +46,63 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
         ) : (
           <Card>
             <CardBody className="flex flex-col gap-2">
-              {provas.map((prova) => (
-                <div key={prova.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-4 py-2.5 text-sm">
-                  <div>
-                    <p className="font-medium text-navy-800">
-                      {EPOCA_LABEL[prova.epoca]} · {prova.disciplina.nome}
-                    </p>
-                    <p className="text-xs text-navy-400">
-                      {prova.cursoAnoLabel ? `${prova.cursoAnoLabel} · ` : ""}
-                      {prova.sala ?? "Sala a confirmar"}
-                    </p>
+              {provas.map((prova) => {
+                // Prova já dada — a lista de presença deixa de fazer sentido para imprimir (era
+                // para conferir quem entra na sala nesse dia, não um registo histórico).
+                const passada = prova.data < agora;
+                return (
+                  <div
+                    key={prova.id}
+                    className={cn(
+                      "flex items-center justify-between rounded-lg border border-navy-50 px-4 py-2.5 text-sm",
+                      passada && "opacity-50",
+                    )}
+                  >
+                    <div>
+                      <p className={cn("font-medium", passada ? "text-navy-500" : "text-navy-800")}>
+                        {EPOCA_LABEL[prova.epoca]} · {prova.disciplina.nome}
+                      </p>
+                      <p className="text-xs text-navy-400">
+                        {prova.cursoAnoLabel ? `${prova.cursoAnoLabel} · ` : ""}
+                        {prova.sala ?? "Sala a confirmar"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={passada ? "neutral" : "info"}>{formatDate(prova.data)}</Badge>
+                      {canPrint ? (
+                        passada ? (
+                          <span
+                            className="cursor-not-allowed rounded-md p-1 text-navy-200"
+                            aria-label="Prova já dada — lista de presença indisponível"
+                            title="Prova já dada — já não é possível imprimir a lista de presença"
+                          >
+                            <Printer size={14} />
+                          </span>
+                        ) : (
+                          <a
+                            href={`/api/lista-presenca/${prova.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
+                            aria-label="Imprimir lista de presença"
+                            title="Imprimir lista de presença"
+                          >
+                            <Printer size={14} />
+                          </a>
+                        )
+                      ) : null}
+                      {editable ? (
+                        <form action={deleteProvaAction}>
+                          <input type="hidden" name="id" value={prova.id} />
+                          <button type="submit" className="rounded-md p-1 text-navy-300 hover:bg-red-50 hover:text-red-600" aria-label="Remover">
+                            <Trash2 size={14} />
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={prova.data >= new Date() ? "info" : "neutral"}>{formatDate(prova.data)}</Badge>
-                    {canPrint ? (
-                      <a
-                        href={`/api/lista-presenca/${prova.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
-                        aria-label="Imprimir lista de presença"
-                        title="Imprimir lista de presença"
-                      >
-                        <Printer size={14} />
-                      </a>
-                    ) : null}
-                    {editable ? (
-                      <form action={deleteProvaAction}>
-                        <input type="hidden" name="id" value={prova.id} />
-                        <button type="submit" className="rounded-md p-1 text-navy-300 hover:bg-red-50 hover:text-red-600" aria-label="Remover">
-                          <Trash2 size={14} />
-                        </button>
-                      </form>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </CardBody>
           </Card>
         )}
@@ -87,7 +110,11 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
         {editable ? (
           <Card>
             <CardBody>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-navy-400">Agendar prova</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Agendar prova</p>
+              <p className="mb-3 text-xs text-navy-400">
+                O prazo de lançamento de notas é calculado automaticamente a partir da data da prova, conforme os dias
+                configurados pelo DAAC em Configuração Académica.
+              </p>
               <CreateProvaForm
                 disciplinas={turmaDisciplinas.map((td) => ({ id: td.id, nome: td.disciplina.nome }))}
               />

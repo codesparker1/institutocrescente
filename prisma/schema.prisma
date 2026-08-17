@@ -69,6 +69,9 @@ model User {
   email           String?    @unique
   /// Desnormalizado de Aluno.numeroEstudante para o login aceitar email OU nº de estudante sem join. Só preenchido para role=ALUNO.
   numeroEstudante String?    @unique
+  /// Auto-serviço (Fase 12) — ADMIN/SECRETARIA/DAAC não têm Aluno/Professor onde guardar um telefone.
+  /// Para ALUNO/PROFESSOR, mantido em sincronia com Aluno.telefone/Professor.telefone pela mesma ação.
+  telefone        String?
   passwordHash    String
   deveTrocarSenha Boolean    @default(false)
   role            Role
@@ -78,9 +81,10 @@ model User {
   aluno           Aluno?     @relation(fields: [alunoId], references: [id])
   createdAt       DateTime   @default(now())
 
-  cobrancasRegistadas               Cobranca[]                @relation("CobrancaRegistadaPor")
+  cobrancasRegistadas                 Cobranca[]               @relation("CobrancaRegistadaPor")
   configuracoesFinanceirasAtualizadas ConfiguracaoFinanceira[] @relation("ConfigFinanceiraAtualizadaPor")
-  configuracoesAcademicasAtualizadas ConfiguracaoAcademica[]   @relation("ConfigAcademicaAtualizadaPor")
+  configuracoesAcademicasAtualizadas  ConfiguracaoAcademica[]  @relation("ConfigAcademicaAtualizadaPor")
+  reclamacoes                         Reclamacao[]
 }
 
 model Professor {
@@ -93,39 +97,41 @@ model Professor {
 
   turmaDisciplinas TurmaDisciplina[]
   user             User?
+  reclamacoes      Reclamacao[]
 }
 
 model Aluno {
-  id              String      @id @default(cuid())
-  numeroEstudante String      @unique
+  id              String             @id @default(cuid())
+  numeroEstudante String             @unique
   nome            String
-  email           String?     @unique
+  email           String?            @unique
   telefone        String?
   dataNascimento  DateTime
   genero          String
   curso           String
   anoIngresso     Int
-  anoCurricular   Int         @default(1)
-  status          AlunoStatus @default(ATIVO)
+  anoCurricular   Int                @default(1)
+  status          AlunoStatus        @default(ATIVO)
   categoria       CategoriaEstudante @default(NORMAL)
-  createdAt       DateTime    @default(now())
+  createdAt       DateTime           @default(now())
 
-  matriculas Matricula[]
-  cobrancas  Cobranca[]
-  inscricoes InscricaoCadeira[]
-  user       User?
+  matriculas  Matricula[]
+  cobrancas   Cobranca[]
+  inscricoes  InscricaoCadeira[]
+  reclamacoes Reclamacao[]
+  user        User?
 }
 
 model Curso {
-  id          String  @id @default(cuid())
-  nome        String
-  codigo      String  @unique
-  duracaoAnos Int
+  id           String  @id @default(cuid())
+  nome         String
+  codigo       String  @unique
+  duracaoAnos  Int
   /// Preço mensal da propina, definido pelo DAAC ao criar/editar o curso (MD §2).
   valorPropina Decimal @default(15000) @db.Decimal(10, 2)
 
-  disciplinas         Disciplina[]
-  turmas              Turma[]
+  disciplinas          Disciplina[]
+  turmas               Turma[]
   cadeirasCurriculares CadeiraCurricular[]
 }
 
@@ -146,17 +152,17 @@ model Disciplina {
 /// sem noção de "isto pertence ao 2º ano" (§4.2, correção do cliente: a cadeira é curso×disciplina×ano,
 /// não só a disciplina — a mesma disciplina pode ter pesos/regras diferentes consoante o curso).
 model CadeiraCurricular {
-  id            String @id @default(cuid())
-  cursoId       String
-  curso         Curso  @relation(fields: [cursoId], references: [id])
-  disciplinaId  String
-  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
-  anoCurricular Int
-  semestre      Int
+  id                 String     @id @default(cuid())
+  cursoId            String
+  curso              Curso      @relation(fields: [cursoId], references: [id])
+  disciplinaId       String
+  disciplina         Disciplina @relation(fields: [disciplinaId], references: [id])
+  anoCurricular      Int
+  semestre           Int
   /// Regras de dispensa (§4.1.1), geridas pelo DAAC. Algumas cadeiras podem não permitir dispensa
   /// (ex. laboratórios). Copiadas para InscricaoCadeira no momento da inscrição — ver nota lá.
-  permiteDispensa    Boolean @default(true)
-  notaMinimaDispensa Decimal @default(14) @db.Decimal(4, 2)
+  permiteDispensa    Boolean    @default(true)
+  notaMinimaDispensa Decimal    @default(14) @db.Decimal(4, 2)
 
   turmaDisciplinas TurmaDisciplina[]
   inscricoes       InscricaoCadeira[]
@@ -233,21 +239,21 @@ model Matricula {
 /// atualmente lecciona essa cadeira, independente da Turma em que está matriculado este ano.
 /// Só pode haver uma tentativa ativa por cadeira de cada vez — aplicado em código, não em constraint.
 model InscricaoCadeira {
-  id                  String            @id @default(cuid())
-  alunoId             String
-  aluno               Aluno             @relation(fields: [alunoId], references: [id])
-  cadeiraCurricularId String
-  cadeiraCurricular   CadeiraCurricular @relation(fields: [cadeiraCurricularId], references: [id])
-  turmaDisciplinaId   String
-  turmaDisciplina     TurmaDisciplina   @relation(fields: [turmaDisciplinaId], references: [id])
-  tentativa           Int               @default(1)
-  ativa               Boolean           @default(true)
-  createdAt           DateTime          @default(now())
+  id                         String            @id @default(cuid())
+  alunoId                    String
+  aluno                      Aluno             @relation(fields: [alunoId], references: [id])
+  cadeiraCurricularId        String
+  cadeiraCurricular          CadeiraCurricular @relation(fields: [cadeiraCurricularId], references: [id])
+  turmaDisciplinaId          String
+  turmaDisciplina            TurmaDisciplina   @relation(fields: [turmaDisciplinaId], references: [id])
+  tentativa                  Int               @default(1)
+  ativa                      Boolean           @default(true)
+  createdAt                  DateTime          @default(now())
   /// Congelamento de regras (§4.1.1, Fase 6): copiado de CadeiraCurricular no momento da criação
   /// desta inscrição. calcularNotaFinal usa sempre estes valores, nunca os atuais da cadeira — uma
   /// nota já lançada é facto histórico, mudar a regra no ano seguinte não reabre contas antigas.
   permiteDispensaAplicada    Boolean
-  notaMinimaDispensaAplicada Decimal @db.Decimal(4, 2)
+  notaMinimaDispensaAplicada Decimal           @db.Decimal(4, 2)
 
   notas       Nota[]
   frequencias Frequencia[]
@@ -280,6 +286,10 @@ model Nota {
   inscricaoCadeiraId String
   inscricaoCadeira   InscricaoCadeira @relation(fields: [inscricaoCadeiraId], references: [id])
   valor              Decimal          @db.Decimal(4, 2)
+  /// True quando gerada por garantirNotasAutomaticasPorFalta (prazo de lançamento expirado sem
+  /// nota lançada para quem era esperado nessa época) — nunca escrita por uma Server Action.
+  /// Distingue um 0 real de falta de um 0 que o professor lançou de propósito.
+  automatica         Boolean          @default(false)
   lancadoEm          DateTime         @default(now())
 
   @@unique([avaliacaoId, inscricaoCadeiraId])
@@ -308,19 +318,19 @@ model Frequencia {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  userName   String
-  userRole   Role
-  action     String
-  entityType String
-  entityId   String?
+  id            String   @id @default(cuid())
+  userId        String?
+  userName      String
+  userRole      Role
+  action        String
+  entityType    String
+  entityId      String?
   /// Valor estruturado antes/depois (§7) — só preenchido onde faz sentido (notas, pagamentos,
   /// preços, categoria). Substitui `details`, que nunca chegou a ser usado por nenhum call site.
   valorAnterior String?
   valorNovo     String?
-  ipAddress  String?
-  createdAt  DateTime @default(now())
+  ipAddress     String?
+  createdAt     DateTime @default(now())
 
   @@index([entityType, entityId])
   @@index([userId])
@@ -412,14 +422,75 @@ enum RegraRetencao {
 /// automática em lote: a Secretaria aciona aluno a aluno via processarRematriculaAction, só dentro
 /// da janela [matriculaInicio, matriculaFim]).
 model ConfiguracaoAcademica {
-  id                String        @id @default("config")
-  limiteReprovacoes Int           @default(2)
-  regraRetencao     RegraRetencao @default(SO_REPROVADAS)
-  matriculaInicio   DateTime?
-  matriculaFim      DateTime?
+  id                       String        @id @default("config")
+  limiteReprovacoes        Int           @default(2)
+  regraRetencao            RegraRetencao @default(SO_REPROVADAS)
+  matriculaInicio          DateTime?
+  matriculaFim             DateTime?
+  /// Fronteira real do ano letivo — distinta da janela de matrícula (que só define quando a
+  /// Secretaria pode processar rematrículas). É `anoLetivoFim`, não `matriculaFim`, que
+  /// garantirSuspensaoAutomatica usa para detetar que um novo ano letivo começou.
+  anoLetivoInicio          DateTime?
+  anoLetivoFim             DateTime?
   /// Marca a última corrida da suspensão automática de quem não rematriculou — evita repeti-la em cada request.
-  ultimaSuspensaoEm DateTime?
-  updatedAt         DateTime      @updatedAt
-  updatedPorId      String?
-  updatedPor        User?         @relation("ConfigAcademicaAtualizadaPor", fields: [updatedPorId], references: [id])
+  ultimaSuspensaoEm        DateTime?
+  /// Interruptor manual do DAAC (1 ou 2) — não é derivado de datas. Só disciplinas cujo
+  /// TurmaDisciplina.semestre coincide com este valor (e do ano letivo corrente) ficam abertas
+  /// para aulas/notas do professor; volta a 1 sozinho quando um novo ano letivo começa
+  /// (garantirSuspensaoAutomatica). O DAAC continua sempre a poder editar qualquer semestre.
+  semestreAtual            Int           @default(1)
+  /// Prazo de lançamento de notas (§4.3): dias corridos após a data da prova, um valor por
+  /// época — congelado na Avaliacao no momento em que é agendada (mudar aqui não reabre provas já
+  /// criadas, mesmo padrão de congelamento de regras já usado em InscricaoCadeira).
+  diasPrazoP1              Int           @default(5)
+  diasPrazoP2              Int           @default(5)
+  diasPrazoExame           Int           @default(7)
+  diasPrazoRecurso         Int           @default(5)
+  diasPrazoExameEspecial   Int           @default(5)
+  /// Marca a última corrida da atribuição automática de 0 por falta (§4.3) — evita repeti-la em cada request.
+  ultimaVerificacaoNotasEm DateTime?
+  updatedAt                DateTime      @updatedAt
+  updatedPorId             String?
+  updatedPor               User?         @relation("ConfigAcademicaAtualizadaPor", fields: [updatedPorId], references: [id])
+}
+
+enum ReclamacaoCategoria {
+  SUGESTAO
+  RECLAMACAO
+  PROBLEMA_TECNICO
+  OUTRO
+}
+
+enum ReclamacaoStatus {
+  PENDENTE
+  EM_ANALISE
+  RESOLVIDO
+}
+
+/// Canal de aluno ou professor para reportar problemas/sugestões sobre o próprio sistema — não é
+/// um pedido académico nem financeiro, por isso não se encaixa em nenhum dos outros modelos. O
+/// ADMIN (domínio de gestão geral) revê, muda o estado e pode deixar uma resposta curta — não é um
+/// sistema de tickets com fio de conversa, só o suficiente para dar seguimento. Exatamente um de
+/// alunoId/professorId/userId está preenchido (imposto em código, não em constraint de BD). userId
+/// cobre staff sem Aluno/Professor próprio (SECRETARIA) — ver criarReclamacaoAction.
+model Reclamacao {
+  id          String              @id @default(cuid())
+  alunoId     String?
+  aluno       Aluno?              @relation(fields: [alunoId], references: [id])
+  professorId String?
+  professor   Professor?          @relation(fields: [professorId], references: [id])
+  userId      String?
+  user        User?               @relation(fields: [userId], references: [id])
+  categoria   ReclamacaoCategoria @default(OUTRO)
+  assunto     String
+  mensagem    String
+  status      ReclamacaoStatus    @default(PENDENTE)
+  resposta    String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([alunoId])
+  @@index([professorId])
+  @@index([userId])
+  @@index([status])
 }

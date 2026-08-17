@@ -11,6 +11,7 @@ import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores } from "@/lib/forms";
 import { podeRegistarPagamento } from "@/lib/permissions";
 import { sincronizarInscricoesTurma } from "@/lib/curriculo";
+import { getAgora } from "@/lib/tempo";
 
 const CAMPOS_ALUNO = ["nome", "email", "telefone", "dataNascimento", "genero", "turmaId", "categoria"] as const;
 type CampoAluno = (typeof CAMPOS_ALUNO)[number];
@@ -79,7 +80,7 @@ export async function createAlunoAction(
   }
 
   const totalAlunos = await prisma.aluno.count();
-  const numeroEstudante = `ISPC${new Date().getFullYear()}-${String(totalAlunos + 1).padStart(4, "0")}`;
+  const numeroEstudante = `ISPC${getAgora().getFullYear()}-${String(totalAlunos + 1).padStart(4, "0")}`;
   const senhaTemporaria = gerarSenhaTemporaria();
   const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
 

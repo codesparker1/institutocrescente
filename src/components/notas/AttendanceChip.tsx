@@ -9,14 +9,18 @@ interface AttendanceChipProps {
   nome: string;
   presenteInicial: boolean;
   disabled?: boolean;
+  /** Inscrição já não ativa (suspensão, repetição, mudança de curso) — o registo é histórico,
+   * mantido tal como estava, mas já não faz parte do efetivo atual da disciplina. */
+  inativa?: boolean;
 }
 
-export function AttendanceChip({ frequenciaId, nome, presenteInicial, disabled }: AttendanceChipProps) {
+export function AttendanceChip({ frequenciaId, nome, presenteInicial, disabled, inativa }: AttendanceChipProps) {
   const [presente, setPresente] = useState(presenteInicial);
   const [isPending, startTransition] = useTransition();
+  const desativado = disabled || inativa;
 
   function handleClick() {
-    if (disabled) return;
+    if (desativado) return;
     const formData = new FormData();
     formData.set("frequenciaId", frequenciaId);
     setPresente((v) => !v);
@@ -29,15 +33,19 @@ export function AttendanceChip({ frequenciaId, nome, presenteInicial, disabled }
     <button
       type="button"
       onClick={handleClick}
-      disabled={disabled || isPending}
+      disabled={desativado || isPending}
+      title={inativa ? "Aluno já não está ativo nesta disciplina — registo histórico" : undefined}
       className={cn(
         "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-        presente
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          : "border-navy-100 bg-white text-navy-400 hover:bg-navy-50",
+        inativa
+          ? "border-navy-100 bg-navy-50 text-navy-300"
+          : presente
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            : "border-navy-100 bg-white text-navy-400 hover:bg-navy-50",
       )}
     >
       {nome}
+      {inativa ? " (inativo)" : ""}
     </button>
   );
 }

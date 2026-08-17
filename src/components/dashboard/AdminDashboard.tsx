@@ -9,6 +9,7 @@ import type { Role } from "@/generated/prisma/client";
 const CARGO_LABEL: Record<string, string> = {
   ADMIN: "Administrador",
   SECRETARIA: "Secretaria",
+  DAAC: "DAAC",
 };
 
 interface AdminDashboardProps {

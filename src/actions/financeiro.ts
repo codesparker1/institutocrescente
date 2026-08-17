@@ -4,9 +4,19 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { mesReferenciaLabel, getEstadoFinanceiroAluno, type EstadoFinanceiroAluno } from "@/lib/financeiro";
+import {
+  mesReferenciaLabel,
+  getEstadoFinanceiroAluno,
+  getCatalogoEmolumentos,
+  getEmolumentosPagos,
+  type EstadoFinanceiroAluno,
+  type EmolumentoCatalogo,
+  type EmolumentoPago,
+} from "@/lib/financeiro";
+import { chaveMes } from "@/lib/utils";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireRegistarPagamento, requireGerirContas } from "@/lib/permissions";
+import { getAgora } from "@/lib/tempo";
 
 function revalidarFinanceiro(alunoId: string) {
   revalidatePath("/financeiro/registo");
@@ -50,15 +60,26 @@ export async function togglePropinaAction(formData: FormData): Promise<{ error?:
       return { error: `Tem de confirmar primeiro o pagamento de ${mesReferenciaLabel(mesAnteriorPorPagar.mesReferencia!)}.` };
     }
 
-    await prisma.cobranca.update({
-      where: { id: propina.id },
-      data: {
-        status: "PAGO",
-        valorPago: propina.valorDevido,
-        dataPagamento: new Date(),
-        registadoPorId: session.user.id,
-      },
+    // A multa por atraso do mesmo mês não é uma escolha à parte — pagar a mensalidade paga-a sempre junto.
+    const multaPendente = await prisma.cobranca.findFirst({
+      where: { alunoId: propina.alunoId, tipo: "MULTA", mesReferencia, status: "PENDENTE" },
     });
+
+    const agora = getAgora();
+    await prisma.$transaction([
+      prisma.cobranca.update({
+        where: { id: propina.id },
+        data: { status: "PAGO", valorPago: propina.valorDevido, dataPagamento: agora, registadoPorId: session.user.id },
+      }),
+      ...(multaPendente
+        ? [
+            prisma.cobranca.update({
+              where: { id: multaPendente.id },
+              data: { status: "PAGO", valorPago: multaPendente.valorDevido, dataPagamento: agora, registadoPorId: session.user.id },
+            }),
+          ]
+        : []),
+    ]);
 
     await registrarAuditoria({
       userId: session.user.id,
@@ -70,6 +91,18 @@ export async function togglePropinaAction(formData: FormData): Promise<{ error?:
       valorAnterior: "Pendente",
       valorNovo: "Pago",
     });
+    if (multaPendente) {
+      await registrarAuditoria({
+        userId: session.user.id,
+        userName: session.user.name ?? session.user.email ?? "Utilizador",
+        userRole: session.user.role,
+        action: `Confirmou junto o pagamento da multa por atraso de ${mesReferenciaLabel(mesReferencia)} do aluno ${propina.aluno.nome} (${propina.aluno.curso}, ${propina.aluno.anoCurricular}º Ano)`,
+        entityType: "Cobranca",
+        entityId: multaPendente.id,
+        valorAnterior: "Pendente",
+        valorNovo: "Pago",
+      });
+    }
   } else {
     const mesPosteriorPago = outrosMeses.find(
       (m) => m.mesReferencia! > mesReferencia && m.status === "PAGO",
@@ -122,7 +155,7 @@ export async function toggleMultaAction(formData: FormData): Promise<{ error?: s
   await prisma.cobranca.update({
     where: { id: multa.id },
     data: paga
-      ? { status: "PAGO", valorPago: multa.valorDevido, dataPagamento: new Date(), registadoPorId: session.user.id }
+      ? { status: "PAGO", valorPago: multa.valorDevido, dataPagamento: getAgora(), registadoPorId: session.user.id }
       : { status: "PENDENTE", valorPago: 0, dataPagamento: null, registadoPorId: null },
   });
 
@@ -141,55 +174,160 @@ export async function toggleMultaAction(formData: FormData): Promise<{ error?: s
   return {};
 }
 
-const RegistarPagamentoEmolumentoSchema = z.object({
+const ConfirmarPagamentosEmLoteSchema = z.object({
   alunoId: z.string().min(1),
-  emolumentoId: z.string().min(1),
+  cobrancaIds: z.array(z.string().min(1)).min(1, "Selecione pelo menos um item."),
 });
 
 /**
- * Regista o pagamento de um emolumento — o pedido e o pagamento são presenciais na secretaria
- * (não há fluxo de solicitação pelo aluno), por isso a Cobranca já nasce paga.
+ * Confirma várias PROPINA/MULTA pendentes de uma vez (para emitir um único recibo em papel).
+ * Generaliza a regra de ordem de togglePropinaAction: entre as PROPINA selecionadas, todas as
+ * PROPINA pendentes do aluno com mês <= ao mês mais recente selecionado têm de entrar no lote —
+ * senão a secretaria conseguiria "saltar" um mês em atraso escondido no meio de um lote grande.
+ * MULTA não tem ordem (mesma regra de toggleMultaAction).
  */
-export async function registarPagamentoEmolumentoAction(formData: FormData): Promise<{ error?: string }> {
+export async function confirmarPagamentosEmLoteAction(
+  formData: FormData,
+): Promise<{ error?: string; cobrancaIds?: string[] }> {
   const session = await requireRegistarPagamento();
-  const { alunoId, emolumentoId } = RegistarPagamentoEmolumentoSchema.parse({
+  const parsed = ConfirmarPagamentosEmLoteSchema.safeParse({
     alunoId: formData.get("alunoId"),
-    emolumentoId: formData.get("emolumentoId"),
+    cobrancaIds: formData.getAll("cobrancaIds"),
   });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Seleção inválida." };
+  const { alunoId, cobrancaIds } = parsed.data;
 
-  const [aluno, emolumento] = await Promise.all([
+  const [aluno, selecionadas, todasPropinasPendentes] = await Promise.all([
     prisma.aluno.findUnique({ where: { id: alunoId } }),
-    prisma.emolumento.findUnique({ where: { id: emolumentoId } }),
+    prisma.cobranca.findMany({ where: { id: { in: cobrancaIds }, alunoId } }),
+    prisma.cobranca.findMany({ where: { alunoId, tipo: "PROPINA", status: "PENDENTE" } }),
   ]);
   if (!aluno) return { error: "Aluno não encontrado." };
-  if (!emolumento) return { error: "Emolumento não encontrado." };
+  if (selecionadas.length !== cobrancaIds.length) return { error: "Um ou mais itens selecionados não foram encontrados." };
+  if (selecionadas.some((c) => c.status !== "PENDENTE" || !["PROPINA", "MULTA"].includes(c.tipo))) {
+    return { error: "Um ou mais itens selecionados já não estão pendentes." };
+  }
 
-  const agora = new Date();
-  const cobranca = await prisma.cobranca.create({
-    data: {
-      alunoId,
-      tipo: "EMOLUMENTO",
-      descricao: emolumento.nome,
-      valorDevido: emolumento.valor,
-      valorPago: emolumento.valor,
-      status: "PAGO",
-      dataVencimento: agora,
-      dataPagamento: agora,
-      registadoPorId: session.user.id,
-    },
-  });
+  const propinasSelecionadas = selecionadas.filter((c) => c.tipo === "PROPINA");
+  if (propinasSelecionadas.length > 0) {
+    const idsSelecionados = new Set(propinasSelecionadas.map((c) => c.id));
+    const mesMaisRecente = propinasSelecionadas.reduce(
+      (max, c) => (c.mesReferencia! > max ? c.mesReferencia! : max),
+      propinasSelecionadas[0].mesReferencia!,
+    );
+    const exigidas = todasPropinasPendentes.filter((c) => c.mesReferencia! <= mesMaisRecente);
+    const faltaAlguma = exigidas.some((c) => !idsSelecionados.has(c.id));
+    if (faltaAlguma) {
+      return { error: "Tem de incluir no lote todos os meses pendentes anteriores ao mês mais recente selecionado." };
+    }
+  }
 
-  await registrarAuditoria({
-    userId: session.user.id,
-    userName: session.user.name ?? session.user.email ?? "Utilizador",
-    userRole: session.user.role,
-    action: `Registou o pagamento do emolumento "${emolumento.nome}" do aluno ${aluno.nome}`,
-    entityType: "Cobranca",
-    entityId: cobranca.id,
-  });
+  // A multa por atraso do mesmo mês nunca é opcional — junta-se sempre a quem paga a mensalidade,
+  // mesmo que o cliente não a tenha (ainda) enviado. Não confiamos só na seleção feita no browser.
+  const multasPendentesDoAluno =
+    propinasSelecionadas.length > 0
+      ? await prisma.cobranca.findMany({ where: { alunoId, tipo: "MULTA", status: "PENDENTE" } })
+      : [];
+  const multaPorChaveMes = new Map(
+    multasPendentesDoAluno.filter((m) => m.mesReferencia).map((m) => [chaveMes(m.mesReferencia!), m]),
+  );
+  const idsJaSelecionados = new Set(selecionadas.map((c) => c.id));
+  const multasAIncluir = propinasSelecionadas
+    .map((c) => multaPorChaveMes.get(chaveMes(c.mesReferencia!)))
+    .filter((m): m is NonNullable<typeof m> => m !== undefined && !idsJaSelecionados.has(m.id));
+
+  const todasParaConfirmar = [...selecionadas, ...multasAIncluir];
+
+  const agora = getAgora();
+  await prisma.$transaction(
+    todasParaConfirmar.map((c) =>
+      prisma.cobranca.update({
+        where: { id: c.id },
+        data: { status: "PAGO", valorPago: c.valorDevido, dataPagamento: agora, registadoPorId: session.user.id },
+      }),
+    ),
+  );
+
+  await Promise.all(
+    todasParaConfirmar.map((c) =>
+      registrarAuditoria({
+        userId: session.user.id,
+        userName: session.user.name ?? session.user.email ?? "Utilizador",
+        userRole: session.user.role,
+        action:
+          c.tipo === "PROPINA"
+            ? `Confirmou em lote o pagamento de ${mesReferenciaLabel(c.mesReferencia!)} do aluno ${aluno.nome} (${aluno.curso}, ${aluno.anoCurricular}º Ano)`
+            : `Confirmou em lote o pagamento de uma multa do aluno ${aluno.nome} (${aluno.curso}, ${aluno.anoCurricular}º Ano)`,
+        entityType: "Cobranca",
+        entityId: c.id,
+        valorAnterior: "Pendente",
+        valorNovo: "Pago",
+      }),
+    ),
+  );
 
   revalidarFinanceiro(alunoId);
-  return {};
+  return { cobrancaIds: todasParaConfirmar.map((c) => c.id) };
+}
+
+const RegistarEmolumentosEmLoteSchema = z.object({
+  alunoId: z.string().min(1),
+  emolumentoIds: z.array(z.string().min(1)).min(1, "Selecione pelo menos um emolumento."),
+});
+
+/** Regista o pagamento de vários emolumentos de uma vez (para emitir um único recibo em papel). */
+export async function registarEmolumentosEmLoteAction(
+  formData: FormData,
+): Promise<{ error?: string; cobrancaIds?: string[] }> {
+  const session = await requireRegistarPagamento();
+  const parsed = RegistarEmolumentosEmLoteSchema.safeParse({
+    alunoId: formData.get("alunoId"),
+    emolumentoIds: formData.getAll("emolumentoIds"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Seleção inválida." };
+  const { alunoId, emolumentoIds } = parsed.data;
+
+  const [aluno, emolumentos] = await Promise.all([
+    prisma.aluno.findUnique({ where: { id: alunoId } }),
+    prisma.emolumento.findMany({ where: { id: { in: emolumentoIds } } }),
+  ]);
+  if (!aluno) return { error: "Aluno não encontrado." };
+  if (emolumentos.length !== emolumentoIds.length) return { error: "Um ou mais emolumentos selecionados não foram encontrados." };
+
+  const agora = getAgora();
+  const cobrancas = await prisma.$transaction(
+    emolumentos.map((emolumento) =>
+      prisma.cobranca.create({
+        data: {
+          alunoId,
+          tipo: "EMOLUMENTO",
+          descricao: emolumento.nome,
+          valorDevido: emolumento.valor,
+          valorPago: emolumento.valor,
+          status: "PAGO",
+          dataVencimento: agora,
+          dataPagamento: agora,
+          registadoPorId: session.user.id,
+        },
+      }),
+    ),
+  );
+
+  await Promise.all(
+    cobrancas.map((cobranca, index) =>
+      registrarAuditoria({
+        userId: session.user.id,
+        userName: session.user.name ?? session.user.email ?? "Utilizador",
+        userRole: session.user.role,
+        action: `Registou em lote o pagamento do emolumento "${emolumentos[index].nome}" do aluno ${aluno.nome}`,
+        entityType: "Cobranca",
+        entityId: cobranca.id,
+      }),
+    ),
+  );
+
+  revalidarFinanceiro(alunoId);
+  return { cobrancaIds: cobrancas.map((c) => c.id) };
 }
 
 const RemoverPagamentoEmolumentoSchema = z.object({
@@ -315,4 +453,14 @@ export async function searchAlunosAction(filtros: FiltrosPesquisaAluno): Promise
 export async function getEstadoFinanceiroAlunoAction(alunoId: string): Promise<EstadoFinanceiroAluno> {
   await requireRegistarPagamento();
   return getEstadoFinanceiroAluno(alunoId);
+}
+
+export async function getCatalogoEmolumentosAction(): Promise<EmolumentoCatalogo[]> {
+  await requireRegistarPagamento();
+  return getCatalogoEmolumentos();
+}
+
+export async function getEmolumentosPagosAction(alunoId: string): Promise<EmolumentoPago[]> {
+  await requireRegistarPagamento();
+  return getEmolumentosPagos(alunoId);
 }

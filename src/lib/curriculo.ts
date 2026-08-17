@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { getAgora } from "@/lib/tempo";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -46,6 +47,51 @@ export async function sincronizarInscricoesTurma(turmaId: string): Promise<void>
 
   if (novasInscricoes.length > 0) {
     await prisma.inscricaoCadeira.createMany({ data: novasInscricoes, skipDuplicates: true });
+
+    // As Aula desta turma-disciplina podem já existir (aluno a entrar a meio do ano — repetição,
+    // rematrícula, mudança de curso). Sem isto, o aluno aparece na pauta e no roster (que leem
+    // InscricaoCadeira), mas fica invisível na marcação de presença das aulas já dadas, porque a
+    // Frequencia só é criada no momento em que a Aula é criada (ver createAulaAction).
+    const criadas = await prisma.inscricaoCadeira.findMany({
+      where: { tentativa: 1, OR: novasInscricoes.map((n) => ({ alunoId: n.alunoId, cadeiraCurricularId: n.cadeiraCurricularId })) },
+      select: { id: true, turmaDisciplinaId: true },
+    });
+    await backfillFrequenciasParaInscricoes(criadas);
+  }
+}
+
+/**
+ * Cria a Frequencia (ausente por omissão) para cada Aula já existente da turma-disciplina de cada
+ * inscrição nova — sem isto, um aluno que entra a meio do ano fica invisível na marcação de
+ * presença de aulas anteriores à sua inscrição, apesar de já aparecer na pauta e no roster.
+ */
+export async function backfillFrequenciasParaInscricoes(inscricoes: { id: string; turmaDisciplinaId: string }[]): Promise<void> {
+  if (inscricoes.length === 0) return;
+
+  const turmaDisciplinaIds = [...new Set(inscricoes.map((i) => i.turmaDisciplinaId))];
+  const aulas = await prisma.aula.findMany({
+    where: { turmaDisciplinaId: { in: turmaDisciplinaIds } },
+    select: { id: true, turmaDisciplinaId: true },
+  });
+  if (aulas.length === 0) return;
+
+  const aulaIdsPorTurmaDisciplina = new Map<string, string[]>();
+  for (const aula of aulas) {
+    const lista = aulaIdsPorTurmaDisciplina.get(aula.turmaDisciplinaId) ?? [];
+    lista.push(aula.id);
+    aulaIdsPorTurmaDisciplina.set(aula.turmaDisciplinaId, lista);
+  }
+
+  const novasFrequencias = inscricoes.flatMap((inscricao) =>
+    (aulaIdsPorTurmaDisciplina.get(inscricao.turmaDisciplinaId) ?? []).map((aulaId) => ({
+      aulaId,
+      inscricaoCadeiraId: inscricao.id,
+      presente: false,
+    })),
+  );
+
+  if (novasFrequencias.length > 0) {
+    await prisma.frequencia.createMany({ data: novasFrequencias, skipDuplicates: true });
   }
 }
 
@@ -55,18 +101,20 @@ function inicioDoDia(data: Date): Date {
 
 /**
  * Suspende automaticamente quem não veio fazer a rematrícula (§4.2/Fase 8b): depois de
- * `matriculaFim` passar, todo o Aluno ATIVO cuja Matricula mais recente aponta a um ano letivo
+ * `anoLetivoFim` passar, todo o Aluno ATIVO cuja Matricula mais recente aponta a um ano letivo
  * anterior ao corrente passa a TRANCADO (e essa Matricula a TRANCADA) — fica associado ao ano
  * onde parou, e nunca mais aparece nas turmas do ano novo, porque nunca ganha Matricula nova.
+ * Usa `anoLetivoFim`, não `matriculaFim` — são fronteiras diferentes: a janela de matrícula é só
+ * quando a Secretaria pode processar rematrículas, o ano letivo é o próprio ano académico.
  * Mesmo padrão preguiçoso de garantirCobrancasGeradas (financeiro.ts): corre no máximo uma vez
  * por dia civil, reclamando o "turno" com um updateMany condicional. Sem cron horário.
  */
 export async function garantirSuspensaoAutomatica(): Promise<void> {
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
-  if (!config?.matriculaFim) return;
+  if (!config?.anoLetivoFim) return;
 
-  const agora = new Date();
-  if (agora <= config.matriculaFim) return;
+  const agora = getAgora();
+  if (agora <= config.anoLetivoFim) return;
   if (config.ultimaSuspensaoEm && inicioDoDia(config.ultimaSuspensaoEm).getTime() === inicioDoDia(agora).getTime()) {
     return;
   }
@@ -79,6 +127,14 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
     data: { ultimaSuspensaoEm: agora },
   });
   if (reclamado.count === 0) return;
+
+  // Passado o fim do ano letivo, um novo ano letivo começa — o semestre volta sempre a 1º, para o
+  // DAAC não ter de se lembrar de o repor manualmente todos os anos. Incondicional (não depende de
+  // haver alunos a suspender) e idempotente, porque este job corre uma vez por dia civil enquanto
+  // a data atual continuar depois de `anoLetivoFim`.
+  if (config.semestreAtual !== 1) {
+    await prisma.configuracaoAcademica.update({ where: { id: "config" }, data: { semestreAtual: 1 } });
+  }
 
   const anoLetivoCorrente = agora.getFullYear();
   const alunosAtivos = await prisma.aluno.findMany({
@@ -99,11 +155,15 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   });
   if (aSuspender.length === 0) return;
 
+  const alunoIds = aSuspender.map((a) => a.id);
   await prisma.$transaction([
-    prisma.aluno.updateMany({ where: { id: { in: aSuspender.map((a) => a.id) } }, data: { status: "TRANCADO" } }),
+    prisma.aluno.updateMany({ where: { id: { in: alunoIds } }, data: { status: "TRANCADO" } }),
     prisma.matricula.updateMany({
       where: { id: { in: aSuspender.map((a) => a.matriculas[0].id) } },
       data: { status: "TRANCADA" },
     }),
+    // Sem isto, as inscrições do ano suspenso ficam `ativa=true` para sempre — mesma classe de
+    // bug da rematrícula (src/lib/diagnostico.ts: regra sem-inscricao-ativa-se-inativo).
+    prisma.inscricaoCadeira.updateMany({ where: { alunoId: { in: alunoIds }, ativa: true }, data: { ativa: false } }),
   ]);
 }

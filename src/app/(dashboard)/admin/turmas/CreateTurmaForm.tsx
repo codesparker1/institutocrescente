@@ -56,7 +56,7 @@ export function CreateTurmaForm({ cursos }: CreateTurmaFormProps) {
           <option value="NOTURNO">Noturno</option>
         </Select>
       </Field>
-      <Field label="Ano letivo" htmlFor="turma-ano" error={state.fieldErrors?.anoLetivo}>
+      <Field label="Ano letivo (ano de início — ex.: 2026 = 2026/2027)" htmlFor="turma-ano" error={state.fieldErrors?.anoLetivo}>
         <Input
           id="turma-ano"
           name="anoLetivo"

@@ -58,6 +58,7 @@ async function main() {
   console.log("A limpar dados existentes...");
   await prisma.$transaction([
     prisma.cobranca.deleteMany(),
+    prisma.emolumento.deleteMany(),
     prisma.configuracaoFinanceira.deleteMany(),
     prisma.auditLog.deleteMany(),
     prisma.frequencia.deleteMany(),
@@ -246,12 +247,19 @@ async function main() {
     [`${cursoGestao.id}:2`, turmaGestao2.id],
   ]);
 
+  // Um aluno TRANCADO (10% aleatório, acima) não pode nascer com Matricula/InscricaoCadeira
+  // ativas — senão contradiz o próprio status desde o primeiro instante (mesmo invariante que
+  // garantirSuspensaoAutomatica impõe em runtime, ver src/lib/diagnostico.ts).
+  const statusPorAlunoId = new Map(alunos.map((a) => [a.id, a.status]));
+
   const matriculas = [];
   for (const aluno of alunos) {
     const cursoId = aluno.curso === "Engenharia Informática" ? cursoEngInf.id : cursoGestao.id;
     const turmaId = turmasPorCursoAno.get(`${cursoId}:${aluno.anoCurricular}`);
     if (!turmaId) continue;
-    const matricula = await prisma.matricula.create({ data: { alunoId: aluno.id, turmaId } });
+    const matricula = await prisma.matricula.create({
+      data: { alunoId: aluno.id, turmaId, status: aluno.status === "TRANCADO" ? "TRANCADA" : "ATIVA" },
+    });
     matriculas.push(matricula);
   }
 
@@ -266,7 +274,7 @@ async function main() {
           cadeiraCurricularId: td.cadeiraCurricularId,
           turmaDisciplinaId: td.id,
           tentativa: 1,
-          ativa: true,
+          ativa: statusPorAlunoId.get(matricula.alunoId) !== "TRANCADO",
           // Regras de dispensa da CadeiraCurricular no momento da inscrição (defaults do seed).
           permiteDispensaAplicada: true,
           notaMinimaDispensaAplicada: 14,
@@ -349,6 +357,16 @@ async function main() {
     if (p1AvaliacaoProgII) {
       await prisma.nota.create({
         data: { avaliacaoId: p1AvaliacaoProgII.id, inscricaoCadeiraId: inscricaoRepeticao.id, valor: 9 },
+      });
+    }
+
+    // As Aula de tdProgIIAno2 já foram criadas no loop anterior, com Frequencia só para quem já
+    // estava inscrito nessa altura — sem isto, o repetente fica invisível na marcação de presença
+    // das aulas já dadas (mesma classe de bug corrigida em backfillFrequenciasParaInscricoes).
+    const aulasProgIIAno2 = await prisma.aula.findMany({ where: { turmaDisciplinaId: tdProgIIAno2.id }, select: { id: true } });
+    if (aulasProgIIAno2.length > 0) {
+      await prisma.frequencia.createMany({
+        data: aulasProgIIAno2.map((aula) => ({ aulaId: aula.id, inscricaoCadeiraId: inscricaoRepeticao.id, presente: false })),
       });
     }
   }
@@ -468,6 +486,7 @@ async function main() {
     await prisma.$transaction([
       prisma.aluno.update({ where: { id: alunoSuspenso.id }, data: { status: "TRANCADO" } }),
       prisma.matricula.update({ where: { id: matriculaSuspensa.id }, data: { status: "TRANCADA" } }),
+      prisma.inscricaoCadeira.updateMany({ where: { alunoId: alunoSuspenso.id, ativa: true }, data: { ativa: false } }),
     ]);
   }
 
@@ -480,6 +499,9 @@ async function main() {
   });
   const userSecretaria = await prisma.user.create({
     data: { name: "Secretaria ISPC", email: "secretaria@ispc.ao", passwordHash, role: "SECRETARIA" },
+  });
+  await prisma.user.create({
+    data: { name: "DAAC ISPC", email: "daac@ispc.ao", passwordHash, role: "DAAC" },
   });
   // Atalho de demo — mesmo professor de profAntonio, sob um email mais fácil de digitar.
   await prisma.user.create({
@@ -624,6 +646,7 @@ async function main() {
   console.log("Atalhos de demonstração:");
   console.log("  admin@ispc.ao (ADMIN)");
   console.log("  secretaria@ispc.ao (SECRETARIA)");
+  console.log("  daac@ispc.ao (DAAC)");
   console.log("  professor@ispc.ao (PROFESSOR, = " + profAntonio.email + ")");
   console.log("  aluno@ispc.ao (ALUNO, = " + primeiroAluno.email + ")");
   console.log(`Todos os ${outrosProfessores.length + 1} professores e ${alunos.length} alunos têm conta de login própria (email real + senha acima).`);

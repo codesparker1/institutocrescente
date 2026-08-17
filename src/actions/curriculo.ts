@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { requireGerirCurriculo } from "@/lib/permissions";
+import { backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
 
 const CriarTentativaRepeticaoSchema = z.object({
   alunoId: z.string().min(1),
@@ -47,6 +48,9 @@ export async function criarTentativaRepeticaoAction(
   ]);
 
   if (!aluno) return { error: "Aluno não encontrado." };
+  if (aluno.status !== "ATIVO") {
+    return { error: "Aluno não está ativo — reative-o pela rematrícula antes de inscrever numa nova tentativa." };
+  }
   if (!turmaDisciplina) return { error: "Turma-disciplina não encontrada." };
   if (turmaDisciplina.cadeiraCurricularId !== parsed.data.cadeiraCurricularId) {
     return { error: "Essa turma não lecciona a cadeira selecionada." };
@@ -55,11 +59,11 @@ export async function criarTentativaRepeticaoAction(
   const tentativaAtiva = tentativasAnteriores.find((t) => t.ativa);
   const proximaTentativa = (tentativasAnteriores[0]?.tentativa ?? 0) + 1;
 
-  await prisma.$transaction(async (tx) => {
+  const novaInscricao = await prisma.$transaction(async (tx) => {
     if (tentativaAtiva) {
       await tx.inscricaoCadeira.update({ where: { id: tentativaAtiva.id }, data: { ativa: false } });
     }
-    await tx.inscricaoCadeira.create({
+    return tx.inscricaoCadeira.create({
       data: {
         alunoId: parsed.data.alunoId,
         cadeiraCurricularId: parsed.data.cadeiraCurricularId,
@@ -73,6 +77,10 @@ export async function criarTentativaRepeticaoAction(
       },
     });
   });
+
+  // O aluno entra a meio do ano na disciplina de destino — sem isto fica invisível na marcação de
+  // presença das aulas já dadas, apesar de já aparecer na pauta (roster por InscricaoCadeira).
+  await backfillFrequenciasParaInscricoes([{ id: novaInscricao.id, turmaDisciplinaId: novaInscricao.turmaDisciplinaId }]);
 
   await registrarAuditoria({
     userId: session.user.id,

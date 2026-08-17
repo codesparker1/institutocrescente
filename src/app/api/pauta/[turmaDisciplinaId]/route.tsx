@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate, PERIODO_LABEL } from "@/lib/utils";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { PautaDocument } from "@/components/pdf/PautaDocument";
+import { getAgora } from "@/lib/tempo";
 import type { Epoca } from "@/generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -75,7 +76,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       disciplina={turmaDisciplina.disciplina.nome}
       anoTurma={`${turmaDisciplina.turma.anoCurricular}º Ano · ${PERIODO_LABEL[turmaDisciplina.turma.periodo]}`}
       docente={turmaDisciplina.professor.nome}
-      dataEmissao={formatDate(new Date())}
+      dataEmissao={formatDate(getAgora())}
       alunos={alunos}
     />,
   );

@@ -9,11 +9,17 @@ const ROLE_HOME: Record<string, string> = {
   SECRETARIA: "/dashboard",
   PROFESSOR: "/professor",
   ALUNO: "/dashboard",
+  DAAC: "/dashboard",
 };
 
 const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   { prefix: "/alunos", roles: ["ADMIN", "SECRETARIA"] },
-  { prefix: "/admin", roles: ["ADMIN"] },
+  // Mais específicos primeiro — contas de staff e configuração financeira geral não são domínio
+  // do DAAC, ao contrário do resto de /admin (currículo, cursos, turmas, emolumentos), que
+  // podeGerirCurriculo já autoriza ao nível da Server Action (src/lib/permissions.ts).
+  { prefix: "/admin/professores", roles: ["ADMIN"] },
+  { prefix: "/admin/financeiro", roles: ["ADMIN"] },
+  { prefix: "/admin", roles: ["ADMIN", "DAAC"] },
   { prefix: "/auditoria", roles: ["ADMIN"] },
   { prefix: "/professor", roles: ["ADMIN", "PROFESSOR"] },
   { prefix: "/notas", roles: ["ADMIN", "DAAC"] },
@@ -55,6 +61,8 @@ export const config = {
     "/horario/:path*",
     "/minhas-notas/:path*",
     "/financeiro/:path*",
+    "/conta/:path*",
+    "/reclamacoes/:path*",
     "/trocar-senha",
   ],
 };

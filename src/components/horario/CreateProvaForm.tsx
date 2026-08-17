@@ -26,7 +26,6 @@ export function CreateProvaForm({ disciplinas }: CreateProvaFormProps) {
     state.error ??
     state.fieldErrors?.data ??
     state.fieldErrors?.sala ??
-    state.fieldErrors?.prazoLancamento ??
     state.fieldErrors?.turmaDisciplinaId ??
     state.fieldErrors?.epoca;
 
@@ -59,15 +58,6 @@ export function CreateProvaForm({ disciplinas }: CreateProvaFormProps) {
           defaultValue={state.values?.data}
         />
         <Input name="sala" placeholder="Sala" required className="w-24 text-xs" defaultValue={state.values?.sala} />
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-navy-400">Prazo de lançamento</span>
-          <DateSelect
-            name="prazoLancamento"
-            minYear={new Date().getFullYear() - 1}
-            maxYear={new Date().getFullYear() + 2}
-            defaultValue={state.values?.prazoLancamento}
-          />
-        </div>
         <Button type="submit" variant="ghost" className="text-xs" disabled={isPending}>
           {isPending ? "A agendar..." : "Agendar"}
         </Button>

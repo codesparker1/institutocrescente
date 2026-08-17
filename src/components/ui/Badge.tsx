@@ -7,6 +7,7 @@ interface BadgeProps {
   children: ReactNode;
   tone?: Tone;
   className?: string;
+  title?: string;
 }
 
 const TONE_CLASSES: Record<Tone, string> = {
@@ -17,9 +18,10 @@ const TONE_CLASSES: Record<Tone, string> = {
   info: "bg-navy-100 text-navy-700",
 };
 
-export function Badge({ children, tone = "neutral", className }: BadgeProps) {
+export function Badge({ children, tone = "neutral", className, title }: BadgeProps) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
         TONE_CLASSES[tone],

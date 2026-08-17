@@ -2,10 +2,11 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, GraduationCap, Layers, ScrollText, CalendarClock, ClipboardList, Wallet } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Layers, ScrollText, CalendarClock, ClipboardList, Wallet, AlertTriangle, MessageSquareWarning } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { NavItem } from "./NavItem";
 import { NavGroup } from "./NavGroup";
+import { AcessibilidadeSlider } from "./AcessibilidadeSlider";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/generated/prisma/client";
 
@@ -41,7 +42,10 @@ export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
           {role === "SECRETARIA" ? <SecretariaNav /> : null}
           {role === "PROFESSOR" ? <ProfessorNav /> : null}
           {role === "ALUNO" ? <AlunoNav /> : null}
+          {role === "DAAC" ? <DaacNav /> : null}
         </nav>
+        {/* Só quem acede ao Registo de Pagamentos (a página pensada para acessibilidade) precisa disto. */}
+        {role === "ADMIN" || role === "SECRETARIA" ? <AcessibilidadeSlider /> : null}
       </aside>
     </>
   );
@@ -76,31 +80,30 @@ function AdminNav() {
         ]}
       />
       <NavItem href="/auditoria" label="Registo de Auditoria" icon={<ScrollText size={18} />} />
+      <NavItem href="/admin/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
       <NavGroup
         label="Usuários"
         icon={<Users size={18} />}
         items={[
           { href: "/admin/professores", label: "Professores" },
-          { href: "/alunos", label: "Alunos" },
+          { href: "/alunos", label: "Gestão de Matrícula" },
         ]}
       />
     </>
   );
 }
 
+// Registo de Pagamentos fica logo a seguir à Página Inicial — a pedido explícito, é a página do
+// dia a dia da secretaria, com um tratamento visual mais acessível (letras maiores, mais espaço)
+// para se distinguir claramente da Página Inicial. Ver RegistoPagamentosBusca.
 function SecretariaNav() {
   return (
     <>
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
-      <NavItem href="/alunos" label="Alunos" icon={<Users size={18} />} />
-      <NavGroup
-        label="Financeiro"
-        icon={<Wallet size={18} />}
-        items={[
-          { href: "/financeiro/registo", label: "Registo de Pagamentos" },
-          { href: "/financeiro/devedores", label: "Lista de Devedores" },
-        ]}
-      />
+      <NavItem href="/financeiro/registo" label="Registo de Pagamentos" icon={<Wallet size={18} />} />
+      <NavItem href="/alunos" label="Gestão de Matrícula" icon={<Users size={18} />} />
+      <NavItem href="/financeiro/devedores" label="Lista de Devedores" icon={<AlertTriangle size={18} />} />
+      <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
     </>
   );
 }
@@ -111,6 +114,30 @@ function ProfessorNav() {
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
       <NavItem href="/professor" label="Minhas Disciplinas" icon={<GraduationCap size={18} />} />
       <NavItem href="/horario" label="Meu Horário" icon={<CalendarClock size={18} />} />
+      <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
+    </>
+  );
+}
+
+// Domínio do DAAC (§3): currículo, horário/provas e notas — sem Alunos nem Financeiro.
+function DaacNav() {
+  return (
+    <>
+      <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
+      <NavGroup
+        label="Gestão Académica"
+        icon={<Layers size={18} />}
+        items={[
+          { href: "/admin/academico/configuracao", label: "Configuração Académica" },
+          { href: "/admin/cursos", label: "Cursos" },
+          { href: "/admin/disciplinas", label: "Disciplinas" },
+          { href: "/admin/curriculo", label: "Plano Curricular" },
+          { href: "/admin/turmas", label: "Turmas" },
+          { href: "/admin/emolumentos", label: "Emolumentos" },
+        ]}
+      />
+      <NavItem href="/horario" label="Horário e Provas" icon={<CalendarClock size={18} />} />
+      <NavItem href="/notas" label="Notas e Frequência" icon={<GraduationCap size={18} />} />
     </>
   );
 }
@@ -121,7 +148,15 @@ function AlunoNav() {
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
       <NavItem href="/horario" label="Meu Horário" icon={<CalendarClock size={18} />} />
       <NavItem href="/minhas-notas" label="Minhas Notas" icon={<ClipboardList size={18} />} />
-      <NavItem href="/financeiro" label="Minhas Propinas" icon={<Wallet size={18} />} />
+      <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
+      <NavGroup
+        label="Minhas Finanças"
+        icon={<Wallet size={18} />}
+        items={[
+          { href: "/financeiro", label: "Minhas Propinas" },
+          { href: "/financeiro/emolumentos", label: "Catálogo de Emolumentos" },
+        ]}
+      />
     </>
   );
 }

@@ -2,13 +2,30 @@ import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { deleteDisciplinaAction } from "@/actions/admin";
 import { CreateDisciplinaForm } from "./CreateDisciplinaForm";
+import type { Prisma } from "@/generated/prisma/client";
 
-export default async function AdminDisciplinasPage() {
+interface AdminDisciplinasPageProps {
+  searchParams: Promise<{ q?: string; cursoId?: string }>;
+}
+
+export default async function AdminDisciplinasPage({ searchParams }: AdminDisciplinasPageProps) {
+  const { q, cursoId } = await searchParams;
+
+  const where: Prisma.DisciplinaWhereInput = {};
+  if (q) {
+    where.OR = [{ nome: { contains: q, mode: "insensitive" } }, { codigo: { contains: q, mode: "insensitive" } }];
+  }
+  if (cursoId) where.cursoId = cursoId;
+
   const [cursos, disciplinas] = await Promise.all([
-    prisma.curso.findMany({ orderBy: { nome: "asc" } }),
-    prisma.disciplina.findMany({ include: { curso: true }, orderBy: { nome: "asc" } }),
+    // select: CreateDisciplinaForm (Client Component) só precisa de id/nome — Curso.valorPropina
+    // é Decimal e o Next.js recusa-se a serializar Decimal ao passar de Server para Client Component.
+    prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.disciplina.findMany({ where, include: { curso: true }, orderBy: { nome: "asc" } }),
   ]);
 
   return (
@@ -23,8 +40,26 @@ export default async function AdminDisciplinasPage() {
         <CardBody className="flex flex-col gap-4">
           <CreateDisciplinaForm cursos={cursos} />
 
+          <form className="grid grid-cols-1 gap-3 border-t border-navy-50 pt-4 sm:grid-cols-4 sm:items-end">
+            <Input type="search" name="q" defaultValue={q} placeholder="Nome ou código..." className="sm:col-span-2" />
+            <Select name="cursoId" defaultValue={cursoId ?? ""}>
+              <option value="">Todos os cursos</option>
+              {cursos.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </Select>
+            <button
+              type="submit"
+              className="rounded-lg bg-navy-700 px-4 py-2 text-sm font-semibold text-gold-100 hover:bg-navy-800"
+            >
+              Filtrar
+            </button>
+          </form>
+
           {disciplinas.length === 0 ? (
-            <EmptyState message="Nenhuma disciplina cadastrada." />
+            <EmptyState message="Nenhuma disciplina encontrada." />
           ) : (
             <Table>
               <Thead>

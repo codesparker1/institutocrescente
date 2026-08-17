@@ -2,22 +2,15 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { PropinasMensais } from "@/components/financeiro/PropinasMensais";
-import { MultasPendentes } from "@/components/financeiro/MultasPendentes";
-import { CatalogoEmolumentos } from "@/components/financeiro/CatalogoEmolumentos";
-import { EmolumentosPagos } from "@/components/financeiro/EmolumentosPagos";
 import { formatCurrency } from "@/lib/utils";
-import { getEstadoFinanceiroAluno, getCatalogoEmolumentos, getEmolumentosPagos } from "@/lib/financeiro";
+import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 
 export default async function MinhasPropinasPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ALUNO" || !session.user.alunoId) redirect("/dashboard");
 
-  const [estadoFinanceiro, catalogoEmolumentos, emolumentosPagos] = await Promise.all([
-    getEstadoFinanceiroAluno(session.user.alunoId),
-    getCatalogoEmolumentos(),
-    getEmolumentosPagos(session.user.alunoId),
-  ]);
+  const estadoFinanceiro = await getEstadoFinanceiroAluno(session.user.alunoId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,25 +34,7 @@ export default async function MinhasPropinasPage() {
       <Card>
         <CardHeader title="Mensalidades" subtitle="Só a secretaria pode confirmar pagamentos." />
         <CardBody className="flex flex-col gap-4">
-          <PropinasMensais meses={estadoFinanceiro.meses} editable={false} />
-          <MultasPendentes multas={estadoFinanceiro.multas} editable={false} />
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader
-          title="Catálogo de Emolumentos"
-          subtitle="Declarações, certidões e outros serviços. Peça e pague na secretaria."
-        />
-        <CardBody>
-          <CatalogoEmolumentos emolumentos={catalogoEmolumentos} />
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Emolumentos Pagos" />
-        <CardBody>
-          <EmolumentosPagos emolumentos={emolumentosPagos} />
+          <PropinasMensais meses={estadoFinanceiro.meses} multas={estadoFinanceiro.multas} editable={false} />
         </CardBody>
       </Card>
     </div>

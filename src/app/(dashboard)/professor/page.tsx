@@ -5,15 +5,29 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { PERIODO_LABEL } from "@/lib/utils";
+import { PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
+import { getAgora } from "@/lib/tempo";
 
 export default async function ProfessorDisciplinasPage() {
   const session = await auth();
   if (!session?.user.professorId) redirect("/dashboard");
 
+  // Um professor pode lecionar a mesma disciplina/ano em turmas de anos letivos diferentes (ex.:
+  // turmas pré-criadas para o ano seguinte na rematrícula, Fase 8b), e as disciplinas do 2º
+  // semestre já existem na BD antes de o DAAC "abrir" o semestre. "Minhas Disciplinas" é só o
+  // ano letivo e o semestre correntes — o resto (anos anteriores, semestre ainda não aberto)
+  // torna-se histórico/futuro, consultável pelo DAAC/Admin/Secretaria, não trabalho do dia a dia
+  // do professor.
+  const anoAtual = getAgora().getFullYear();
+  const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
+  // "Alunos" tem de contar o roster real da disciplina (InscricaoCadeira ativa, §4.2) — não
+  // turma._count.matriculas, que só conta quem está matriculado NESTA turma/coorte. Um repetente
+  // aparece na pauta desta disciplina através de InscricaoCadeira mesmo com a Matricula noutra
+  // turma (ano diferente), e ficava de fora desta contagem.
   const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
-    where: { professorId: session.user.professorId },
-    include: { disciplina: true, turma: { include: { curso: true, _count: { select: { matriculas: true } } } } },
+    where: { professorId: session.user.professorId, turma: { anoLetivo: anoAtual }, semestre: semestreAtual },
+    include: { disciplina: true, turma: { include: { curso: true } }, _count: { select: { inscricoes: { where: { ativa: true } } } } },
     orderBy: [{ turma: { anoCurricular: "asc" } }, { disciplina: { nome: "asc" } }],
   });
 
@@ -25,9 +39,12 @@ export default async function ProfessorDisciplinasPage() {
       </div>
 
       <Card>
-        <CardHeader title="Disciplinas atribuídas" subtitle={`${turmaDisciplinas.length} disciplina(s)`} />
+        <CardHeader
+          title="Disciplinas atribuídas"
+          subtitle={`${turmaDisciplinas.length} disciplina(s) · Ano letivo ${formatAnoLetivo(anoAtual)} · ${semestreAtual}º Semestre`}
+        />
         {turmaDisciplinas.length === 0 ? (
-          <EmptyState message="Nenhuma disciplina atribuída." />
+          <EmptyState message="Nenhuma disciplina atribuída neste semestre." />
         ) : (
           <Table>
             <Thead>
@@ -36,7 +53,6 @@ export default async function ProfessorDisciplinasPage() {
                 <Th>Curso</Th>
                 <Th>Ano</Th>
                 <Th>Período</Th>
-                <Th>Semestre</Th>
                 <Th>Alunos</Th>
               </tr>
             </Thead>
@@ -53,8 +69,7 @@ export default async function ProfessorDisciplinasPage() {
                     <Badge tone="neutral">{td.turma.anoCurricular}º Ano</Badge>
                   </Td>
                   <Td>{PERIODO_LABEL[td.turma.periodo]}</Td>
-                  <Td>{td.semestre}º Semestre</Td>
-                  <Td>{td.turma._count.matriculas}</Td>
+                  <Td>{td._count.inscricoes}</Td>
                 </Tr>
               ))}
             </Tbody>

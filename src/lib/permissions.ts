@@ -1,5 +1,6 @@
 import "server-only";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import type { Role } from "@/generated/prisma/client";
 
@@ -64,10 +65,24 @@ export function podeVerTudo(user: CapabilityUser): boolean {
 
 export type SessionComUser = Session;
 
-async function requireSessao(): Promise<SessionComUser> {
+/**
+ * As sessões são JWT (`session.strategy = "jwt"` em auth.config.ts) — nunca revalidadas contra a
+ * BD a cada pedido, é essa a vantagem de serem stateless. Mas isso significa que se a conta que
+ * originou o token deixar de existir (ex.: BD reposta a partir de outro estado — só acontece em
+ * dev, nunca em produção, mas também cobre um futuro "desativar conta"), `session.user.id` fica a
+ * apontar para um `User` fantasma. A primeira escrita que o usa como FK (`Cobranca.registadoPorId`,
+ * `ConfiguracaoAcademica.updatedPorId`, etc.) rebentava com uma violação de chave estrangeira crua
+ * em vez de pedir sessão nova — este é o único ponto de entrada de todas as capacidades
+ * (`requireCapacidade` abaixo), por isso a verificação aqui protege todas de uma vez.
+ */
+export async function requireSessao(): Promise<SessionComUser> {
   const session = await auth();
   if (!session?.user) {
     throw new Error("Sem permissão para esta ação.");
+  }
+  const existe = await prisma.user.findUnique({ where: { id: session.user.id }, select: { id: true } });
+  if (!existe) {
+    throw new Error("A sua sessão está desatualizada — inicie sessão novamente.");
   }
   return session;
 }

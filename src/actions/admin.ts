@@ -434,12 +434,26 @@ export async function createTurmaDisciplinaAction(
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_TURMA_DISCIPLINA);
 
-  const cadeiraCurricular = await prisma.cadeiraCurricular.findUnique({
-    where: { id: parsed.data.cadeiraCurricularId },
-  });
+  const [cadeiraCurricular, turma] = await Promise.all([
+    prisma.cadeiraCurricular.findUnique({ where: { id: parsed.data.cadeiraCurricularId } }),
+    prisma.turma.findUnique({ where: { id: parsed.data.turmaId } }),
+  ]);
   if (!cadeiraCurricular) {
     return {
       fieldErrors: { cadeiraCurricularId: "Cadeira curricular inválida." },
+      values: extrairValores(formData, CAMPOS_TURMA_DISCIPLINA),
+    };
+  }
+  if (!turma) {
+    return { fieldErrors: { turmaId: "Turma inválida." }, values: extrairValores(formData, CAMPOS_TURMA_DISCIPLINA) };
+  }
+  // A página só lista cadeiras do curso/ano da turma (turmas/[id]/page.tsx), mas isso é só o filtro
+  // do <select> — sem esta verificação, um pedido direto (ou uma aba desatualizada) consegue
+  // atribuir uma cadeira de 3º ano de Gestão a uma turma de 1º ano de Eng. Informática. Mesma
+  // classe do IDOR já corrigido em lancarNotasEmLoteAction (Fase 0): nunca confiar só no filtro da UI.
+  if (cadeiraCurricular.cursoId !== turma.cursoId || cadeiraCurricular.anoCurricular !== turma.anoCurricular) {
+    return {
+      fieldErrors: { cadeiraCurricularId: "Esta cadeira não pertence ao curso/ano desta turma." },
       values: extrairValores(formData, CAMPOS_TURMA_DISCIPLINA),
     };
   }
@@ -468,6 +482,47 @@ export async function createTurmaDisciplinaAction(
   await sincronizarInscricoesTurma(parsed.data.turmaId);
 
   revalidatePath(`/admin/turmas/${parsed.data.turmaId}`);
+  return {};
+}
+
+const ProfessorTurmaDisciplinaSchema = z.object({
+  id: z.string().min(1),
+  professorId: z.string().min(1, "Professor é obrigatório"),
+});
+
+/** Troca o professor de uma disciplina já atribuída a uma turma, sem apagar a linha (e o histórico de horários/provas que ela arrasta). */
+export async function atualizarProfessorTurmaDisciplinaAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = ProfessorTurmaDisciplinaSchema.safeParse({
+    id: formData.get("id"),
+    professorId: formData.get("professorId"),
+  });
+  if (!parsed.success) return { error: "Professor inválido." };
+
+  const antes = await prisma.turmaDisciplina.findUnique({
+    where: { id: parsed.data.id },
+    include: { disciplina: true, professor: true },
+  });
+  if (!antes) return { error: "Disciplina-turma não encontrada." };
+
+  const depois = await prisma.turmaDisciplina.update({
+    where: { id: parsed.data.id },
+    data: { professorId: parsed.data.professorId },
+    include: { professor: true },
+  });
+
+  await audit(
+    session,
+    `Trocou o professor de ${antes.disciplina.nome} na turma`,
+    "TurmaDisciplina",
+    antes.id,
+    { valorAnterior: antes.professor.nome, valorNovo: depois.professor.nome },
+  );
+
+  revalidatePath(`/admin/turmas/${antes.turmaId}`);
   return {};
 }
 

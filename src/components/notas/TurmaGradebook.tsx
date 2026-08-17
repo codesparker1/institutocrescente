@@ -3,23 +3,13 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
-import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { Badge } from "@/components/ui/Badge";
-import { GradeCell } from "./GradeCell";
+import { EmptyState } from "@/components/ui/Table";
+import { GradebookEditor } from "./GradebookEditor";
 import { AttendanceChip } from "./AttendanceChip";
 import { CreateAulaForm } from "./CreateAulaForm";
 import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
-import { calcularNotaFinal, extrairNotasPorEpoca, EPOCA_LABEL, EPOCA_ORDEM, ESTADO_LABEL, type EstadoAvaliacao } from "@/lib/avaliacao";
-
-const ESTADO_TONE: Record<EstadoAvaliacao, "success" | "warning" | "danger" | "neutral"> = {
-  EM_CURSO: "neutral",
-  DISPENSADO: "success",
-  ADMITIDO_A_EXAME: "warning",
-  EM_RECURSO: "warning",
-  EM_EXAME_ESPECIAL: "warning",
-  APROVADO: "success",
-  REPROVADO: "danger",
-};
+import { EPOCA_ORDEM } from "@/lib/avaliacao";
+import { getAgora } from "@/lib/tempo";
 
 interface TurmaGradebookProps {
   turmaDisciplinaId: string;
@@ -53,40 +43,47 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
 
   if (!turmaDisciplina) notFound();
 
-  const avaliacoesOrdenadas = [...turmaDisciplina.avaliacoes].sort(
-    (a, b) => EPOCA_ORDEM.indexOf(a.epoca) - EPOCA_ORDEM.indexOf(b.epoca),
-  );
+  const avaliacaoPorEpoca = new Map(turmaDisciplina.avaliacoes.map((a) => [a.epoca, a]));
 
   const notas = await prisma.nota.findMany({
     where: { avaliacao: { turmaDisciplinaId } },
     include: { avaliacao: { select: { epoca: true } } },
   });
-  const notaPorCelula = new Map<string, number>();
-  const notasPorInscricao = new Map<string, typeof notas>();
+  const notasPorInscricao = new Map<string, { epoca: (typeof notas)[number]["avaliacao"]["epoca"]; valor: number; automatica: boolean }[]>();
   for (const nota of notas) {
-    notaPorCelula.set(`${nota.inscricaoCadeiraId}:${nota.avaliacaoId}`, Number(nota.valor));
     const lista = notasPorInscricao.get(nota.inscricaoCadeiraId) ?? [];
-    lista.push(nota);
+    lista.push({ epoca: nota.avaliacao.epoca, valor: Number(nota.valor), automatica: nota.automatica });
     notasPorInscricao.set(nota.inscricaoCadeiraId, lista);
   }
 
+  const agora = getAgora();
   const inscricoes = turmaDisciplina.inscricoes;
   const diasLetivos = [...new Set(turmaDisciplina.horarioSlots.map((s) => s.diaSemana))];
-  const datasValidas = proximasDatasValidas(diasLetivos);
-  const hoje = diaSemanaHoje();
+  const datasValidas = proximasDatasValidas(diasLetivos, 8, agora);
+  const hoje = diaSemanaHoje(agora);
   const hojeEhDiaDeAula = (diasLetivos as string[]).includes(hoje);
-  const hojeIsoValor = toIsoDate(new Date());
+  const hojeIsoValor = toIsoDate(agora);
   const proximoDiaLabel = datasValidas.find((d) => d.iso !== hojeIsoValor)?.label ?? datasValidas[0]?.label ?? null;
   const aulaDeHojeJaExiste = turmaDisciplina.aulas.some((a) => toIsoDate(a.data) === hojeIsoValor);
-  const agora = new Date();
 
-  function calcularEstado(inscricao: (typeof inscricoes)[number]) {
-    const notasDaInscricao = notasPorInscricao.get(inscricao.id)?.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao })) ?? [];
-    return calcularNotaFinal(extrairNotasPorEpoca(notasDaInscricao), {
-      permiteDispensa: inscricao.permiteDispensaAplicada,
-      notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
-    });
-  }
+  // As 5 colunas mostram-se sempre, mesmo antes de Recurso/Exame Especial terem sido formalmente
+  // agendados em Horário e Provas — sem Avaliacao ainda, a coluna não tem prazo (nunca desativada
+  // por prazo), a Avaliacao nasce sozinha na primeira nota lançada (lancarNotasEmLoteAction).
+  const avaliacoesParaEditor = EPOCA_ORDEM.map((epoca) => {
+    const avaliacao = avaliacaoPorEpoca.get(epoca);
+    return {
+      epoca,
+      disabled: Boolean(avaliacao && !podeIgnorarPrazo && avaliacao.prazoLancamento < agora),
+    };
+  });
+  const inscricoesParaEditor = inscricoes.map((inscricao) => ({
+    id: inscricao.id,
+    alunoNome: inscricao.aluno.nome,
+    tentativa: inscricao.tentativa,
+    permiteDispensaAplicada: inscricao.permiteDispensaAplicada,
+    notaMinimaDispensaAplicada: Number(inscricao.notaMinimaDispensaAplicada),
+    notas: notasPorInscricao.get(inscricao.id) ?? [],
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,7 +103,7 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
       <Card>
         <CardHeader
           title="Pauta de notas"
-          subtitle={editable ? "Clique num campo e prima Tab/Enter para gravar" : "Modo de visualização"}
+          subtitle={editable ? "Edite as notas e clique em Guardar alterações" : "Modo de visualização"}
           action={
             <a
               href={`/api/pauta/${turmaDisciplina.id}`}
@@ -121,52 +118,17 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
             </a>
           }
         />
-        {inscricoes.length === 0 || avaliacoesOrdenadas.length === 0 ? (
-          <EmptyState message="Sem alunos ou avaliações registadas para esta disciplina." />
+        {inscricoes.length === 0 ? (
+          <EmptyState message="Sem alunos inscritos nesta disciplina." />
         ) : (
-          <Table>
-            <Thead>
-              <tr>
-                <Th>Aluno</Th>
-                {avaliacoesOrdenadas.map((avaliacao) => (
-                  <Th key={avaliacao.id}>{EPOCA_LABEL[avaliacao.epoca]}</Th>
-                ))}
-                <Th>Estado</Th>
-                <Th>Nota Final</Th>
-              </tr>
-            </Thead>
-            <Tbody>
-              {inscricoes.map((inscricao) => {
-                const resultado = calcularEstado(inscricao);
-                return (
-                  <Tr key={inscricao.id}>
-                    <Td className="font-medium text-navy-900">
-                      {inscricao.aluno.nome}
-                      {inscricao.tentativa > 1 ? (
-                        <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
-                          {inscricao.tentativa}ª tentativa
-                        </span>
-                      ) : null}
-                    </Td>
-                    {avaliacoesOrdenadas.map((avaliacao) => (
-                      <Td key={avaliacao.id}>
-                        <GradeCell
-                          avaliacaoId={avaliacao.id}
-                          inscricaoCadeiraId={inscricao.id}
-                          valorInicial={notaPorCelula.get(`${inscricao.id}:${avaliacao.id}`) ?? null}
-                          disabled={!editable || (!podeIgnorarPrazo && avaliacao.prazoLancamento < agora)}
-                        />
-                      </Td>
-                    ))}
-                    <Td>
-                      <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
-                    </Td>
-                    <Td className="font-semibold text-navy-900">{resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}</Td>
-                  </Tr>
-                );
-              })}
-            </Tbody>
-          </Table>
+          <CardBody>
+            <GradebookEditor
+              turmaDisciplinaId={turmaDisciplina.id}
+              avaliacoes={avaliacoesParaEditor}
+              inscricoes={inscricoesParaEditor}
+              editable={editable}
+            />
+          </CardBody>
         )}
       </Card>
 
@@ -177,8 +139,9 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
             <EmptyState message="Sem aulas registadas." />
           ) : (
             turmaDisciplina.aulas.map((aula) => {
-              const total = aula.frequencias.length;
-              const presentes = aula.frequencias.filter((f) => f.presente).length;
+              const ativas = aula.frequencias.filter((f) => f.inscricaoCadeira.ativa);
+              const presentes = ativas.filter((f) => f.presente).length;
+              const inativasComRegisto = aula.frequencias.length - ativas.length;
               return (
                 <div key={aula.id} className="rounded-lg border border-navy-50 px-4 py-3">
                   <div className="mb-2 flex items-center justify-between">
@@ -186,7 +149,8 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
                       {formatDate(aula.data)} {aula.tema ? `· ${aula.tema}` : ""}
                     </span>
                     <span className="text-xs text-navy-400">
-                      {presentes}/{total} presentes
+                      {presentes}/{ativas.length} presentes
+                      {inativasComRegisto > 0 ? ` · ${inativasComRegisto} inativo(s)` : ""}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -197,6 +161,7 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
                         nome={freq.inscricaoCadeira.aluno.nome}
                         presenteInicial={freq.presente}
                         disabled={!editable}
+                        inativa={!freq.inscricaoCadeira.ativa}
                       />
                     ))}
                   </div>
@@ -223,7 +188,7 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
                 <CreateAulaForm
                   turmaDisciplinaId={turmaDisciplina.id}
                   dataIso={hojeIsoValor}
-                  dataLabel={formatDate(new Date())}
+                  dataLabel={formatDate(agora)}
                 />
               </div>
             )

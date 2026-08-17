@@ -6,11 +6,12 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { deleteTurmaAction } from "@/actions/admin";
 import { CreateTurmaForm } from "./CreateTurmaForm";
-import { PERIODO_LABEL } from "@/lib/utils";
+import { PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 
 export default async function AdminTurmasPage() {
   const [cursos, turmas] = await Promise.all([
-    prisma.curso.findMany({ orderBy: { nome: "asc" } }),
+    // select: CreateTurmaForm (Client Component) só precisa de id/nome — ver nota em admin/disciplinas/page.tsx.
+    prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prisma.turma.findMany({
       include: { curso: true, _count: { select: { matriculas: true, turmaDisciplinas: true } } },
       orderBy: [{ curso: { nome: "asc" } }, { anoCurricular: "asc" }],
@@ -58,7 +59,7 @@ export default async function AdminTurmasPage() {
                       <Badge tone="neutral">{turma.anoCurricular}º Ano</Badge>
                     </Td>
                     <Td>{PERIODO_LABEL[turma.periodo]}</Td>
-                    <Td>{turma.anoLetivo}</Td>
+                    <Td>{formatAnoLetivo(turma.anoLetivo)}</Td>
                     <Td>{turma._count.turmaDisciplinas}</Td>
                     <Td>{turma._count.matriculas}</Td>
                     <Td className="text-right">

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "ConfiguracaoAcademica" ADD COLUMN     "diasPrazoExame" INTEGER NOT NULL DEFAULT 7,
+ADD COLUMN     "diasPrazoExameEspecial" INTEGER NOT NULL DEFAULT 5,
+ADD COLUMN     "diasPrazoP1" INTEGER NOT NULL DEFAULT 5,
+ADD COLUMN     "diasPrazoP2" INTEGER NOT NULL DEFAULT 5,
+ADD COLUMN     "diasPrazoRecurso" INTEGER NOT NULL DEFAULT 5,
+ADD COLUMN     "semestreAtual" INTEGER NOT NULL DEFAULT 1;

@@ -6,8 +6,9 @@ import { Select } from "@/components/ui/Select";
 import { Field } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/Table";
 import { ScheduleGrid, type TurmaDisciplinaComHorario } from "@/components/horario/ScheduleGrid";
-import { PERIODO_LABEL } from "@/lib/utils";
+import { PERIODO_LABEL, parseIntParam } from "@/lib/utils";
 import { podeGerirCurriculo } from "@/lib/permissions";
+import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis } from "@/lib/avaliacao";
 
 const TURMA_DISCIPLINA_INCLUDE = {
   disciplina: true,
@@ -49,12 +50,25 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       // TurmaDisciplina pertencem a uma Turma de ano diferente da sua matrícula atual (§4.2).
       const inscricoes = await prisma.inscricaoCadeira.findMany({
         where: { alunoId: session.user.alunoId, ativa: true },
-        include: { turmaDisciplina: { include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } } } },
+        include: {
+          turmaDisciplina: { include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } } },
+          notas: { include: { avaliacao: true } },
+        },
       });
-      turmaDisciplinas = inscricoes.map((i) => ({
-        ...i.turmaDisciplina,
-        cursoAnoLabel: `${i.turmaDisciplina.turma.curso.nome} · ${i.turmaDisciplina.turma.anoCurricular}º Ano`,
-      }));
+      turmaDisciplinas = inscricoes.map((i) => {
+        const notasCadeira = extrairNotasPorEpoca(i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao })));
+        const estado = calcularNotaFinal(notasCadeira, {
+          permiteDispensa: i.permiteDispensaAplicada,
+          notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
+        }).estado;
+        // Não mostrar Recurso/Exame Especial a quem já foi dispensado ou aprovado sem precisar deles.
+        const visiveis = new Set(epocasVisiveis(notasCadeira, estado));
+        return {
+          ...i.turmaDisciplina,
+          avaliacoes: i.turmaDisciplina.avaliacoes.filter((av) => visiveis.has(av.epoca)),
+          cursoAnoLabel: `${i.turmaDisciplina.turma.curso.nome} · ${i.turmaDisciplina.turma.anoCurricular}º Ano`,
+        };
+      });
       subtitle = "O seu horário de aulas e provas.";
     }
 
@@ -69,7 +83,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   // ADMIN: escolher curso + ano + período primeiro.
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
   const cursoId = params.cursoId ?? cursos[0]?.id ?? "";
-  const anoCurricular = params.anoCurricular ? Number(params.anoCurricular) : 1;
+  const anoCurricular = parseIntParam(params.anoCurricular) ?? 1;
   const periodo = params.periodo ?? "MATUTINO";
 
   const turma = cursoId

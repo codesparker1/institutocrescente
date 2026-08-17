@@ -16,6 +16,10 @@
 # local load/stress test logs
 /stress-logs
 
+# simulação de ano letivo — relógio partilhado com o servidor + relatórios/screenshots gerados
+/scripts/simulacao/.relogio
+/scripts/simulacao/output
+
 # graphify knowledge-graph analysis output (generated, not source)
 /graphify-out
 

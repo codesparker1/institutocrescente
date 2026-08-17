@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut, Menu } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Menu, UserCog } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import type { Role } from "@/generated/prisma/client";
 
@@ -34,6 +35,15 @@ export function Topbar({ name, role, onMenuClick }: TopbarProps) {
           <p className="text-sm font-semibold text-navy-900">{name}</p>
           <p className="text-xs text-navy-400">{ROLE_LABEL[role]}</p>
         </div>
+        <Link
+          href="/conta"
+          className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50"
+          aria-label="Minha Conta"
+          title="Minha Conta"
+        >
+          <UserCog size={14} />
+          Minha Conta
+        </Link>
         <form action={logoutAction}>
           <button
             type="submit"

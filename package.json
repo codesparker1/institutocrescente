@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "stress": "node scripts/stress/run.mjs",
     "test:workflow": "tsx scripts/e2e-workflow/run.ts",
+    "diagnostico": "tsx scripts/diagnostico/run.ts",
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {

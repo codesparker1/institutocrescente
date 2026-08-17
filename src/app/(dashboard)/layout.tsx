@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { garantirCobrancasGeradas } from "@/lib/financeiro";
 import { garantirSuspensaoAutomatica } from "@/lib/curriculo";
+import { garantirNotasAutomaticasPorFalta } from "@/lib/notas-automaticas";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -13,6 +14,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   await garantirCobrancasGeradas();
   // Suspende quem não rematriculou dentro da janela, no primeiro acesso do dia (§4.2/Fase 8b).
   await garantirSuspensaoAutomatica();
+  // Atribui 0 automático a quem devia ter feito uma época e o prazo passou sem nota (§4.3).
+  await garantirNotasAutomaticasPorFalta();
 
   return (
     <DashboardShell role={session.user.role} name={session.user.name ?? session.user.email ?? "Utilizador"}>

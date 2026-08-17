@@ -6,7 +6,8 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import { Select } from "@/components/ui/Select";
-import { formatCurrency, turmaLabel } from "@/lib/utils";
+import { Printer } from "lucide-react";
+import { formatCurrency, turmaLabel, parseIntParam, formatAnoLetivo } from "@/lib/utils";
 import { getListaDevedores } from "@/lib/financeiro";
 import { podeRegistarPagamento } from "@/lib/permissions";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
@@ -34,7 +35,7 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
   if (!podeRegistarPagamento(session.user)) redirect("/dashboard");
 
   const { sort, curso, turmaId, anoLetivo, periodo, categoria } = await searchParams;
-  const ordenacao = sort === "valor" ? "valor" : "antiguidade";
+  const ordenacao = sort === "valor" ? "valor" : sort === "nome" ? "nome" : "antiguidade";
 
   const [cursos, turmas, anosLetivos] = await Promise.all([
     prisma.curso.findMany({ orderBy: { nome: "asc" } }),
@@ -46,7 +47,7 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
     sort: ordenacao,
     curso: curso || undefined,
     turmaId: turmaId || undefined,
-    anoLetivo: anoLetivo ? Number(anoLetivo) : undefined,
+    anoLetivo: parseIntParam(anoLetivo),
     periodo: (periodo || undefined) as Periodo | undefined,
     categoria: (categoria || undefined) as CategoriaEstudante | undefined,
   });
@@ -80,7 +81,7 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
               <option value="">Todas as turmas</option>
               {turmas.map((t) => (
                 <option key={t.id} value={t.id}>
-                  {turmaLabel(t)} · {t.anoLetivo}
+                  {turmaLabel(t)}
                 </option>
               ))}
             </Select>
@@ -88,7 +89,7 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
               <option value="">Todos os anos letivos</option>
               {anosLetivos.map((a) => (
                 <option key={a.anoLetivo} value={a.anoLetivo}>
-                  {a.anoLetivo}
+                  {formatAnoLetivo(a.anoLetivo)}
                 </option>
               ))}
             </Select>
@@ -121,19 +122,36 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
           title="Alunos em dívida"
           subtitle={`${devedores.length} aluno(s)`}
           action={
-            <div className="flex overflow-hidden rounded-lg border border-navy-100 text-xs font-medium">
-              <Link
-                href={`?${new URLSearchParams({ ...Object.fromEntries(filtrosQuery), sort: "antiguidade" })}`}
-                className={`px-3 py-1.5 ${ordenacao === "antiguidade" ? "bg-navy-700 text-gold-100" : "bg-white text-navy-500 hover:bg-navy-50"}`}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex overflow-hidden rounded-lg border border-navy-100 text-xs font-medium">
+                <Link
+                  href={`?${new URLSearchParams({ ...Object.fromEntries(filtrosQuery), sort: "antiguidade" })}`}
+                  className={`px-3 py-1.5 ${ordenacao === "antiguidade" ? "bg-navy-700 text-gold-100" : "bg-white text-navy-500 hover:bg-navy-50"}`}
+                >
+                  Antiguidade
+                </Link>
+                <Link
+                  href={`?${new URLSearchParams({ ...Object.fromEntries(filtrosQuery), sort: "valor" })}`}
+                  className={`px-3 py-1.5 ${ordenacao === "valor" ? "bg-navy-700 text-gold-100" : "bg-white text-navy-500 hover:bg-navy-50"}`}
+                >
+                  Valor
+                </Link>
+                <Link
+                  href={`?${new URLSearchParams({ ...Object.fromEntries(filtrosQuery), sort: "nome" })}`}
+                  className={`px-3 py-1.5 ${ordenacao === "nome" ? "bg-navy-700 text-gold-100" : "bg-white text-navy-500 hover:bg-navy-50"}`}
+                >
+                  Nome
+                </Link>
+              </div>
+              <a
+                href={`/api/devedores?${new URLSearchParams({ ...Object.fromEntries(filtrosQuery), sort: ordenacao })}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-navy-100 bg-white px-3 py-1.5 text-xs font-medium text-navy-500 hover:bg-navy-50"
               >
-                Antiguidade
-              </Link>
-              <Link
-                href={`?${new URLSearchParams({ ...Object.fromEntries(filtrosQuery), sort: "valor" })}`}
-                className={`px-3 py-1.5 ${ordenacao === "valor" ? "bg-navy-700 text-gold-100" : "bg-white text-navy-500 hover:bg-navy-50"}`}
-              >
-                Valor
-              </Link>
+                <Printer size={14} />
+                Imprimir
+              </a>
             </div>
           }
         />

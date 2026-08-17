@@ -6,7 +6,8 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { deleteTurmaDisciplinaAction } from "@/actions/admin";
 import { CreateTurmaDisciplinaForm } from "./CreateTurmaDisciplinaForm";
-import { PERIODO_LABEL } from "@/lib/utils";
+import { EditarProfessorTurmaDisciplina } from "./EditarProfessorTurmaDisciplina";
+import { PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 
 interface AdminTurmaDetailPageProps {
   params: Promise<{ id: string }>;
@@ -29,10 +30,12 @@ export default async function AdminTurmaDetailPage({ params }: AdminTurmaDetailP
   if (!turma) notFound();
 
   const [professores, cadeirasCurriculares] = await Promise.all([
-    prisma.professor.findMany({ orderBy: { nome: "asc" } }),
+    prisma.professor.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    // select: CreateTurmaDisciplinaForm (Client Component) só precisa de id/semestre/disciplina.nome
+    // — CadeiraCurricular.notaMinimaDispensa é Decimal, ver nota em admin/disciplinas/page.tsx.
     prisma.cadeiraCurricular.findMany({
       where: { cursoId: turma.cursoId, anoCurricular: turma.anoCurricular },
-      include: { disciplina: true },
+      select: { id: true, semestre: true, disciplina: { select: { nome: true } } },
       orderBy: [{ semestre: "asc" }, { disciplina: { nome: "asc" } }],
     }),
   ]);
@@ -50,7 +53,7 @@ export default async function AdminTurmaDetailPage({ params }: AdminTurmaDetailP
           {turma.curso.nome} - {turma.anoCurricular}º Ano
         </h1>
         <p className="text-sm text-navy-400">
-          {PERIODO_LABEL[turma.periodo]} · {turma.anoLetivo}
+          {PERIODO_LABEL[turma.periodo]} · {formatAnoLetivo(turma.anoLetivo)}
         </p>
       </div>
 
@@ -95,7 +98,13 @@ export default async function AdminTurmaDetailPage({ params }: AdminTurmaDetailP
                 {turma.turmaDisciplinas.map((td) => (
                   <Tr key={td.id}>
                     <Td className="font-medium text-navy-900">{td.disciplina.nome}</Td>
-                    <Td>{td.professor.nome}</Td>
+                    <Td>
+                      <EditarProfessorTurmaDisciplina
+                        turmaDisciplinaId={td.id}
+                        professorAtualId={td.professorId}
+                        professores={professores}
+                      />
+                    </Td>
                     <Td>{td.semestre}º Semestre</Td>
                     <Td>{td.sala}</Td>
                     <Td>{td._count.horarioSlots}</Td>

@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { getConjuntoAlunosEmDivida } from "@/lib/financeiro";
 import { ListaPresencaDocument } from "@/components/pdf/ListaPresencaDocument";
-import { EPOCA_LABEL } from "@/lib/avaliacao";
+import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca, proximaEpocaPendente } from "@/lib/avaliacao";
+import { getAgora } from "@/lib/tempo";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
           professor: true,
           turma: { include: { curso: true } },
           // Roster por cadeira, não por coorte — inclui repetentes de outras turmas (§4.2).
-          inscricoes: { where: { ativa: true }, include: { aluno: true } },
+          inscricoes: { where: { ativa: true }, include: { aluno: true, notas: { include: { avaliacao: true } } } },
         },
       },
     },
@@ -44,7 +45,25 @@ export async function GET(_req: Request, { params }: RouteParams) {
     return new Response("Não autorizado", { status: 403 });
   }
 
-  const alunosDaTurma = avaliacao.turmaDisciplina.inscricoes.map((i) => i.aluno);
+  // Espelha o bloqueio do botão de imprimir em ScheduleGrid — a lista serve para conferir quem
+  // entra na sala nesse dia, não é um registo histórico para reimprimir depois da prova.
+  if (avaliacao.data < getAgora()) {
+    return new Response("Esta prova já foi dada — a lista de presença já não pode ser impressa.", { status: 403 });
+  }
+
+  // Só quem realmente vai a ESTA época — não a turma inteira. Um aluno já dispensado em P1/P2, ou
+  // já aprovado no Exame, não tem nada a fazer na sala do Recurso; sem este filtro a lista de
+  // presença listava sempre todo o roster da disciplina, para qualquer época.
+  const inscricoesEsperadas = avaliacao.turmaDisciplina.inscricoes.filter((inscricao) => {
+    const notasCadeira = extrairNotasPorEpoca(inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao })));
+    const resultado = calcularNotaFinal(notasCadeira, {
+      permiteDispensa: inscricao.permiteDispensaAplicada,
+      notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+    });
+    return proximaEpocaPendente(notasCadeira, resultado.estado) === avaliacao.epoca;
+  });
+
+  const alunosDaTurma = inscricoesEsperadas.map((i) => i.aluno);
   const alunosEmDivida = await getConjuntoAlunosEmDivida(alunosDaTurma.map((a) => a.id));
 
   const alunosElegiveis = alunosDaTurma

@@ -6,23 +6,34 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { PropinasMensais } from "@/components/financeiro/PropinasMensais";
 import { MultasPendentes } from "@/components/financeiro/MultasPendentes";
 import { CategoriaEstudanteForm } from "@/components/alunos/CategoriaEstudanteForm";
 import { RepeticaoForm } from "@/components/alunos/RepeticaoForm";
 import { RematriculaForm } from "@/components/alunos/RematriculaForm";
 import { MudarCursoForm } from "@/components/alunos/MudarCursoForm";
-import { formatDate, formatCurrency, PERIODO_LABEL } from "@/lib/utils";
+import { formatDate, formatCurrency, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { podeRegistarPagamento, podeGerirCurriculo } from "@/lib/permissions";
 import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
-import type { AlunoStatus } from "@/generated/prisma/client";
+import { getAgora } from "@/lib/tempo";
+import type { AlunoStatus, CobrancaTipo } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
   ATIVO: "success",
   TRANCADO: "warning",
   FORMADO: "neutral",
   DESISTENTE: "danger",
+};
+
+const COBRANCA_TIPO_LABEL: Record<CobrancaTipo, string> = {
+  INSCRICAO: "Inscrição",
+  CONFIRMACAO: "Confirmação",
+  MATRICULA: "Matrícula",
+  PROPINA: "Propina",
+  MULTA: "Multa",
+  EMOLUMENTO: "Emolumento",
 };
 
 interface AlunoDetailPageProps {
@@ -71,7 +82,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 
   // Rematrícula (§4.2/Fase 8b) — resumo do ano corrente e janela de matrícula.
   const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
-  const agora = new Date();
+  const agora = getAgora();
   const dentroDaJanela = Boolean(
     configAcademica?.matriculaInicio &&
       configAcademica.matriculaFim &&
@@ -89,7 +100,19 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   }).length;
 
   // Segunda licenciatura / mudança de curso (Fase 8c) — cursos além do atual do aluno.
-  const outrosCursos = podeEditarCategoria ? await prisma.curso.findMany({ where: { nome: { not: aluno.curso } }, orderBy: { nome: "asc" } }) : [];
+  // select: MudarCursoForm (Client Component) só precisa de id/nome — Curso.valorPropina é
+  // Decimal e o Next.js recusa-se a serializar Decimal ao passar de Server para Client Component.
+  const outrosCursos = podeEditarCategoria
+    ? await prisma.curso.findMany({ where: { nome: { not: aluno.curso } }, orderBy: { nome: "asc" }, select: { id: true, nome: true } })
+    : [];
+
+  // Histórico de pagamentos — auditoria do percurso financeiro completo, não só o que está em
+  // aberto agora (isso já é "Situação Financeira" acima). Inclui quem registou cada pagamento.
+  const cobrancas = await prisma.cobranca.findMany({
+    where: { alunoId: aluno.id },
+    include: { registadoPor: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,17 +132,6 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         </div>
         <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
       </div>
-
-      <Card>
-        <CardHeader
-          title="Situação Financeira"
-          subtitle={`Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)}`}
-        />
-        <CardBody className="flex flex-col gap-4">
-          <PropinasMensais meses={estadoFinanceiro.meses} editable={podeGerirPropinas} />
-          <MultasPendentes multas={estadoFinanceiro.multas} editable={podeGerirPropinas} />
-        </CardBody>
-      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -148,7 +160,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                 <div key={matricula.id} className="flex items-center justify-between">
                   <p className="text-sm font-medium text-navy-900">
                     {matricula.turma.curso.nome} · {matricula.turma.anoCurricular}º Ano ·{" "}
-                    {PERIODO_LABEL[matricula.turma.periodo]}
+                    {PERIODO_LABEL[matricula.turma.periodo]} · {formatAnoLetivo(matricula.turma.anoLetivo)}
                   </p>
                   <Badge tone={matricula.status === "ATIVA" ? "success" : "neutral"}>{matricula.status}</Badge>
                 </div>
@@ -157,6 +169,17 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           )}
         </Card>
       </div>
+
+      <Card>
+        <CardHeader
+          title="Situação Financeira"
+          subtitle={`Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)}`}
+        />
+        <CardBody className="flex flex-col gap-4">
+          <PropinasMensais meses={estadoFinanceiro.meses} editable={podeGerirPropinas} />
+          <MultasPendentes multas={estadoFinanceiro.multas} editable={podeGerirPropinas} />
+        </CardBody>
+      </Card>
 
       {podeEditarCategoria ? (
         <Card>
@@ -182,17 +205,17 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`} />
+      <Disclosure title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`}>
         {inscricoes.length === 0 ? (
           <EmptyState message="Sem cadeiras inscritas." />
         ) : (
-          <CardBody className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             <Table>
               <Thead>
                 <tr>
                   <Th>Disciplina</Th>
                   <Th>Turma</Th>
+                  <Th>Ano Letivo</Th>
                   <Th>Professor</Th>
                   <Th>Tentativa</Th>
                   <Th>Estado</Th>
@@ -206,6 +229,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                     <Td>
                       {inscricao.turmaDisciplina.turma.curso.nome} · {inscricao.turmaDisciplina.turma.anoCurricular}º Ano
                     </Td>
+                    <Td>{formatAnoLetivo(inscricao.turmaDisciplina.turma.anoLetivo)}</Td>
                     <Td>{inscricao.turmaDisciplina.professor.nome}</Td>
                     <Td>{inscricao.tentativa}ª</Td>
                     <Td>
@@ -229,9 +253,42 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                 <RepeticaoForm alunoId={aluno.id} cadeirasAtivas={cadeirasAtivas} ofertas={ofertas} />
               </div>
             ) : null}
-          </CardBody>
+          </div>
         )}
-      </Card>
+      </Disclosure>
+
+      <Disclosure title="Histórico de Pagamentos" subtitle={`${cobrancas.length} registo(s)`}>
+        {cobrancas.length === 0 ? (
+          <EmptyState message="Sem cobranças registadas." />
+        ) : (
+          <Table>
+            <Thead>
+              <tr>
+                <Th>Tipo</Th>
+                <Th>Referência</Th>
+                <Th>Valor</Th>
+                <Th>Estado</Th>
+                <Th>Pago em</Th>
+                <Th>Registado por</Th>
+              </tr>
+            </Thead>
+            <Tbody>
+              {cobrancas.map((cobranca) => (
+                <Tr key={cobranca.id}>
+                  <Td className="font-medium text-navy-900">{COBRANCA_TIPO_LABEL[cobranca.tipo]}</Td>
+                  <Td>{cobranca.mesReferencia ? formatDate(cobranca.mesReferencia) : (cobranca.descricao ?? "—")}</Td>
+                  <Td>{formatCurrency(Number(cobranca.valorPago) > 0 ? Number(cobranca.valorPago) : Number(cobranca.valorDevido))}</Td>
+                  <Td>
+                    <Badge tone={cobranca.status === "PAGO" ? "success" : "warning"}>{cobranca.status === "PAGO" ? "Pago" : "Pendente"}</Badge>
+                  </Td>
+                  <Td>{cobranca.dataPagamento ? formatDate(cobranca.dataPagamento) : "—"}</Td>
+                  <Td>{cobranca.registadoPor?.name ?? "—"}</Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        )}
+      </Disclosure>
     </div>
   );
 }

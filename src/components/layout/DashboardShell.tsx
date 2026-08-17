@@ -3,6 +3,7 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { AcessibilidadeProvider } from "./AcessibilidadeContext";
 import type { Role } from "@/generated/prisma/client";
 
 interface DashboardShellProps {
@@ -18,12 +19,14 @@ export function DashboardShell({ role, name, children }: DashboardShellProps) {
   const closeMobileNav = useCallback(() => setIsMobileNavOpen(false), []);
 
   return (
-    <div className="flex min-h-screen bg-navy-50/40">
-      <Sidebar role={role} isOpen={isMobileNavOpen} onClose={closeMobileNav} />
-      <div className="flex min-w-0 flex-1 flex-col md:pl-64">
-        <Topbar name={name} role={role} onMenuClick={openMobileNav} />
-        <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">{children}</main>
+    <AcessibilidadeProvider>
+      <div className="flex min-h-screen bg-navy-50/40">
+        <Sidebar role={role} isOpen={isMobileNavOpen} onClose={closeMobileNav} />
+        <div className="flex min-w-0 flex-1 flex-col md:pl-64">
+          <Topbar name={name} role={role} onMenuClick={openMobileNav} />
+          <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </AcessibilidadeProvider>
   );
 }

@@ -5,14 +5,16 @@ import { Search, Loader2 } from "lucide-react";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { cn, formatCurrency, mesReferenciaLabel } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
+import { PagamentosSecretariaPanel } from "./PagamentosSecretariaPanel";
 import {
   searchAlunosAction,
   getEstadoFinanceiroAlunoAction,
-  togglePropinaAction,
+  getCatalogoEmolumentosAction,
+  getEmolumentosPagosAction,
   type AlunoResultadoPesquisa,
 } from "@/actions/financeiro";
-import type { EstadoFinanceiroAluno } from "@/lib/financeiro";
+import type { EstadoFinanceiroAluno, EmolumentoCatalogo, EmolumentoPago } from "@/lib/financeiro";
 
 const ANOS_CURRICULARES = [1, 2, 3, 4, 5, 6];
 const PERIODOS = [
@@ -33,9 +35,10 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
   const [resultados, setResultados] = useState<AlunoResultadoPesquisa[]>([]);
   const [aSelecionado, setASelecionado] = useState<AlunoResultadoPesquisa | null>(null);
   const [estado, setEstado] = useState<EstadoFinanceiroAluno | null>(null);
+  const [catalogoEmolumentos, setCatalogoEmolumentos] = useState<EmolumentoCatalogo[]>([]);
+  const [emolumentosPagos, setEmolumentosPagos] = useState<EmolumentoPago[]>([]);
   const [isSearching, startSearch] = useTransition();
   const [isLoadingEstado, startLoadEstado] = useTransition();
-  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     if (aSelecionado) return;
@@ -62,42 +65,27 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
     setASelecionado(aluno);
     setResultados([]);
     startLoadEstado(async () => {
-      const dados = await getEstadoFinanceiroAlunoAction(aluno.id);
+      const [dados, catalogo, pagos] = await Promise.all([
+        getEstadoFinanceiroAlunoAction(aluno.id),
+        getCatalogoEmolumentosAction(),
+        getEmolumentosPagosAction(aluno.id),
+      ]);
       setEstado(dados);
+      setCatalogoEmolumentos(catalogo);
+      setEmolumentosPagos(pagos);
     });
   }
 
   function novaPesquisa() {
     setASelecionado(null);
     setEstado(null);
+    setCatalogoEmolumentos([]);
+    setEmolumentosPagos([]);
     setQuery("");
     setFiltroCurso("");
     setFiltroAno("");
     setFiltroPeriodo("");
     setResultados([]);
-    setErro(null);
-  }
-
-  function handleToggleMes(propinaId: string, label: string, pagoAtual: boolean) {
-    const pergunta = pagoAtual
-      ? `Tem a certeza que quer marcar ${label} como pendente?`
-      : `Tem a certeza que quer marcar ${label} como pago?`;
-    if (!window.confirm(pergunta)) return;
-
-    setErro(null);
-    startLoadEstado(async () => {
-      const formData = new FormData();
-      formData.set("propinaId", propinaId);
-      const resultado = await togglePropinaAction(formData);
-      if (resultado?.error) {
-        setErro(resultado.error);
-        return;
-      }
-      if (aSelecionado) {
-        const dados = await getEstadoFinanceiroAlunoAction(aSelecionado.id);
-        setEstado(dados);
-      }
-    });
   }
 
   return (
@@ -215,39 +203,16 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
             </div>
 
             <div>
-              {erro ? <p className="mb-2 text-xs text-red-600">{erro}</p> : null}
-              {!estado ? (
-                <p className="text-sm text-navy-400">A carregar mensalidades...</p>
-              ) : estado.meses.length === 0 ? (
-                <p className="text-sm text-navy-400">Sem mensalidades registadas.</p>
+              {!estado || isLoadingEstado ? (
+                <p className="text-sm text-navy-400">A carregar...</p>
               ) : (
-                <div className="flex flex-col divide-y divide-navy-50">
-                  {estado.meses.map((mes) => {
-                    const label = mesReferenciaLabel(mes.mesReferencia);
-                    const pago = mes.status === "PAGO";
-                    return (
-                      <div key={mes.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-                        <div className="flex items-center gap-3">
-                          <span className="w-28 text-sm font-medium text-navy-800">{label}</span>
-                          <span className="text-xs text-navy-400">{formatCurrency(mes.valorDevido)}</span>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={isLoadingEstado}
-                          onClick={() => handleToggleMes(mes.id, label, pago)}
-                          className={cn(
-                            "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                            pago
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                              : "border-navy-100 bg-white text-navy-400 hover:bg-navy-50",
-                          )}
-                        >
-                          {pago ? "Pago" : "Pendente"}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+                <PagamentosSecretariaPanel
+                  alunoId={aSelecionado.id}
+                  estado={estado}
+                  catalogoEmolumentos={catalogoEmolumentos}
+                  emolumentosPagos={emolumentosPagos}
+                  onAtualizado={() => carregarEstado(aSelecionado)}
+                />
               )}
             </div>
           </div>

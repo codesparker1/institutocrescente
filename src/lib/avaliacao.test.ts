@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
 const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
@@ -29,22 +29,22 @@ test("média 12 é positiva mas NÃO dispensa — precisa de exame (o erro mais 
   assert.equal(r.notaFinal, null, "não deve ter nota final sem exame lançado");
 });
 
-test("9+9 precisa de exatamente 12 no exame para passar", () => {
-  const comExame11 = calcularNotaFinal({ ...SEM_NOTAS, p1: 9, p2: 9, exame: 11 }, REGRAS_PADRAO);
-  assert.equal(comExame11.estado, "EM_RECURSO", "(9+9+11)/3 = 9.67, ainda reprovado");
+test("9+9 (média 9) precisa de exatamente 11 no exame para passar", () => {
+  const comExame10 = calcularNotaFinal({ ...SEM_NOTAS, p1: 9, p2: 9, exame: 10 }, REGRAS_PADRAO);
+  assert.equal(comExame10.estado, "EM_RECURSO", "(9+10)/2 = 9.5, ainda reprovado");
 
-  const comExame12 = calcularNotaFinal({ ...SEM_NOTAS, p1: 9, p2: 9, exame: 12 }, REGRAS_PADRAO);
-  assert.equal(comExame12.estado, "APROVADO");
-  assert.equal(comExame12.notaFinal, 10, "(9+9+12)/3 = 10");
+  const comExame11 = calcularNotaFinal({ ...SEM_NOTAS, p1: 9, p2: 9, exame: 11 }, REGRAS_PADRAO);
+  assert.equal(comExame11.estado, "APROVADO");
+  assert.equal(comExame11.notaFinal, 10, "(média 9 + exame 11)/2 = 10");
 });
 
-test("13+13 precisa de exatamente 4 no exame para passar", () => {
-  const comExame3 = calcularNotaFinal({ ...SEM_NOTAS, p1: 13, p2: 13, exame: 3 }, REGRAS_PADRAO);
-  assert.equal(comExame3.estado, "EM_RECURSO", "(13+13+3)/3 = 9.67, ainda reprovado");
+test("13+13 (média 13) precisa de exatamente 7 no exame para passar", () => {
+  const comExame6 = calcularNotaFinal({ ...SEM_NOTAS, p1: 13, p2: 13, exame: 6 }, REGRAS_PADRAO);
+  assert.equal(comExame6.estado, "EM_RECURSO", "(13+6)/2 = 9.5, ainda reprovado");
 
-  const comExame4 = calcularNotaFinal({ ...SEM_NOTAS, p1: 13, p2: 13, exame: 4 }, REGRAS_PADRAO);
-  assert.equal(comExame4.estado, "APROVADO");
-  assert.equal(comExame4.notaFinal, 10, "(13+13+4)/3 = 10");
+  const comExame7 = calcularNotaFinal({ ...SEM_NOTAS, p1: 13, p2: 13, exame: 7 }, REGRAS_PADRAO);
+  assert.equal(comExame7.estado, "APROVADO");
+  assert.equal(comExame7.notaFinal, 10, "(média 13 + exame 7)/2 = 10");
 });
 
 test("recurso conta isolado, não combinado com P1/P2/Exame", () => {
@@ -84,4 +84,95 @@ test("congelamento: o resultado usa as regras passadas, não relê nada — muda
   // apurado com as regras congeladas da inscrição continua a ser recalculado com os MESMOS valores.
   const resultadoRecalculadoComRegrasAntigas = calcularNotaFinal(notas, regrasNoMomentoDaInscricao);
   assert.deepEqual(resultadoRecalculadoComRegrasAntigas, resultadoOriginal);
+});
+
+test("epocasVisiveis: EM_CURSO mostra P1 e P2 como por vir, nada além", () => {
+  assert.deepEqual(epocasVisiveis(SEM_NOTAS, "EM_CURSO"), ["P1", "P2"]);
+});
+
+test("epocasVisiveis: DISPENSADO só mostra P1/P2 — nunca Exame/Recurso/Especial", () => {
+  const notas: NotasCadeira = { ...SEM_NOTAS, p1: 15, p2: 15 };
+  assert.deepEqual(epocasVisiveis(notas, "DISPENSADO"), ["P1", "P2"]);
+});
+
+test("epocasVisiveis: ADMITIDO_A_EXAME mostra P1/P2/Exame, não Recurso nem Especial", () => {
+  const notas: NotasCadeira = { ...SEM_NOTAS, p1: 9, p2: 9 };
+  assert.deepEqual(epocasVisiveis(notas, "ADMITIDO_A_EXAME"), ["P1", "P2", "EXAME"]);
+});
+
+test("epocasVisiveis: aprovado por Exame não mostra Recurso nem Especial", () => {
+  const notas: NotasCadeira = { ...SEM_NOTAS, p1: 9, p2: 9, exame: 12 };
+  assert.deepEqual(epocasVisiveis(notas, "APROVADO"), ["P1", "P2", "EXAME"]);
+});
+
+test("epocasVisiveis: aprovado por Recurso mostra até ao Recurso (Exame reprovado é facto histórico), não mostra Especial", () => {
+  const notas: NotasCadeira = { ...SEM_NOTAS, p1: 9, p2: 9, exame: 5, recurso: 12 };
+  assert.deepEqual(epocasVisiveis(notas, "APROVADO"), ["P1", "P2", "EXAME", "RECURSO"]);
+});
+
+test("epocasVisiveis: reprovado no Exame Especial mostra as 5 épocas (todas já lançadas)", () => {
+  const notas: NotasCadeira = { p1: 9, p2: 9, exame: 5, recurso: 5, exameEspecial: 5 };
+  assert.deepEqual(epocasVisiveis(notas, "REPROVADO"), ["P1", "P2", "EXAME", "RECURSO", "EXAME_ESPECIAL"]);
+});
+
+test("proximaEpocaPendente: EM_CURSO sem P1 aponta para P1, não P2 (diferente de epocasVisiveis)", () => {
+  assert.equal(proximaEpocaPendente(SEM_NOTAS, "EM_CURSO"), "P1");
+});
+
+test("proximaEpocaPendente: EM_CURSO com P1 lançado e sem P2 aponta para P2", () => {
+  const notas: NotasCadeira = { ...SEM_NOTAS, p1: 9 };
+  assert.equal(proximaEpocaPendente(notas, "EM_CURSO"), "P2");
+});
+
+test("proximaEpocaPendente: ADMITIDO_A_EXAME aponta para EXAME", () => {
+  const notas: NotasCadeira = { ...SEM_NOTAS, p1: 9, p2: 9 };
+  assert.equal(proximaEpocaPendente(notas, "ADMITIDO_A_EXAME"), "EXAME");
+});
+
+test("proximaEpocaPendente: EM_RECURSO aponta para RECURSO, EM_EXAME_ESPECIAL para EXAME_ESPECIAL", () => {
+  const notas: NotasCadeira = { p1: 5, p2: 5, exame: 5, recurso: null, exameEspecial: null };
+  assert.equal(proximaEpocaPendente(notas, "EM_RECURSO"), "RECURSO");
+  assert.equal(proximaEpocaPendente({ ...notas, recurso: 9 }, "EM_EXAME_ESPECIAL"), "EXAME_ESPECIAL");
+});
+
+test("proximaEpocaPendente: estados terminais (DISPENSADO/APROVADO/REPROVADO) não têm pendência", () => {
+  const notas: NotasCadeira = { p1: 15, p2: 15, exame: null, recurso: null, exameEspecial: null };
+  assert.equal(proximaEpocaPendente(notas, "DISPENSADO"), null);
+  assert.equal(proximaEpocaPendente(notas, "APROVADO"), null);
+  assert.equal(proximaEpocaPendente(notas, "REPROVADO"), null);
+});
+
+test("epocasOrfas: corrigir o Exame para cima até aprovar torna um Recurso já lançado órfão", () => {
+  // Exame estava a 5 (reprovava, precisava de recurso), professor corrige para 13 (aprova sozinho).
+  const notas: NotasCadeira = { p1: 9, p2: 9, exame: 13, recurso: 15, exameEspecial: null };
+  const r = calcularNotaFinal(notas, REGRAS_PADRAO);
+  assert.equal(r.estado, "APROVADO");
+  assert.equal(r.notaFinal, 11, "(média 9 + exame 13)/2 = 11, ignora o recurso");
+  assert.deepEqual(r.epocasOrfas, ["RECURSO"]);
+});
+
+test("epocasOrfas: corrigir P1/P2 para cima até dispensar torna Exame E Recurso já lançados órfãos", () => {
+  const notas: NotasCadeira = { p1: 18, p2: 16, exame: 5, recurso: 5, exameEspecial: null };
+  const r = calcularNotaFinal(notas, REGRAS_PADRAO);
+  assert.equal(r.estado, "DISPENSADO");
+  assert.deepEqual(r.epocasOrfas, ["EXAME", "RECURSO"]);
+});
+
+test("epocasOrfas: aprovar por Recurso torna um Exame Especial já lançado órfão", () => {
+  const notas: NotasCadeira = { p1: 5, p2: 5, exame: 5, recurso: 12, exameEspecial: 8 };
+  const r = calcularNotaFinal(notas, REGRAS_PADRAO);
+  assert.equal(r.estado, "APROVADO");
+  assert.equal(r.notaFinal, 12, "recurso isolado, ignora o exame especial");
+  assert.deepEqual(r.epocasOrfas, ["EXAME_ESPECIAL"]);
+});
+
+test("epocasOrfas: vazio quando a cascata usa realmente todas as notas presentes", () => {
+  const emCurso = calcularNotaFinal({ ...SEM_NOTAS, p1: 9 }, REGRAS_PADRAO);
+  assert.deepEqual(emCurso.epocasOrfas, []);
+
+  const emRecurso = calcularNotaFinal({ p1: 9, p2: 9, exame: 5, recurso: null, exameEspecial: null }, REGRAS_PADRAO);
+  assert.deepEqual(emRecurso.epocasOrfas, []);
+
+  const reprovado = calcularNotaFinal({ p1: 5, p2: 5, exame: 5, recurso: 5, exameEspecial: 5 }, REGRAS_PADRAO);
+  assert.deepEqual(reprovado.epocasOrfas, []);
 });
