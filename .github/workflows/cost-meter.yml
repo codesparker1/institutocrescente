@@ -44,7 +44,8 @@ jobs:
         run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - name: Guarda anti-Neon (falha se DATABASE_URL/DIRECT_URL apontar para Neon)
-        run: npx tsx -e "import { garantirNaoENeon } from './scripts/lib/guardarNeon'; garantirNaoENeon(); console.log('OK: alvo não é Neon.');"
+        run: |
+          npx tsx -e "import { garantirNaoENeon } from './scripts/lib/guardarNeon'; garantirNaoENeon(); console.log('OK: alvo nao e Neon.');"
 
       - name: Aplicar migrações
         run: npx prisma migrate deploy
