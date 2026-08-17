@@ -1,0 +1,102 @@
+name: Cost meter (prontidão para deploy)
+
+# Gatilho manual só — isto é pesado (seed de 1000 alunos + build de produção + 15 agentes
+# concorrentes + testes de carga) e não deve correr em cada push. Ver plano em
+# C:\Users\hp\.claude\plans\iridescent-watching-plum.md para o contexto completo.
+on:
+  workflow_dispatch:
+    inputs:
+      alunos:
+        description: "Contextos concorrentes de aluno"
+        default: "10"
+      professores:
+        description: "Contextos concorrentes de professor"
+        default: "3"
+
+jobs:
+  cost-meter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: institutocrescente_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/institutocrescente_ci
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/institutocrescente_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gerar AUTH_SECRET efémero
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
+      - name: Guarda anti-Neon (falha se DATABASE_URL/DIRECT_URL apontar para Neon)
+        run: npx tsx -e "import { garantirNaoENeon } from './scripts/lib/guardarNeon'; garantirNaoENeon(); console.log('OK: alvo não é Neon.');"
+
+      - name: Aplicar migrações
+        run: npx prisma migrate deploy
+
+      - name: Seed em larga escala (5 cursos, 100 professores, 1000 alunos)
+        run: npm run seed:grande
+
+      - name: Build de produção
+        run: npm run build
+
+      - name: Iniciar `next start` em segundo plano
+        run: |
+          npm run start &
+          echo $! > server.pid
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/login > /dev/null; then
+              echo "Servidor pronto."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Servidor não respondeu a tempo." >&2
+          exit 1
+
+      - name: Instalar browsers do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Corrida concorrente (agentes reais por papel)
+        run: npx tsx scripts/simulacao/run-grande.ts --url http://localhost:3000 --alunos "${{ inputs.alunos }}" --professores "${{ inputs.professores }}"
+
+      - name: Carga — dashboard (secretaria)
+        run: node scripts/stress/run.mjs --url http://localhost:3000 --path /dashboard --role secretaria --connections 20 --duration 30
+      - name: Carga — lista de devedores
+        run: node scripts/stress/run.mjs --url http://localhost:3000 --path /financeiro/devedores --role secretaria --connections 20 --duration 30
+      - name: Carga — gestão de matrícula
+        run: node scripts/stress/run.mjs --url http://localhost:3000 --path /alunos --role secretaria --connections 20 --duration 30
+
+      - name: Parar servidor
+        if: always()
+        run: kill "$(cat server.pid)" 2>/dev/null || true
+
+      - name: Relatório de prontidão
+        if: always()
+        run: npm run relatorio:grande
+
+      - name: Publicar artefactos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cost-meter-resultados
+          path: |
+            scripts/simulacao/output/**
+            scripts/seed-grande/output/**
+            stress-logs/**
+          retention-days: 14

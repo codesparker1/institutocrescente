@@ -31,23 +31,38 @@ export interface ContextoSimulacao {
   alunos: CredencialAgente[];
 }
 
+function amostraAleatoria<T>(items: T[], quantidade: number): T[] {
+  const copia = [...items];
+  for (let i = copia.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copia[i], copia[j]] = [copia[j], copia[i]];
+  }
+  return copia.slice(0, quantidade);
+}
+
 /**
- * 10 alunos + 2 professores + as 3 contas de staff únicas — todos já seedados por prisma/seed.ts.
- * Reaproveitar os alunos seedados (em vez de criar novos via "Nova Matrícula") porque já têm
- * matrícula/inscrições/histórico coerentes; a simulação testa o que acontece a partir daí, não
- * repete a Fase 0 de admissão.
+ * `professores`/`alunos` escolhem quantas contas de cada papel devolver (omitido = 2/10, o
+ * suficiente para run-pequeno.ts). Contra a seed grande (100 professores / 1000 alunos), a
+ * amostra é aleatória em vez de "os primeiros N" — para não bater sempre nas mesmas contas em
+ * corridas repetidas. Reaproveitar contas seedadas (em vez de criar novas via "Nova Matrícula")
+ * porque já têm matrícula/inscrições/histórico coerentes; a simulação testa o que acontece a
+ * partir daí, não repete a Fase 0 de admissão.
  */
-export async function getContextoSimulacao(): Promise<ContextoSimulacao> {
-  const [admin, secretaria, daac, professores, alunos] = await Promise.all([
+export async function getContextoSimulacao(opts: { professores?: number; alunos?: number } = {}): Promise<ContextoSimulacao> {
+  const { professores: nProfessores = 2, alunos: nAlunos = 10 } = opts;
+  const [admin, secretaria, daac, todosProfessores, todosAlunos] = await Promise.all([
     prisma.user.findFirstOrThrow({ where: { role: "ADMIN" }, select: { email: true } }),
     prisma.user.findFirstOrThrow({ where: { role: "SECRETARIA" }, select: { email: true } }),
     prisma.user.findFirstOrThrow({ where: { role: "DAAC" }, select: { email: true } }),
-    prisma.user.findMany({ where: { role: "PROFESSOR" }, select: { email: true }, take: 2 }),
-    prisma.user.findMany({ where: { role: "ALUNO", aluno: { status: "ATIVO" } }, select: { email: true }, take: 10 }),
+    prisma.user.findMany({ where: { role: "PROFESSOR" }, select: { email: true } }),
+    prisma.user.findMany({ where: { role: "ALUNO", aluno: { status: "ATIVO" } }, select: { email: true } }),
   ]);
 
-  if (professores.length < 2) throw new Error("Precisa de pelo menos 2 professores seedados — corre o seed primeiro.");
-  if (alunos.length < 10) throw new Error("Precisa de pelo menos 10 alunos seedados — corre o seed primeiro.");
+  if (todosProfessores.length < nProfessores) throw new Error(`Precisa de pelo menos ${nProfessores} professores seedados — corre o seed primeiro.`);
+  if (todosAlunos.length < nAlunos) throw new Error(`Precisa de pelo menos ${nAlunos} alunos seedados — corre o seed primeiro.`);
+
+  const professores = amostraAleatoria(todosProfessores, nProfessores);
+  const alunos = amostraAleatoria(todosAlunos, nAlunos);
 
   const semEmail = (label: string) => {
     throw new Error(`Conta de ${label} sem email — corre o seed primeiro.`);

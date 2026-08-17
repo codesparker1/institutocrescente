@@ -11,6 +11,9 @@
     "stress": "node scripts/stress/run.mjs",
     "test:workflow": "tsx scripts/e2e-workflow/run.ts",
     "diagnostico": "tsx scripts/diagnostico/run.ts",
+    "seed:grande": "tsx scripts/seed-grande/run.ts",
+    "simular:grande": "tsx scripts/simulacao/run-grande.ts",
+    "relatorio:grande": "tsx scripts/seed-grande/relatorio.ts",
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
