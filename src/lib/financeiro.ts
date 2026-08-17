@@ -165,76 +165,68 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
   const config = await getConfiguracaoFinanceira();
   const agora = getAgora();
 
-  const cobrancasPendentes = await prisma.cobranca.findMany({
-    where: {
-      status: "PENDENTE",
-      tipo: { in: [...TIPOS_QUE_BLOQUEIAM] },
-      // Toda dívida vencida (ehVencidoAlemDaTolerancia) tem necessariamente dataVencimento <=
-      // agora — este filtro nunca exclui um verdadeiro positivo, só poda no SQL as cobranças
-      // ainda não vencidas (a maioria, num sistema com 6 meses de propinas geradas de antemão)
-      // antes de aplicar a regra exata (com a fronteira de meia-noite) em JS.
-      dataVencimento: { lte: agora },
-      aluno: {
-        ...(curso ? { curso } : {}),
-        ...(categoria ? { categoria } : {}),
-        ...(turmaId || anoLetivo || periodo
-          ? {
-              matriculas: {
-                some: {
-                  status: "ATIVA",
-                  ...(turmaId ? { turmaId } : {}),
-                  turma: {
-                    ...(anoLetivo ? { anoLetivo } : {}),
-                    ...(periodo ? { periodo } : {}),
-                  },
+  // dataVencimento é sempre meia-noite do dia (garantirCobrancasGeradas), por isso a fronteira
+  // exata de ehVencidoAlemDaTolerancia é expressável como uma data-limite fixa aqui, e o SQL
+  // pode agregar por aluno diretamente (SUM/MIN/COUNT) em vez de trazer cada cobrança pendente
+  // para agrupar em JS — achado pela corrida do cost-meter: sob 20 conexões concorrentes, cada
+  // pedido segurava a ligação do pool tempo suficiente para o resto ficar em fila.
+  const limite = new Date(agora.getTime() - (config.toleranciaDias + 1) * 24 * 60 * 60 * 1000);
+
+  const whereBase = {
+    status: "PENDENTE" as const,
+    tipo: { in: [...TIPOS_QUE_BLOQUEIAM] },
+    dataVencimento: { lte: limite },
+    aluno: {
+      ...(curso ? { curso } : {}),
+      ...(categoria ? { categoria } : {}),
+      ...(turmaId || anoLetivo || periodo
+        ? {
+            matriculas: {
+              some: {
+                status: "ATIVA" as const,
+                ...(turmaId ? { turmaId } : {}),
+                turma: {
+                  ...(anoLetivo ? { anoLetivo } : {}),
+                  ...(periodo ? { periodo } : {}),
                 },
               },
-            }
-          : {}),
-      },
+            },
+          }
+        : {}),
     },
-    select: {
-      alunoId: true,
-      valorDevido: true,
-      valorPago: true,
-      dataVencimento: true,
-      aluno: {
-        select: { numeroEstudante: true, nome: true, curso: true, anoCurricular: true, categoria: true },
-      },
-    },
-    orderBy: { mesReferencia: "asc" },
+  };
+
+  const grupos = await prisma.cobranca.groupBy({
+    by: ["alunoId"],
+    where: whereBase,
+    _sum: { valorDevido: true, valorPago: true },
+    _min: { dataVencimento: true },
+    _count: { _all: true },
   });
 
-  const vencidas = cobrancasPendentes.filter((c) =>
-    ehVencidoAlemDaTolerancia(c.dataVencimento, config.toleranciaDias, agora),
-  );
+  if (grupos.length === 0) return [];
 
-  const porAluno = new Map<string, DevedorListItem>();
-  for (const c of vencidas) {
-    const existente = porAluno.get(c.alunoId);
-    const valor = Number(c.valorDevido) - Number(c.valorPago);
-    const antiguidadeDias = Math.floor((agora.getTime() - c.dataVencimento.getTime()) / (1000 * 60 * 60 * 24));
+  const alunos = await prisma.aluno.findMany({
+    where: { id: { in: grupos.map((g) => g.alunoId) } },
+    select: { id: true, numeroEstudante: true, nome: true, curso: true, anoCurricular: true, categoria: true },
+  });
+  const alunoPorId = new Map(alunos.map((a) => [a.id, a]));
 
-    if (existente) {
-      existente.valorEmDivida += valor;
-      existente.mesesEmAtraso += 1;
-      existente.antiguidadeDias = Math.max(existente.antiguidadeDias, antiguidadeDias);
-    } else {
-      porAluno.set(c.alunoId, {
-        alunoId: c.alunoId,
-        numeroEstudante: c.aluno.numeroEstudante,
-        nome: c.aluno.nome,
-        curso: c.aluno.curso,
-        anoCurricular: c.aluno.anoCurricular,
-        categoria: c.aluno.categoria,
-        valorEmDivida: valor,
-        mesesEmAtraso: 1,
-        antiguidadeDias,
-      });
-    }
-  }
-
-  const lista = [...porAluno.values()];
+  const lista: DevedorListItem[] = grupos.map((g) => {
+    const aluno = alunoPorId.get(g.alunoId)!;
+    const antiguidadeDias = Math.floor((agora.getTime() - (g._min.dataVencimento ?? agora).getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      alunoId: g.alunoId,
+      numeroEstudante: aluno.numeroEstudante,
+      nome: aluno.nome,
+      curso: aluno.curso,
+      anoCurricular: aluno.anoCurricular,
+      categoria: aluno.categoria,
+      valorEmDivida: Number(g._sum.valorDevido ?? 0) - Number(g._sum.valorPago ?? 0),
+      mesesEmAtraso: g._count._all,
+      antiguidadeDias,
+    };
+  });
   lista.sort((a, b) => {
     if (sort === "valor") return b.valorEmDivida - a.valorEmDivida;
     if (sort === "nome") return a.nome.localeCompare(b.nome, "pt");
