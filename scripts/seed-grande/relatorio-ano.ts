@@ -5,7 +5,7 @@
  * é mais fácil ler "a rematrícula fora da janela é que teve o problema" do que vasculhar tudo.
  *
  * Usage: npx tsx scripts/seed-grande/relatorio-ano.ts
- *   Lê a corrida mais recente em scripts/simulacao/output/ano-*/resultado-ano.json.
+ *   Lê a corrida mais recente em scripts/simulacao/output/ano-.../resultado-ano.json.
  *   Escreve scripts/seed-grande/output/relatorio-ano.md e imprime no stdout; acrescenta a
  *   $GITHUB_STEP_SUMMARY quando definida.
  */
