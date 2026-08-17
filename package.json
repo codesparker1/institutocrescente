@@ -14,6 +14,8 @@
     "seed:grande": "tsx scripts/seed-grande/run.ts",
     "simular:grande": "tsx scripts/simulacao/run-grande.ts",
     "relatorio:grande": "tsx scripts/seed-grande/relatorio.ts",
+    "simular:ano": "tsx scripts/simulacao/run-ano.ts",
+    "relatorio:ano": "tsx scripts/seed-grande/relatorio-ano.ts",
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {

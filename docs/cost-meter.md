@@ -58,6 +58,31 @@ npm run relatorio:grande
 
 ## Fora de âmbito (por agora)
 
-Instrumentação de queries Prisma e modelo de custo Neon/Vercel (tempo acordado, GB-segundos),
-comparação com a branch base e comentário automático em PR. Fica para depois de vermos os
-resultados desta primeira corrida.
+Instrumentação de queries Prisma, comparação com a branch base e comentário automático em PR.
+
+## Segundo workflow: ano caótico (`.github/workflows/ano-caotico.yml`)
+
+Diferente do cost-meter (uma fotografia estática, agentes calmos): este simula um **ano letivo
+inteiro**, comprimido em 7 marcos-chave (abertura de matrícula, semana normal, vencimento de
+propinas, P1, P2/Exame, janela de rematrícula, novo ano letivo), com agentes que cometem erros de
+propósito — pagar um mês fora de ordem, lançar notas depois do prazo, duas abas a marcar o mesmo
+horário, rematrícula fora da janela — para confirmar que o sistema **recusa graciosamente**, não
+crasha. Também inclui uma estimativa offline de custo Neon/Vercel (`scripts/simulacao/custo.ts`,
+valores aproximados — ajusta ao teu plano real antes de confiar neles).
+
+Muito mais pesado (até 90 min) — dispara só quando quiseres mesmo este nível de profundidade:
+
+```bash
+gh workflow run ano-caotico.yml
+```
+
+Para depurar localmente primeiro (contra `institutocrescente_stress`, com o `next start` já a
+correr):
+
+```bash
+npm run simular:ano -- --url http://localhost:3000 --alunos 3 --professores 2
+npm run relatorio:ano
+```
+
+O relatório (`scripts/seed-grande/output/relatorio-ano.md`) é uma tabela por marco, não um blob
+único — mais fácil de ver exatamente em que momento do ano algo correu mal.
