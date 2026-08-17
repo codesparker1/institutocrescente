@@ -18,12 +18,35 @@ export interface ResultadoAgenteCaotico {
   acoes: AcaoCaotica[];
 }
 
-/** Locator genérico para o texto de erro que quase todos os formulários desta app mostram (text-red-400/600, conforme o fundo). */
-export async function textoDeErroVisivel(page: Page): Promise<string | null> {
+/**
+ * Locator genérico para o texto de erro que quase todos os formulários desta app mostram
+ * (text-red-400/600, conforme o fundo). Espera ativamente em vez de um sleep fixo seguido de
+ * count() — um Server Action tem um round-trip real, e um timeout curto-demais lia "sem erro"
+ * só porque o React ainda não tinha re-renderizado.
+ */
+export async function textoDeErroVisivel(page: Page, timeoutMs = 4000): Promise<string | null> {
   const erro = page.locator('[class*="text-red-"]').first();
-  if ((await erro.count()) === 0) return null;
+  try {
+    await erro.waitFor({ state: "visible", timeout: timeoutMs });
+  } catch {
+    return null;
+  }
   const texto = await erro.textContent();
   return texto?.trim() || null;
+}
+
+const TEXTO_ERRO_INESPERADO = ["application error", "internal server error", "something went wrong"];
+
+/**
+ * Ao contrário de textoDeErroVisivel (qualquer texto vermelho — útil para "o formulário
+ * recusou"), este só apanha sinais de crash real, iguais aos que os agentes calmos já usam
+ * (agentes/aluno.ts). Vermelho no ecrã não é sempre um erro: o aviso de bloqueio por dívida
+ * ("Tem propinas em atraso...") é vermelho de propósito e é o comportamento CORRETO.
+ */
+export async function paginaCrashou(page: Page): Promise<string | null> {
+  const texto = (await page.textContent("body"))?.toLowerCase() ?? "";
+  const encontrado = TEXTO_ERRO_INESPERADO.find((marcador) => texto.includes(marcador));
+  return encontrado ?? null;
 }
 
 /** Login com password propositadamente errada — ao contrário de agentes/comum.ts's login(), esta espera FICAR em /login com erro visível, nunca redirecionar. */

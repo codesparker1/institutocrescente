@@ -1,5 +1,5 @@
 import type { BrowserContext } from "playwright";
-import { login, textoDeErroVisivel, instrumentarECapturar, tentarAcao } from "./comum";
+import { login, paginaCrashou, instrumentarECapturar, tentarAcao } from "./comum";
 import type { CredencialAgente } from "../../db-helpers";
 import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
@@ -31,11 +31,11 @@ async function refrescarAgressivamente(page: import("playwright").Page, baseUrl:
     await page.reload({ waitUntil: "domcontentloaded" }).catch(() => undefined);
   }
   await page.waitForTimeout(500);
-  const erro = await textoDeErroVisivel(page);
+  const crash = await paginaCrashou(page);
   return {
     label: `refresh agressivo (${REFRESH_AGRESSIVO}x) em ${rota}`,
     esperadoRejeitado: false,
-    foiRejeitadoGraciosamente: erro === null,
-    detalhe: erro ?? undefined,
+    foiRejeitadoGraciosamente: crash === null,
+    detalhe: crash ?? undefined,
   };
 }

@@ -56,6 +56,12 @@ jobs:
         run: npm run build
 
       - name: Iniciar `next start` em segundo plano
+        env:
+          # Sem isto, getAgora() (src/lib/tempo.ts) ignora .relogio e o servidor usa sempre a
+          # hora real — avancarRelogio() escreveria o ficheiro para nada, e todos os marcos
+          # dependentes do relógio (prazos de notas, janela de rematrícula, ano letivo) corriam
+          # contra "agora" real em vez da data simulada de cada marco.
+          SIMULATION_MODE: "true"
         run: |
           npm run start &
           echo $! > server.pid

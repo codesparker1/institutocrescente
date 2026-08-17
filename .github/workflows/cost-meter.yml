@@ -57,6 +57,11 @@ jobs:
         run: npm run build
 
       - name: Iniciar `next start` em segundo plano
+        env:
+          # Sem isto, getAgora() (src/lib/tempo.ts) ignora .relogio e o servidor usa sempre a
+          # hora real — run-grande.ts chama avancarRelogio() para 15 de Setembro de 2026, mas
+          # isso não tinha nenhum efeito real no servidor sem esta variável.
+          SIMULATION_MODE: "true"
         run: |
           npm run start &
           echo $! > server.pid
