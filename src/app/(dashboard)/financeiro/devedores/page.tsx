@@ -38,8 +38,11 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
   const ordenacao = sort === "valor" ? "valor" : sort === "nome" ? "nome" : "antiguidade";
 
   const [cursos, turmas, anosLetivos] = await Promise.all([
-    prisma.curso.findMany({ orderBy: { nome: "asc" } }),
-    prisma.turma.findMany({ include: { curso: true }, orderBy: [{ anoLetivo: "desc" }, { anoCurricular: "asc" }] }),
+    prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.turma.findMany({
+      orderBy: [{ anoLetivo: "desc" }, { anoCurricular: "asc" }],
+      select: { id: true, anoCurricular: true, periodo: true, anoLetivo: true, curso: { select: { nome: true } } },
+    }),
     prisma.turma.findMany({ distinct: ["anoLetivo"], select: { anoLetivo: true }, orderBy: { anoLetivo: "desc" } }),
   ]);
 

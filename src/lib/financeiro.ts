@@ -169,6 +169,11 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
     where: {
       status: "PENDENTE",
       tipo: { in: [...TIPOS_QUE_BLOQUEIAM] },
+      // Toda dívida vencida (ehVencidoAlemDaTolerancia) tem necessariamente dataVencimento <=
+      // agora — este filtro nunca exclui um verdadeiro positivo, só poda no SQL as cobranças
+      // ainda não vencidas (a maioria, num sistema com 6 meses de propinas geradas de antemão)
+      // antes de aplicar a regra exata (com a fronteira de meia-noite) em JS.
+      dataVencimento: { lte: agora },
       aluno: {
         ...(curso ? { curso } : {}),
         ...(categoria ? { categoria } : {}),
@@ -188,7 +193,15 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
           : {}),
       },
     },
-    include: { aluno: true },
+    select: {
+      alunoId: true,
+      valorDevido: true,
+      valorPago: true,
+      dataVencimento: true,
+      aluno: {
+        select: { numeroEstudante: true, nome: true, curso: true, anoCurricular: true, categoria: true },
+      },
+    },
     orderBy: { mesReferencia: "asc" },
   });
 

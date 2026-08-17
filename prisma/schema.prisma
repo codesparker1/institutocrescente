@@ -381,6 +381,11 @@ model Cobranca {
   @@unique([alunoId, tipo, mesReferencia])
   @@index([alunoId, status])
   @@index([status])
+  // Cobre o WHERE de getListaDevedores (status + tipo + poda por dataVencimento) — sem isto,
+  // a lista de devedores fazia um scan completo do índice de status a cada carregamento do
+  // dashboard e de /financeiro/devedores (achado pela corrida do cost-meter: p99 de 2-3.5s
+  // com 1000 alunos/6000 cobranças).
+  @@index([status, tipo, dataVencimento])
 }
 
 /// Catálogo de emolumentos (declarações, certidões, etc.) gerido pelo DAAC — mesmo padrão de
