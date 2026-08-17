@@ -15,7 +15,7 @@ export async function loginAndGetCookie(baseUrl, email, password) {
 
   const body = new URLSearchParams({
     csrfToken,
-    email,
+    identificador: email,
     password,
     redirect: "false",
     json: "true",
