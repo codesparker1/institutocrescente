@@ -1,5 +1,5 @@
 import type { BrowserContext } from "playwright";
-import { login, textoDeErroVisivel, instrumentarECapturar } from "./comum";
+import { login, textoDeErroVisivel, instrumentarECapturar, tentarAcao } from "./comum";
 import type { CredencialAgente } from "../../db-helpers";
 import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
@@ -18,7 +18,7 @@ export async function agirComoAlunoCaotico(
 
   const acoes: AcaoCaotica[] = [];
   for (const rota of ["/minhas-notas", "/horario", "/financeiro"]) {
-    acoes.push(await refrescarAgressivamente(page, baseUrl, rota));
+    acoes.push(await tentarAcao(`refresh agressivo em ${rota}`, false, () => refrescarAgressivamente(page, baseUrl, rota)));
   }
 
   await page.close();

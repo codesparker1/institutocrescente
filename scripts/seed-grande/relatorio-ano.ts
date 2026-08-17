@@ -35,6 +35,7 @@ interface ResultadoAno {
   timestamp: string;
   url: string;
   duracaoTotalMs: number;
+  completo: boolean;
   marcos: ResultadoMarco[];
   estimativaCusto: { neonUSD: number; vercelUSD: number; totalUSD: number; totalAOA: number };
 }
@@ -97,6 +98,12 @@ function main(): void {
     );
   }
 
+  if (!resultado.completo) {
+    rebaixar(
+      "PRONTO COM RESSALVAS",
+      `Corrida incompleta — só ${resultado.marcos.length}/7 marco(s) chegaram a correr (job interrompido ou ainda a decorrer). Resultados abaixo são só desses marcos.`,
+    );
+  }
   if (motivos.length === 0) motivos.push("Nenhum problema encontrado em nenhum marco do ano simulado.");
 
   const linhas = [

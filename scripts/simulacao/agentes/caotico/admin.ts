@@ -1,5 +1,5 @@
 import type { Page, BrowserContext } from "playwright";
-import { login, textoDeErroVisivel, instrumentarECapturar } from "./comum";
+import { login, textoDeErroVisivel, instrumentarECapturar, tentarAcao } from "./comum";
 import type { CredencialAgente } from "../../db-helpers";
 import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
@@ -17,12 +17,14 @@ export async function agirComoAdminCaotico(
 ): Promise<ResultadoAgenteCaotico> {
   const acoes: AcaoCaotica[] = [];
 
-  acoes.push(await conflitoDeHorarioConcorrente(context, baseUrl, credencial, outputDir));
+  acoes.push(
+    await tentarAcao("duas abas a marcar o mesmo horário em simultâneo", false, () => conflitoDeHorarioConcorrente(context, baseUrl, credencial, outputDir)),
+  );
 
   const page = await context.newPage();
   instrumentarECapturar(page, outputDir, credencial.papel);
   await login(page, baseUrl, credencial);
-  acoes.push(await apagarCursoComTurmas(page, baseUrl));
+  acoes.push(await tentarAcao("apagar curso que ainda tem turmas", true, () => apagarCursoComTurmas(page, baseUrl)));
   await page.close();
 
   return { acoes };

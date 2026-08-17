@@ -1,5 +1,5 @@
 import type { Page, BrowserContext } from "playwright";
-import { login, textoDeErroVisivel, instrumentarECapturar } from "./comum";
+import { login, textoDeErroVisivel, instrumentarECapturar, tentarAcao } from "./comum";
 import type { CredencialAgente } from "../../db-helpers";
 import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
@@ -27,8 +27,8 @@ export async function agirComoProfessorCaotico(
     return { acoes: [{ label: "professor caótico", esperadoRejeitado: false, foiRejeitadoGraciosamente: null, detalhe: "sem disciplina atribuída" }] };
   }
 
-  acoes.push(await confirmarColunaFechadaBloqueada(page));
-  acoes.push(await duploCliqueGuardarNotas(page));
+  acoes.push(await tentarAcao("coluna de época fechada continua bloqueada", true, () => confirmarColunaFechadaBloqueada(page)));
+  acoes.push(await tentarAcao("duplo clique em Guardar alterações", false, () => duploCliqueGuardarNotas(page)));
 
   await page.close();
   return { acoes };
@@ -38,7 +38,7 @@ async function abrirPrimeiraDisciplina(page: Page, baseUrl: string): Promise<boo
   await page.goto(`${baseUrl}/professor`);
   const link = page.locator("table tbody tr").first().locator("a").first();
   if ((await link.count()) === 0) return false;
-  await Promise.all([page.waitForURL(/\/professor\/.+/, { timeout: 90000 }), link.click()]);
+  await Promise.all([page.waitForURL(/\/professor\/.+/, { timeout: 20000 }), link.click()]);
   return true;
 }
 

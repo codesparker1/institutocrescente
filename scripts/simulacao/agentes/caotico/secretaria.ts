@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { BrowserContext } from "playwright";
-import { login, tentarLoginComPasswordErrada, textoDeErroVisivel, instrumentarECapturar } from "./comum";
+import { login, tentarLoginComPasswordErrada, textoDeErroVisivel, instrumentarECapturar, tentarAcao } from "./comum";
 import type { CredencialAgente } from "../../db-helpers";
 import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
@@ -26,14 +26,16 @@ export async function agirComoSecretariaCaotica(
   instrumentarECapturar(page, outputDir, credencial.papel);
   const acoes: AcaoCaotica[] = [];
 
-  acoes.push(await tentarLoginComPasswordErrada(page, baseUrl, credencial));
+  acoes.push(await tentarAcao("login com password errada", true, () => tentarLoginComPasswordErrada(page, baseUrl, credencial)));
   await login(page, baseUrl, credencial);
 
   if (opts.alunoDevedorId) {
-    acoes.push(await pagarMesForaDeOrdem(page, baseUrl, opts.alunoDevedorId));
+    acoes.push(await tentarAcao("pagar mês fora de ordem cronológica", true, () => pagarMesForaDeOrdem(page, baseUrl, opts.alunoDevedorId!)));
   }
 
-  acoes.push(await duploSubmitMatricula(context, baseUrl, credencial.papel, outputDir));
+  acoes.push(
+    await tentarAcao("duplo submit concorrente de matrícula", false, () => duploSubmitMatricula(context, baseUrl, credencial.papel, outputDir)),
+  );
 
   await page.close();
   return { acoes };

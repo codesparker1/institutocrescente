@@ -1,5 +1,5 @@
 import type { Page, BrowserContext } from "playwright";
-import { login, textoDeErroVisivel, instrumentarECapturar } from "./comum";
+import { login, textoDeErroVisivel, instrumentarECapturar, tentarAcao } from "./comum";
 import type { CredencialAgente } from "../../db-helpers";
 import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
@@ -28,11 +28,13 @@ export async function agirComoDaacCaotico(
 
   await login(page, baseUrl, credencial);
 
-  acoes.push(await submeterDatasContraditorias(page, baseUrl));
-  acoes.push(await duploToggleSemestre(page, baseUrl));
+  acoes.push(await tentarAcao("configuração académica com anoLetivoFim < anoLetivoInicio", true, () => submeterDatasContraditorias(page, baseUrl)));
+  acoes.push(await tentarAcao("duplo-toggle rápido do semestre atual", false, () => duploToggleSemestre(page, baseUrl)));
 
   if (opts.alunoForaDaJanelaId) {
-    acoes.push(await tentarRematriculaForaDaJanela(page, baseUrl, opts.alunoForaDaJanelaId));
+    acoes.push(
+      await tentarAcao("processar rematrícula fora da janela configurada", true, () => tentarRematriculaForaDaJanela(page, baseUrl, opts.alunoForaDaJanelaId!)),
+    );
   }
 
   await page.close();
@@ -66,7 +68,11 @@ async function submeterDatasContraditorias(page: Page, baseUrl: string): Promise
 
 async function duploToggleSemestre(page: Page, baseUrl: string): Promise<AcaoCaotica> {
   await page.goto(`${baseUrl}/admin/academico/configuracao`);
-  const botao = page.getByRole("button", { name: /Semestre/ }).first();
+  // SemestreAtualCard.tsx mostra DOIS botões "1º/2º Semestre" lado a lado — o do semestre CORRENTE
+  // vem sempre disabled (não faz sentido "mudar" para o que já está ativo). Um regex genérico
+  // /Semestre/ com .first() apanha os dois indiscriminadamente e, quando o corrente é o 1º, cai
+  // sempre no desativado — Playwright fica a tentar clicar até ao timeout, nunca desiste sozinho.
+  const botao = page.locator("button:not([disabled])", { hasText: "Semestre" }).first();
   if ((await botao.count()) === 0) {
     return { label: "duplo-toggle de semestre", esperadoRejeitado: false, foiRejeitadoGraciosamente: null, detalhe: "botão não encontrado nesta build" };
   }

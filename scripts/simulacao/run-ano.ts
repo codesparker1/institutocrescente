@@ -300,6 +300,18 @@ async function main(): Promise<void> {
     });
 
     console.log(`  agentes ok=${agentesOk} falharam=${agentesFalharam} | ações caóticas=${acoesCaoticas.length} | violações=${violacoes.length}`);
+
+    // Escrito a CADA marco, não só no fim — se o job for morto pelo timeout do workflow a meio
+    // do ano simulado, ainda ficam os marcos já concluídos em vez de perder a corrida inteira.
+    const duracaoParcialMs = Date.now() - inicioTotal;
+    writeFileSync(
+      path.join(outputDir, "resultado-ano.json"),
+      JSON.stringify(
+        { timestamp: new Date().toISOString(), url: args.url, duracaoTotalMs: duracaoParcialMs, completo: false, marcos: resultados, estimativaCusto: estimarCusto({ duracaoTotalMs: duracaoParcialMs, pedidos: pedidosParaCusto }) },
+        null,
+        2,
+      ),
+    );
   }
 
   await browser.close();
@@ -310,7 +322,7 @@ async function main(): Promise<void> {
 
   writeFileSync(
     path.join(outputDir, "resultado-ano.json"),
-    JSON.stringify({ timestamp: new Date().toISOString(), url: args.url, duracaoTotalMs, marcos: resultados, estimativaCusto }, null, 2),
+    JSON.stringify({ timestamp: new Date().toISOString(), url: args.url, duracaoTotalMs, completo: true, marcos: resultados, estimativaCusto }, null, 2),
   );
 
   console.log(`\nSimulação do ano concluída em ${(duracaoTotalMs / 1000 / 60).toFixed(1)} min.`);

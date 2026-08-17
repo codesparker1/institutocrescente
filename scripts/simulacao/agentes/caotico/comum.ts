@@ -50,8 +50,34 @@ export async function login(page: Page, baseUrl: string, credencial: CredencialA
   await Promise.all([page.waitForURL(/\/(dashboard|professor)/), page.click('button[type="submit"]')]);
 }
 
+/**
+ * instrumentarPagina define 90s de timeout por omissão — generoso de propósito para next dev
+ * (primeiro hit compila a rota no Turbopack). Contra next start (produção, sem compilação
+ * preguiçosa) isso só mascara um seletor errado como "lento" em vez de "falhou" — 15s chega
+ * de sobra e falha depressa o suficiente para não comer o orçamento de 90 minutos do workflow.
+ */
 export function instrumentarECapturar(page: Page, outputDir: string, papel: string): void {
   instrumentarPagina(page, outputDir, papel);
+  page.setDefaultTimeout(15000);
+  page.setDefaultNavigationTimeout(30000);
+}
+
+/**
+ * Cada cenário caótico corre isolado — um seletor que já não bate certo com a UI atual nunca
+ * deve arrastar consigo as ações seguintes do mesmo agente nem, pior, ficar pendurado até ao
+ * timeout do job. Falha graciosamente para o próprio relatório, não para o processo.
+ */
+export async function tentarAcao(label: string, esperadoRejeitado: boolean, fn: () => Promise<AcaoCaotica>): Promise<AcaoCaotica> {
+  try {
+    return await fn();
+  } catch (erro) {
+    return {
+      label,
+      esperadoRejeitado,
+      foiRejeitadoGraciosamente: null,
+      detalhe: `falhou tecnicamente (seletor desatualizado ou timeout?): ${erro instanceof Error ? erro.message.slice(0, 200) : erro}`,
+    };
+  }
 }
 
 export { registarAnomalia };
