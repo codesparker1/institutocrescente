@@ -107,4 +107,5 @@ jobs:
             scripts/seed-grande/output/**
             stress-logs/**
             next-start.log
+            diagnostico-servidor.log
           retention-days: 14
