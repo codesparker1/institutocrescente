@@ -89,11 +89,6 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       agora >= configAcademica.matriculaInicio &&
       agora <= configAcademica.matriculaFim,
   );
-  // DIAGNÓSTICO TEMPORÁRIO (remover depois de explicar o achado do cost-meter sobre a janela de
-  // rematrícula) — captura de logs do servidor (stdout, depois fs.appendFileSync) mostrou-se nada
-  // fiável neste workflow; em vez disso, um marcador no próprio HTML que o Playwright lê
-  // diretamente — a mesma pipeline (resultado-ano.json) que já se mostrou 100% fiável.
-  const diagRematriculaTexto = `agora=${agora.toISOString()}|matriculaInicio=${configAcademica?.matriculaInicio?.toISOString()}|matriculaFim=${configAcademica?.matriculaFim?.toISOString()}|dentroDaJanela=${dentroDaJanela}|SIMULATION_MODE=${process.env.SIMULATION_MODE}`;
   const reprovacoesAnoCorrente = inscricoes.filter((i) => {
     if (!i.ativa) return false;
     const notas = i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
@@ -194,8 +189,6 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           />
           <CardBody>
             <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} />
-            {/* DIAGNÓSTICO TEMPORÁRIO — remover depois de explicar o achado do cost-meter. */}
-            <span data-diag-rematricula={diagRematriculaTexto} style={{ display: "none" }} />
           </CardBody>
         </Card>
       ) : null}

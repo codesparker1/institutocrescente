@@ -7,6 +7,8 @@ import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 interface OpcoesSecretariaCaotica {
   /** Aluno com pelo menos 2 mensalidades PENDENTE — resolvido pelo orquestrador via Prisma antes da corrida. */
   alunoDevedorId?: string;
+  /** Aluno FORA da janela de matrícula corrente — resolvido pelo orquestrador antes da corrida. */
+  alunoForaDaJanelaId?: string;
 }
 
 /**
@@ -31,6 +33,14 @@ export async function agirComoSecretariaCaotica(
 
   if (opts.alunoDevedorId) {
     acoes.push(await tentarAcao("pagar mês fora de ordem cronológica", true, () => pagarMesForaDeOrdem(page, baseUrl, opts.alunoDevedorId!)));
+  }
+
+  if (opts.alunoForaDaJanelaId) {
+    acoes.push(
+      await tentarAcao("processar rematrícula fora da janela configurada", true, () =>
+        tentarRematriculaForaDaJanela(page, baseUrl, opts.alunoForaDaJanelaId!),
+      ),
+    );
   }
 
   acoes.push(
@@ -64,6 +74,41 @@ async function pagarMesForaDeOrdem(page: Page, baseUrl: string, alunoId: string)
     esperadoRejeitado: true,
     foiRejeitadoGraciosamente: erro !== null,
     detalhe: erro ?? undefined,
+  };
+}
+
+/**
+ * Achado do cost-meter: este cenário corria antes com uma sessão DAAC e reportava sempre "botão
+ * presente inesperadamente" — mas a secção de Rematrícula é gated por podeRegistarPagamento
+ * (ADMIN/SECRETARIA só, ver src/lib/permissions.ts), nunca renderiza para DAAC. O teste não
+ * estava a apanhar um bug da app, estava a testar o papel errado — nem o botão nem o aviso de
+ * "fora da janela" existiam no DOM, e a lógica binária antiga não distinguia isso de um crash
+ * real. Corrigido para secretaria (acesso genuíno) com uma asserção sem ambiguidade: confirma
+ * que a secção EXISTE (senão o teste não está a verificar nada) e que dentro dela o aviso
+ * aparece e o botão não. RematriculaForm nunca renderiza o botão de submit quando fora da
+ * janela (dentroDaJanela vem computado no servidor) — não há botão real para clicar e confirmar
+ * a rejeição do servidor; a ausência do próprio controlo já É o "falhar fechado" correto.
+ */
+async function tentarRematriculaForaDaJanela(page: Page, baseUrl: string, alunoId: string): Promise<AcaoCaotica> {
+  await page.goto(`${baseUrl}/alunos/${alunoId}`);
+  const seccaoExiste = (await page.getByText("Rematrícula", { exact: true }).count()) > 0;
+  if (!seccaoExiste) {
+    return {
+      label: "processar rematrícula fora da janela configurada",
+      esperadoRejeitado: true,
+      foiRejeitadoGraciosamente: null,
+      detalhe: "secção de Rematrícula não encontrada para este papel — teste não é conclusivo",
+    };
+  }
+  const botao = page.getByRole("button", { name: "Processar Rematrícula" });
+  const aviso = page.getByText("Fora do período de matrícula", { exact: false });
+  const botaoAusente = (await botao.count()) === 0;
+  const avisoPresente = (await aviso.count()) > 0;
+  return {
+    label: "processar rematrícula fora da janela configurada",
+    esperadoRejeitado: true,
+    foiRejeitadoGraciosamente: botaoAusente && avisoPresente,
+    detalhe: `botaoAusente=${botaoAusente} avisoPresente=${avisoPresente}`,
   };
 }
 

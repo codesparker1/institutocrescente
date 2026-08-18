@@ -3,25 +3,19 @@ import { login, textoDeErroVisivel, instrumentarECapturar, tentarAcao } from "./
 import type { CredencialAgente } from "../../db-helpers";
 import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
-interface OpcoesDaacCaotico {
-  /** Aluno FORA da janela de matrícula corrente — resolvido pelo orquestrador antes da corrida. */
-  alunoForaDaJanelaId?: string;
-  /** Data simulada usada para este momento (só para diagnóstico no relatório, não afeta o comportamento). */
-  dataSimuladaIso?: string;
-}
-
 /**
  * DAAC que mexe na configuração académica sem pensar duas vezes: submete datas contraditórias
- * (fim do ano letivo antes do início — já validado no servidor), faz duplo-toggle rápido do
- * semestre, e tenta processar rematrícula de um aluno fora da janela configurada (o formulário
- * nem deve mostrar o botão nesse caso — RematriculaForm.tsx).
+ * (fim do ano letivo antes do início — já validado no servidor) e faz duplo-toggle rápido do
+ * semestre. (O cenário de rematrícula fora da janela mudou para secretaria.ts — ver o achado no
+ * histórico do cost-meter: DAAC nunca teve acesso à secção de Rematrícula, `RematriculaForm` é
+ * gated por podeRegistarPagamento/podeEditarCategoria, ADMIN/SECRETARIA só. Testar com DAAC não
+ * exercitava nada — a secção inteira nunca renderizava para esse papel.)
  */
 export async function agirComoDaacCaotico(
   context: BrowserContext,
   baseUrl: string,
   credencial: CredencialAgente,
   outputDir: string,
-  opts: OpcoesDaacCaotico = {},
 ): Promise<ResultadoAgenteCaotico> {
   const page = await context.newPage();
   instrumentarECapturar(page, outputDir, credencial.papel);
@@ -32,14 +26,6 @@ export async function agirComoDaacCaotico(
 
   acoes.push(await tentarAcao("configuração académica com anoLetivoFim < anoLetivoInicio", true, () => submeterDatasContraditorias(page, baseUrl)));
   acoes.push(await tentarAcao("duplo-toggle rápido do semestre atual", false, () => duploToggleSemestre(page, baseUrl)));
-
-  if (opts.alunoForaDaJanelaId) {
-    acoes.push(
-      await tentarAcao("processar rematrícula fora da janela configurada", true, () =>
-        tentarRematriculaForaDaJanela(page, baseUrl, opts.alunoForaDaJanelaId!, opts.dataSimuladaIso),
-      ),
-    );
-  }
 
   await page.close();
   return { acoes };
@@ -91,22 +77,3 @@ async function duploToggleSemestre(page: Page, baseUrl: string): Promise<AcaoCao
   };
 }
 
-async function tentarRematriculaForaDaJanela(page: Page, baseUrl: string, alunoId: string, dataUsadaIso?: string): Promise<AcaoCaotica> {
-  await page.goto(`${baseUrl}/alunos/${alunoId}`);
-  const botao = page.getByRole("button", { name: "Processar Rematrícula" });
-  const avisoForaDaJanela = page.locator("text=Fora do período de matrícula");
-  const bloqueadoNaUi = (await avisoForaDaJanela.count()) > 0 && (await botao.count()) === 0;
-  // Diagnóstico para a próxima corrida caso isto volte a falhar: sem isto, um "botão presente
-  // inesperadamente" não dá para distinguir "bug real" de "a data usada não ficou mesmo fora da
-  // janela" sem voltar a correr tudo de novo. Lido diretamente do DOM (marcador temporário em
-  // alunos/[id]/page.tsx) — mais fiável neste workflow do que qualquer captura de log de servidor.
-  const marcador = page.locator("[data-diag-rematricula]");
-  const valoresServidor = (await marcador.count()) > 0 ? await marcador.getAttribute("data-diag-rematricula") : "marcador não encontrado";
-  const diagnostico = ` (relógio usado pelo teste: ${dataUsadaIso ?? "?"} | valores do servidor: ${valoresServidor})`;
-  return {
-    label: "processar rematrícula fora da janela configurada",
-    esperadoRejeitado: true,
-    foiRejeitadoGraciosamente: bloqueadoNaUi,
-    detalhe: (bloqueadoNaUi ? "botão ausente, aviso mostrado" : "botão presente inesperadamente") + diagnostico,
-  };
-}

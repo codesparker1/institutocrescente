@@ -199,17 +199,12 @@ async function main(): Promise<void> {
 
     if (marco.id === "janela-rematricula" && marco.dataForaDaJanela && alvos.alunoForaDaJanelaId) {
       avancarRelogio(marco.dataForaDaJanela);
-      // Diagnóstico: confirma no fresco, mesmo instante do teste, que a BD concorda que esta
-      // data está mesmo fora da janela configurada — se o botão aparecer na mesma, isto separa
-      // "bug real no dentroDaJanela/RematriculaForm" de "a janela tinha mudado entretanto".
-      const configNoMomento = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { matriculaInicio: true, matriculaFim: true } });
-      console.log(
-        `  [diagnóstico] relógio=${marco.dataForaDaJanela.toISOString()} matriculaInicio=${configNoMomento?.matriculaInicio?.toISOString()} matriculaFim=${configNoMomento?.matriculaFim?.toISOString()}`,
-      );
+      // A secção de Rematrícula é gated por podeRegistarPagamento (ADMIN/SECRETARIA) — usar
+      // secretaria aqui, não daac, para o teste ser conclusivo (ver src/lib/permissions.ts e o
+      // achado documentado em scripts/simulacao/agentes/caotico/secretaria.ts).
       const ctx = await browser.newContext();
-      const resultado = await agirComoDaacCaotico(ctx, args.url, contexto.daac, outputDir, {
+      const resultado = await agirComoSecretariaCaotica(ctx, args.url, contexto.secretaria, outputDir, {
         alunoForaDaJanelaId: alvos.alunoForaDaJanelaId,
-        dataSimuladaIso: marco.dataForaDaJanela.toISOString(),
       });
       await ctx.close();
       resultados.push({
@@ -218,7 +213,7 @@ async function main(): Promise<void> {
         data: marco.dataForaDaJanela.toISOString(),
         agentesOk: 1,
         agentesFalharam: 0,
-        acoesCaoticas: resultado.acoes.map((a) => ({ ...a, agente: "daac" })),
+        acoesCaoticas: resultado.acoes.map((a) => ({ ...a, agente: "secretaria-caotica" })),
         violacoes: [],
         autocannon: null,
       });
@@ -275,14 +270,16 @@ async function main(): Promise<void> {
       await ctxP.close();
     } else if (marco.id === "janela-rematricula") {
       const ctxAd = await browser.newContext();
+      const ctxDaac = await browser.newContext();
       tarefasCaoticas.push(
         correr("admin-caotico", agirComoAdminCaotico(ctxAd, args.url, contexto.admin, outputDir, { turmaComDisciplinas: alvos.turmaComDisciplinas })),
       );
+      tarefasCaoticas.push(correr("daac-caotico", agirComoDaacCaotico(ctxDaac, args.url, contexto.daac, outputDir)));
       const onda = await correrOndaCalma(browser, args.url, outputDir, "secretaria", [contexto.secretaria]);
       agentesOk += onda.ok;
       agentesFalharam += onda.falharam;
       await Promise.all(tarefasCaoticas);
-      await ctxAd.close();
+      await Promise.all([ctxAd.close(), ctxDaac.close()]);
     } else if (marco.id === "novo-ano-letivo") {
       const onda1 = await correrOndaCalma(browser, args.url, outputDir, "admin", [contexto.admin]);
       const onda2 = await correrOndaCalma(browser, args.url, outputDir, "secretaria", [contexto.secretaria]);
