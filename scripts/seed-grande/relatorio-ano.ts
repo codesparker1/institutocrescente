@@ -26,6 +26,7 @@ interface ResultadoMarco {
   data: string;
   agentesOk: number;
   agentesFalharam: number;
+  errosAgentesCalmos?: string[];
   acoesCaoticas: AcaoCaotica[];
   violacoes: { alunoNome: string; severidade: "ERROR" | "WARNING"; detalhe: string }[];
   autocannon: { path: string; p50: number; p99: number; erros: number } | null;
@@ -85,7 +86,10 @@ function main(): void {
     const erros = marco.violacoes.filter((v) => v.severidade === "ERROR");
     const avisos = marco.violacoes.filter((v) => v.severidade === "WARNING");
 
-    if (marco.agentesFalharam > 0) rebaixar("NÃO PRONTO", `${marco.label}: ${marco.agentesFalharam} agente(s) falharam a corrida completa.`);
+    if (marco.agentesFalharam > 0) {
+      const detalhe = marco.errosAgentesCalmos?.length ? ` — ${marco.errosAgentesCalmos.join(" | ")}` : "";
+      rebaixar("NÃO PRONTO", `${marco.label}: ${marco.agentesFalharam} agente(s) falharam a corrida completa.${detalhe}`);
+    }
     if (suspeitas.length > 0) {
       for (const s of suspeitas) rebaixar("NÃO PRONTO", `${marco.label}: "${s.label}" (${s.agente}) — esperava-se rejeição graciosa e não aconteceu (${s.detalhe ?? "sem detalhe"}).`);
     }

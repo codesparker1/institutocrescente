@@ -62,6 +62,7 @@ interface ResultadoMarco {
   data: string;
   agentesOk: number;
   agentesFalharam: number;
+  errosAgentesCalmos: string[];
   acoesCaoticas: (ResultadoAgenteCaotico["acoes"][number] & { agente: string })[];
   violacoes: Violacao[];
   autocannon: { path: string; p50: number; p99: number; reqsPorSegundo: number; erros: number } | null;
@@ -154,9 +155,10 @@ async function correrOndaCalma(
   outputDir: string,
   papel: "aluno" | "professor" | "secretaria" | "admin",
   credenciais: CredencialAgente[],
-): Promise<{ ok: number; falharam: number }> {
+): Promise<{ ok: number; falharam: number; erros: string[] }> {
   let ok = 0;
   let falharam = 0;
+  const erros: string[] = [];
   await Promise.all(
     credenciais.map(async (credencial) => {
       const ctx = await browser.newContext();
@@ -167,14 +169,17 @@ async function correrOndaCalma(
         else if (papel === "secretaria") await visitarComoSecretaria(page, url, credencial, outputDir);
         else await visitarComoAdmin(page, url, credencial, outputDir);
         ok += 1;
-      } catch {
+      } catch (erro) {
+        // console.error mostrou-se sistematicamente não fiável neste workflow (ver histórico do
+        // cost-meter) — a mensagem real só é visível se acabar em resultado-ano.json.
         falharam += 1;
+        erros.push(`${papel}/${credencial.papel}: ${erro instanceof Error ? erro.message.slice(0, 300) : String(erro)}`);
       } finally {
         await ctx.close();
       }
     }),
   );
-  return { ok, falharam };
+  return { ok, falharam, erros };
 }
 
 async function main(): Promise<void> {
@@ -213,6 +218,7 @@ async function main(): Promise<void> {
         data: marco.dataForaDaJanela.toISOString(),
         agentesOk: 1,
         agentesFalharam: 0,
+        errosAgentesCalmos: [],
         acoesCaoticas: resultado.acoes.map((a) => ({ ...a, agente: "secretaria-caotica" })),
         violacoes: [],
         autocannon: null,
@@ -222,6 +228,7 @@ async function main(): Promise<void> {
     avancarRelogio(marco.data);
     const inicioMarco = Date.now();
     const acoesCaoticas: ResultadoMarco["acoesCaoticas"] = [];
+    const errosAgentesCalmos: string[] = [];
     let agentesOk = 0;
     let agentesFalharam = 0;
 
@@ -243,6 +250,7 @@ async function main(): Promise<void> {
       const onda = await correrOndaCalma(browser, args.url, outputDir, "aluno", contexto.alunos);
       agentesOk += onda.ok;
       agentesFalharam += onda.falharam;
+      errosAgentesCalmos.push(...onda.erros);
       await Promise.all(tarefasCaoticas);
       await ctxA.close();
     } else if (marco.id === "semana-normal-aulas") {
@@ -253,6 +261,7 @@ async function main(): Promise<void> {
       const onda = await correrOndaCalma(browser, args.url, outputDir, "professor", contexto.professores.slice(1));
       agentesOk += onda.ok;
       agentesFalharam += onda.falharam;
+      errosAgentesCalmos.push(...onda.erros);
       await Promise.all(tarefasCaoticas);
       await Promise.all([ctxP.close(), ctxA.close()]);
     } else if (marco.id === "vencimento-propinas") {
@@ -266,6 +275,7 @@ async function main(): Promise<void> {
       const onda = await correrOndaCalma(browser, args.url, outputDir, "professor", contexto.professores.slice(1));
       agentesOk += onda.ok;
       agentesFalharam += onda.falharam;
+      errosAgentesCalmos.push(...onda.erros);
       await Promise.all(tarefasCaoticas);
       await ctxP.close();
     } else if (marco.id === "janela-rematricula") {
@@ -278,6 +288,7 @@ async function main(): Promise<void> {
       const onda = await correrOndaCalma(browser, args.url, outputDir, "secretaria", [contexto.secretaria]);
       agentesOk += onda.ok;
       agentesFalharam += onda.falharam;
+      errosAgentesCalmos.push(...onda.erros);
       await Promise.all(tarefasCaoticas);
       await Promise.all([ctxAd.close(), ctxDaac.close()]);
     } else if (marco.id === "novo-ano-letivo") {
@@ -285,6 +296,7 @@ async function main(): Promise<void> {
       const onda2 = await correrOndaCalma(browser, args.url, outputDir, "secretaria", [contexto.secretaria]);
       agentesOk += onda1.ok + onda2.ok;
       agentesFalharam += onda1.falharam + onda2.falharam;
+      errosAgentesCalmos.push(...onda1.erros, ...onda2.erros);
     }
 
     pedidosParaCusto.push({ duracaoMs: Date.now() - inicioMarco });
@@ -306,6 +318,7 @@ async function main(): Promise<void> {
       data: marco.data.toISOString(),
       agentesOk,
       agentesFalharam,
+      errosAgentesCalmos,
       acoesCaoticas,
       violacoes,
       autocannon,
