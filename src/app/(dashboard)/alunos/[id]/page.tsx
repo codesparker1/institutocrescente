@@ -16,7 +16,7 @@ import { MudarCursoForm } from "@/components/alunos/MudarCursoForm";
 import { EditarNotaHistoricaForm } from "@/components/alunos/EditarNotaHistoricaForm";
 import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
-import { formatDate, formatCurrency, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
+import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { podeRegistarPagamento, podeGerirCurriculo } from "@/lib/permissions";
 import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
@@ -67,10 +67,15 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   });
 
   const session = await auth();
-  const podeGerirPropinas = session?.user.role === "ADMIN" || session?.user.role === "SECRETARIA";
   const podeEditarCategoria = session?.user ? podeRegistarPagamento(session.user) : false;
   const podeRepetir = session?.user ? podeGerirCurriculo(session.user) : false;
   const estadoFinanceiro = await getEstadoFinanceiroAluno(aluno.id);
+
+  // Multas sem mensalidade correspondente no mesmo mês ficam de fora do merge de
+  // PropinasMensais (mesmo tratamento de PagamentosSecretariaPanel) — só essas aparecem na lista
+  // separada abaixo, em vez de todas.
+  const mesesChaves = new Set(estadoFinanceiro.meses.map((mes) => chaveMes(mes.mesReferencia)));
+  const multasOrfas = estadoFinanceiro.multas.filter((m) => !m.mesReferencia || !mesesChaves.has(chaveMes(m.mesReferencia)));
 
   const cadeirasAtivas = inscricoes
     .filter((i) => i.ativa)
@@ -211,11 +216,14 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       <Card>
         <CardHeader
           title="Situação Financeira"
-          subtitle={`Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)}`}
+          subtitle={`Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)} · só leitura — confirme ou reverta pagamentos em Registo de Pagamentos`}
         />
         <CardBody className="flex flex-col gap-4">
-          <PropinasMensais meses={estadoFinanceiro.meses} editable={podeGerirPropinas} />
-          <MultasPendentes multas={estadoFinanceiro.multas} editable={podeGerirPropinas} />
+          {/* Sempre não-editável aqui, mesmo para ADMIN/SECRETARIA (§pedido do cliente
+              2026-08-18) — confirmar/reverter um pagamento é exclusivo do fluxo de Registo de
+              Pagamentos (emite recibo, respeita seleção em lote); esta ficha do aluno é só consulta. */}
+          <PropinasMensais meses={estadoFinanceiro.meses} multas={estadoFinanceiro.multas} editable={false} />
+          <MultasPendentes multas={multasOrfas} editable={false} />
         </CardBody>
       </Card>
 
