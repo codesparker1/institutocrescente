@@ -68,12 +68,16 @@ async function criarAulaSeForDiaLetivo(page: Page, papel: string): Promise<boole
 
 /**
  * Alterna presença dos primeiros N alunos da aula mais recente. Na página do professor
- * (TurmaGradebook), os únicos `button type="button"` são os AttendanceChip — o botão do
- * CreateAulaForm é `type="submit"` — por isso o seletor de tipo já isola exatamente os chips,
- * sem precisar de subir a árvore até ao card "Frequência".
+ * (TurmaGradebook), os únicos `button type="button"` DENTRO DO CONTEÚDO são os AttendanceChip
+ * — mas Topbar.tsx também tem um `button type="button"` global (o menu "Abrir menu", móvel,
+ * `md:hidden`) que um seletor sem escopo à página inteira apanha também. Como esse botão fica
+ * permanentemente invisível no viewport desktop do CI, o Playwright ficava à espera dele ficar
+ * visível até estourar os 90s de timeout — o erro real por trás de todas as falhas "professor"
+ * nesta simulação, nada a ver com professores sem disciplina atribuída (achado confirmado só
+ * depois de parar de adivinhar e passar a capturar a mensagem de erro real).
  */
 async function marcarPresencas(page: Page, quantidade = 3): Promise<number> {
-  const chips = page.locator('button[type="button"]');
+  const chips = page.locator('main button[type="button"]');
   const total = Math.min(quantidade, await chips.count());
   for (let i = 0; i < total; i += 1) {
     await chips.nth(i).click();

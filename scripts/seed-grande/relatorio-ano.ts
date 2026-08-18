@@ -12,6 +12,12 @@
 import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync, appendFileSync, statSync } from "node:fs";
 import path from "node:path";
 
+// Mesmos limiares de relatorio.ts — antes desta corrida, correrAutocannon tinha um bug que fazia
+// p50/p99 caírem sempre no fallback de 0 (regex sobre o texto errado), por isso este limiar nunca
+// tinha reprovado nada de propósito; era só nunca ter tido dados reais para avaliar.
+const LIMIAR_P99_ACEITAVEL_MS = 1000;
+const LIMIAR_P99_CRITICO_MS = 2000;
+
 interface AcaoCaotica {
   agente: string;
   label: string;
@@ -97,6 +103,11 @@ function main(): void {
     if (erros.length > 0) rebaixar("NÃO PRONTO", `${marco.label}: ${erros.length} violação(ões) ERROR de integridade de dados.`);
     if (avisos.length > 0) rebaixar("PRONTO COM RESSALVAS", `${marco.label}: ${avisos.length} violação(ões) WARNING.`);
     if (marco.autocannon && marco.autocannon.erros > 0) rebaixar("NÃO PRONTO", `${marco.label}: erros HTTP na rajada de pico em ${marco.autocannon.path}.`);
+    if (marco.autocannon && marco.autocannon.p99 >= LIMIAR_P99_CRITICO_MS) {
+      rebaixar("NÃO PRONTO", `${marco.label}: p99 de latência ${marco.autocannon.p99}ms em ${marco.autocannon.path} (limiar crítico: ${LIMIAR_P99_CRITICO_MS}ms).`);
+    } else if (marco.autocannon && marco.autocannon.p99 >= LIMIAR_P99_ACEITAVEL_MS) {
+      rebaixar("PRONTO COM RESSALVAS", `${marco.label}: p99 de latência ${marco.autocannon.p99}ms em ${marco.autocannon.path} (acima do limiar confortável de ${LIMIAR_P99_ACEITAVEL_MS}ms).`);
+    }
 
     linhasTabela.push(
       `| ${marco.label} | ${marco.agentesOk}/${marco.agentesFalharam} | ${suspeitas.length}/${marco.acoesCaoticas.length} | ${erros.length}/${avisos.length} | ${marco.autocannon ? `${marco.autocannon.p99}ms` : "—"} |`,
