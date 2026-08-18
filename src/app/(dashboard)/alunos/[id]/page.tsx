@@ -89,6 +89,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       agora >= configAcademica.matriculaInicio &&
       agora <= configAcademica.matriculaFim,
   );
+  // DIAGNÓSTICO TEMPORÁRIO (remover depois de explicar o achado do cost-meter sobre a janela de rematrícula).
+  console.log(
+    `[diag-rematricula] agora=${agora.toISOString()} matriculaInicio=${configAcademica?.matriculaInicio?.toISOString()} matriculaFim=${configAcademica?.matriculaFim?.toISOString()} dentroDaJanela=${dentroDaJanela} SIMULATION_MODE=${process.env.SIMULATION_MODE}`,
+  );
   const reprovacoesAnoCorrente = inscricoes.filter((i) => {
     if (!i.ativa) return false;
     const notas = i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));

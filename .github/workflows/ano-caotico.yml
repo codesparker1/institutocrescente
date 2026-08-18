@@ -63,7 +63,7 @@ jobs:
           # contra "agora" real em vez da data simulada de cada marco.
           SIMULATION_MODE: "true"
         run: |
-          npm run start &
+          npm run start > next-start.log 2>&1 &
           echo $! > server.pid
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/login > /dev/null; then
@@ -104,4 +104,5 @@ jobs:
             scripts/simulacao/output/**
             scripts/seed-grande/output/**
             stress-logs/**
+            next-start.log
           retention-days: 14
