@@ -67,17 +67,18 @@ async function criarAulaSeForDiaLetivo(page: Page, papel: string): Promise<boole
 }
 
 /**
- * Alterna presença dos primeiros N alunos da aula mais recente. Na página do professor
- * (TurmaGradebook), os únicos `button type="button"` DENTRO DO CONTEÚDO são os AttendanceChip
- * — mas Topbar.tsx também tem um `button type="button"` global (o menu "Abrir menu", móvel,
- * `md:hidden`) que um seletor sem escopo à página inteira apanha também. Como esse botão fica
- * permanentemente invisível no viewport desktop do CI, o Playwright ficava à espera dele ficar
- * visível até estourar os 90s de timeout — o erro real por trás de todas as falhas "professor"
- * nesta simulação, nada a ver com professores sem disciplina atribuída (achado confirmado só
- * depois de parar de adivinhar e passar a capturar a mensagem de erro real).
+ * Alterna presença dos primeiros N alunos da aula mais recente. `button[type="button"]` sem
+ * escopo apanhava também o botão "Abrir menu" do Topbar (móvel, `md:hidden` — invisível no
+ * viewport desktop do CI, Playwright espera 90s por ele ficar visível e nunca acontece) e,
+ * mesmo escopado a `main`, o botão "Guardar alterações" do GradebookEditor (também
+ * type="button", desativado sempre que não há edições pendentes — mesmo tipo de hang). Os dois
+ * eram o erro real por trás de todas as falhas "professor" nesta simulação, nada a ver com
+ * professores sem disciplina atribuída (só descoberto depois de parar de adivinhar e capturar a
+ * mensagem de erro real). AttendanceChip.tsx é o único botão com `rounded-full` na página —
+ * mais fiável do que tentar excluir cada botão-armadilha um a um.
  */
 async function marcarPresencas(page: Page, quantidade = 3): Promise<number> {
-  const chips = page.locator('main button[type="button"]');
+  const chips = page.locator("main button.rounded-full");
   const total = Math.min(quantidade, await chips.count());
   for (let i = 0; i < total; i += 1) {
     await chips.nth(i).click();

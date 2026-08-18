@@ -9,9 +9,6 @@ export default async function RegistoPropinasPage() {
   if (!session?.user) redirect("/login");
   if (!["ADMIN", "SECRETARIA"].includes(session.user.role)) redirect("/dashboard");
 
-  // INJEÇÃO DELIBERADA DE FALHA — TEMPORÁRIA, para provar que o cost-meter deteta uma regressão
-  // real (nunca tinha sido observado a ir vermelho de propósito). Reverter no commit seguinte.
-  await new Promise((resolve) => setTimeout(resolve, 3000));
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { nome: true } });
 
   return (
