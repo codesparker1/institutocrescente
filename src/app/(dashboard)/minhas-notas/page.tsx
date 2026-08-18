@@ -40,20 +40,23 @@ export default async function MinhasNotasPage() {
   // ligadas a uma Turma de um ano anterior ao ano curricular atual do aluno (§4.2). Inclui
   // tentativas inativas (histórico académico, Fase 8) — antes só a ativa era visível ao aluno,
   // e uma tentativa reprovada desaparecia assim que a repetição era criada.
-  const inscricoes = await prisma.inscricaoCadeira.findMany({
-    where: { alunoId: session.user.alunoId },
-    include: {
-      turmaDisciplina: {
-        include: {
-          disciplina: true,
-          turma: { include: { curso: true } },
-          avaliacoes: { orderBy: { data: "asc" } },
+  const [aluno, inscricoes] = await Promise.all([
+    prisma.aluno.findUnique({ where: { id: session.user.alunoId }, select: { curso: true, anoCurricular: true } }),
+    prisma.inscricaoCadeira.findMany({
+      where: { alunoId: session.user.alunoId },
+      include: {
+        turmaDisciplina: {
+          include: {
+            disciplina: true,
+            turma: { include: { curso: true } },
+            avaliacoes: { orderBy: { data: "asc" } },
+          },
         },
+        notas: { include: { avaliacao: true } },
       },
-      notas: { include: { avaliacao: true } },
-    },
-    orderBy: [{ turmaDisciplina: { disciplina: { nome: "asc" } } }, { tentativa: "asc" }],
-  });
+      orderBy: [{ turmaDisciplina: { disciplina: { nome: "asc" } } }, { tentativa: "asc" }],
+    }),
+  ]);
 
   function calcularEstado(inscricao: (typeof inscricoes)[number]) {
     const notas = inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
@@ -80,6 +83,29 @@ export default async function MinhasNotasPage() {
     grupo.inscricoesPorSemestre.set(semestre, lista);
   }
 
+  // Pré-visualização do currículo do ano atual do aluno (§pedido do cliente 2026-08-18) — só
+  // aparece enquanto NÃO houver nenhuma InscricaoCadeira para o seu ano curricular/curso atuais
+  // (turmas ainda não criadas pelo DAAC para o novo ano letivo, típico logo a seguir a uma
+  // matrícula/rematrícula). Lê diretamente CadeiraCurricular, sem TurmaDisciplina nem professor —
+  // é só "que disciplinas correspondem ao meu ano", não uma inscrição real.
+  const jaTemTurmaNoAnoAtual = inscricoes.some(
+    (i) => i.turmaDisciplina.turma.anoCurricular === aluno?.anoCurricular && i.turmaDisciplina.turma.curso.nome === aluno?.curso,
+  );
+  const previewCurriculo =
+    aluno && !jaTemTurmaNoAnoAtual
+      ? await prisma.cadeiraCurricular.findMany({
+          where: { curso: { nome: aluno.curso }, anoCurricular: aluno.anoCurricular },
+          include: { disciplina: true },
+          orderBy: [{ semestre: "asc" }, { disciplina: { nome: "asc" } }],
+        })
+      : [];
+  const previewPorSemestre = new Map<number, typeof previewCurriculo>();
+  for (const cadeira of previewCurriculo) {
+    const lista = previewPorSemestre.get(cadeira.semestre) ?? [];
+    lista.push(cadeira);
+    previewPorSemestre.set(cadeira.semestre, lista);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -87,7 +113,39 @@ export default async function MinhasNotasPage() {
         <p className="text-sm text-navy-400">As suas notas, organizadas por ano do curso e semestre.</p>
       </div>
 
-      {grupos.size === 0 ? (
+      {previewPorSemestre.size > 0 ? (
+        <div className="flex flex-col gap-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">
+            {aluno!.curso} · {aluno!.anoCurricular}º Ano (previsão — turma ainda por criar)
+          </h2>
+          {[...previewPorSemestre.keys()]
+            .sort((a, b) => a - b)
+            .map((semestre) => {
+              const cadeiras = previewPorSemestre.get(semestre)!;
+              return (
+                <Card key={semestre}>
+                  <CardHeader title={`${semestre}º Semestre`} subtitle={`${cadeiras.length} disciplina(s)`} />
+                  <Table>
+                    <Thead>
+                      <tr>
+                        <Th>Disciplina</Th>
+                      </tr>
+                    </Thead>
+                    <Tbody>
+                      {cadeiras.map((cadeira) => (
+                        <Tr key={cadeira.id}>
+                          <Td className="font-medium text-navy-900">{cadeira.disciplina.nome}</Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </Card>
+              );
+            })}
+        </div>
+      ) : null}
+
+      {grupos.size === 0 && previewPorSemestre.size === 0 ? (
         <EmptyState message="Sem cadeiras inscritas." />
       ) : (
         [...grupos.values()].map((grupo) => {
