@@ -16,6 +16,8 @@ interface PagamentosSecretariaPanelProps {
   catalogoEmolumentos: EmolumentoCatalogo[];
   emolumentosPagos: EmolumentoPago[];
   onAtualizado: () => void;
+  /** Só ADMIN pode dividir a mensalidade da multa (§pedido do cliente 2026-08-18) — Secretaria/DAAC nunca. */
+  isAdmin?: boolean;
 }
 
 /**
@@ -29,11 +31,14 @@ export function PagamentosSecretariaPanel({
   catalogoEmolumentos,
   emolumentosPagos,
   onAtualizado,
+  isAdmin = false,
 }: PagamentosSecretariaPanelProps) {
   const [tab, setTab] = useState<Tab>("propinas");
   // IDs de mensalidade (PROPINA) PENDENTE selecionados na tab Propinas. A multa por atraso do mesmo
-  // mês nunca é selecionada à parte — confirmarPagamentosEmLoteAction junta-a sempre no servidor.
+  // mês nunca é selecionada à parte — confirmarPagamentosEmLoteAction junta-a sempre no servidor,
+  // exceto quando `semMulta` (só ADMIN) está marcado.
   const [selecionadosPropinas, setSelecionadosPropinas] = useState<Set<string>>(new Set());
+  const [semMulta, setSemMulta] = useState(false);
   const [selecionadosEmolumentos, setSelecionadosEmolumentos] = useState<Set<string>>(new Set());
   const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -55,12 +60,15 @@ export function PagamentosSecretariaPanel({
     estado.multas.filter((m) => m.status === "PENDENTE" && m.mesReferencia).map((m) => [chaveMes(m.mesReferencia!), m]),
   );
 
+  const dividirMulta = isAdmin && semMulta;
   const valorPorIdPropina = new Map(
     estado.meses
       .filter((mes) => mes.status === "PENDENTE")
       .map((mes) => {
         const multa = multaPendentePorChaveMes.get(chaveMes(mes.mesReferencia));
-        return [mes.id, mes.valorDevido + (multa?.valorDevido ?? 0)] as const;
+        // Refletir no ecrã exatamente o que vai ser cobrado — se a multa vai ficar de fora
+        // (dividirMulta), o total mostrado não pode incluí-la, senão engana quem está a confirmar.
+        return [mes.id, mes.valorDevido + (dividirMulta ? 0 : (multa?.valorDevido ?? 0))] as const;
       }),
   );
   const valorPorIdEmolumento = new Map(catalogoEmolumentos.map((e) => [e.id, e.valor]));
@@ -106,9 +114,11 @@ export function PagamentosSecretariaPanel({
 
         if (selecionadosPropinas.size > 0) {
           // Não é preciso juntar a multa aqui: confirmarPagamentosEmLoteAction inclui-a sempre no
-          // servidor quando existir, para o mesmo mês de uma mensalidade selecionada.
+          // servidor quando existir, para o mesmo mês de uma mensalidade selecionada — exceto
+          // com dividirMulta, e mesmo aí o servidor confirma de novo que a sessão é ADMIN.
           const formData = new FormData();
           formData.set("alunoId", alunoId);
+          if (dividirMulta) formData.set("semMulta", "true");
           selecionadosPropinas.forEach((id) => formData.append("cobrancaIds", id));
 
           const resultado = await confirmarPagamentosEmLoteAction(formData);
@@ -172,6 +182,18 @@ export function PagamentosSecretariaPanel({
               onToggleSelecionado={toggleSelecionadoPropina}
             />
           </div>
+
+          {isAdmin ? (
+            <label className="flex items-center gap-2 text-xs font-medium text-navy-600">
+              <input
+                type="checkbox"
+                checked={semMulta}
+                onChange={(e) => setSemMulta(e.target.checked)}
+                className="h-4 w-4 rounded border-navy-200 text-navy-700 focus:ring-navy-500"
+              />
+              Pagar mensalidade sem incluir a multa (só ADMIN)
+            </label>
+          ) : null}
 
           {multasOrfas.length > 0 ? (
             <div>

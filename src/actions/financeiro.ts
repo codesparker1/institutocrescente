@@ -177,6 +177,7 @@ export async function toggleMultaAction(formData: FormData): Promise<{ error?: s
 const ConfirmarPagamentosEmLoteSchema = z.object({
   alunoId: z.string().min(1),
   cobrancaIds: z.array(z.string().min(1)).min(1, "Selecione pelo menos um item."),
+  semMulta: z.coerce.boolean().default(false),
 });
 
 /**
@@ -185,6 +186,11 @@ const ConfirmarPagamentosEmLoteSchema = z.object({
  * PROPINA pendentes do aluno com mês <= ao mês mais recente selecionado têm de entrar no lote —
  * senão a secretaria conseguiria "saltar" um mês em atraso escondido no meio de um lote grande.
  * MULTA não tem ordem (mesma regra de toggleMultaAction).
+ *
+ * `semMulta` (§pedido do cliente 2026-08-18): só o ADMIN pode pagar a mensalidade sem forçar
+ * junto a multa do mesmo mês — a Secretaria e o DAAC continuam sempre com o comportamento
+ * anterior (junta sempre). Nunca confiar só no valor vindo do browser: mesmo que alguém force
+ * `semMulta=true` no pedido, só tem efeito se a sessão for mesmo ADMIN.
  */
 export async function confirmarPagamentosEmLoteAction(
   formData: FormData,
@@ -193,9 +199,11 @@ export async function confirmarPagamentosEmLoteAction(
   const parsed = ConfirmarPagamentosEmLoteSchema.safeParse({
     alunoId: formData.get("alunoId"),
     cobrancaIds: formData.getAll("cobrancaIds"),
+    semMulta: formData.get("semMulta"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Seleção inválida." };
   const { alunoId, cobrancaIds } = parsed.data;
+  const semMulta = parsed.data.semMulta && session.user.role === "ADMIN";
 
   const [aluno, selecionadas, todasPropinasPendentes] = await Promise.all([
     prisma.aluno.findUnique({ where: { id: alunoId } }),
@@ -222,10 +230,11 @@ export async function confirmarPagamentosEmLoteAction(
     }
   }
 
-  // A multa por atraso do mesmo mês nunca é opcional — junta-se sempre a quem paga a mensalidade,
-  // mesmo que o cliente não a tenha (ainda) enviado. Não confiamos só na seleção feita no browser.
+  // A multa por atraso do mesmo mês normalmente não é opcional — junta-se sempre a quem paga a
+  // mensalidade, mesmo que o cliente não a tenha (ainda) enviado. Exceção: `semMulta`, só honrada
+  // para ADMIN (ver validação de `semMulta` acima) — divide deliberadamente a mensalidade da multa.
   const multasPendentesDoAluno =
-    propinasSelecionadas.length > 0
+    propinasSelecionadas.length > 0 && !semMulta
       ? await prisma.cobranca.findMany({ where: { alunoId, tipo: "MULTA", status: "PENDENTE" } })
       : [];
   const multaPorChaveMes = new Map(

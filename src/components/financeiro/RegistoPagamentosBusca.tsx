@@ -24,13 +24,14 @@ const PERIODOS = [
 
 interface RegistoPagamentosBuscaProps {
   cursos: string[];
+  isAdmin: boolean;
 }
 
 /**
  * Busca do aluno para o Registo de Pagamentos — mais acessível (letras e espaçamento maiores) do
  * que a Página Inicial, com escala ajustável pelo slider da barra lateral (AcessibilidadeSlider).
  */
-export function RegistoPagamentosBusca({ cursos }: RegistoPagamentosBuscaProps) {
+export function RegistoPagamentosBusca({ cursos, isAdmin }: RegistoPagamentosBuscaProps) {
   const [query, setQuery] = useState("");
   const [filtroCurso, setFiltroCurso] = useState("");
   const [filtroAno, setFiltroAno] = useState("");
@@ -216,6 +217,7 @@ export function RegistoPagamentosBusca({ cursos }: RegistoPagamentosBuscaProps) 
                   catalogoEmolumentos={catalogoEmolumentos}
                   emolumentosPagos={emolumentosPagos}
                   onAtualizado={() => carregarHistorico(aSelecionado)}
+                  isAdmin={isAdmin}
                 />
               </>
             )}

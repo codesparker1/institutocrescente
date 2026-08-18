@@ -21,7 +21,7 @@ export default async function RegistoPropinasPage() {
           </p>
         </div>
 
-        <RegistoPagamentosBusca cursos={cursos.map((c) => c.nome)} />
+        <RegistoPagamentosBusca cursos={cursos.map((c) => c.nome)} isAdmin={session.user.role === "ADMIN"} />
       </div>
     </AcessibilidadeZoom>
   );
