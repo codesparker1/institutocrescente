@@ -28,7 +28,7 @@ export function PropinasMensais({ meses, multas = [], editable, selecionados, on
   );
 
   return (
-    <div className="flex flex-col divide-y divide-navy-50">
+    <div className="flex flex-col divide-y divide-navy-50" data-secao="propinas-mensais">
       {meses.map((mes) => {
         const multa = multaPorMes.get(chaveMes(mes.mesReferencia));
         const valorTotal = mes.valorDevido + (multa?.valorDevido ?? 0);

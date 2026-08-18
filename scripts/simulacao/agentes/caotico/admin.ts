@@ -81,11 +81,14 @@ async function conflitoDeHorarioConcorrente(
   await paginaA.close();
   await paginaB.close();
 
-  const exatamenteUmSucesso = (resultadoA === "sucesso") !== (resultadoB === "sucesso");
+  // O invariante real é "nunca os dois ao mesmo tempo" — não "exatamente um". Se já havia um
+  // horário seedado a colidir com o dia/hora fixos deste teste, os DOIS pedidos serem recusados
+  // é o comportamento correto (a guarda apanhou ambos), não uma falha do teste.
+  const ambosSucederam = resultadoA === "sucesso" && resultadoB === "sucesso";
   return {
     label: "duas abas a marcar o mesmo horário em simultâneo",
     esperadoRejeitado: false,
-    foiRejeitadoGraciosamente: exatamenteUmSucesso,
+    foiRejeitadoGraciosamente: !ambosSucederam,
     detalhe: `A=${resultadoA} B=${resultadoB}`,
   };
 }

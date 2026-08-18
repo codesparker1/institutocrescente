@@ -45,10 +45,10 @@ async function pagarMesForaDeOrdem(page: Page, baseUrl: string, alunoId: string)
   await page.goto(`${baseUrl}/alunos/${alunoId}`);
   // MultasPendentes.tsx (renderizado logo a seguir, na mesma CardBody de "Situação Financeira")
   // usa exatamente o mesmo texto "Pendente" nos seus próprios chips — um getByRole solto no
-  // page inteiro apanha os dois indiscriminadamente. Só PropinasMensais.tsx tem a etiqueta do
-  // mês (span.w-28) em cada linha; escopar por aí evita clicar sem querer numa multa (que não
-  // tem regra de cronologia nenhuma) a pensar que é uma mensalidade.
-  const propinasContainer = page.locator("div", { has: page.locator("span.w-28") }).first();
+  // page inteiro apanha os dois indiscriminadamente. data-secao é um marcador só para testes,
+  // adicionado de propósito a PropinasMensais.tsx — mais fiável do que tentar adivinhar a
+  // hierarquia certa por classes CSS partilhadas (has()+.first() apanha o ancestral errado).
+  const propinasContainer = page.locator('[data-secao="propinas-mensais"]');
   const chipsPendentes = propinasContainer.getByRole("button", { name: "Pendente" });
   const total = await chipsPendentes.count();
   if (total < 2) {
