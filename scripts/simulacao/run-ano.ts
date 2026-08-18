@@ -81,13 +81,16 @@ async function lerConfigAcademica() {
 }
 
 async function resolverAlvos() {
-  const [devedor, qualquerAtivo] = await Promise.all([
+  const [devedor, qualquerAtivo, turmaComDisciplinas] = await Promise.all([
     prisma.cobranca
       .groupBy({ by: ["alunoId"], where: { status: "PENDENTE" }, _count: { _all: true }, having: { alunoId: { _count: { gt: 1 } } } })
       .then((rows) => rows[0]?.alunoId),
     prisma.aluno.findFirst({ where: { status: "ATIVO" }, select: { id: true } }).then((a) => a?.id),
+    prisma.turma
+      .findFirst({ where: { turmaDisciplinas: { some: {} } }, select: { cursoId: true, anoCurricular: true, periodo: true } })
+      .then((t) => (t ? { cursoId: t.cursoId, anoCurricular: t.anoCurricular, periodo: t.periodo as string } : undefined)),
   ]);
-  return { alunoDevedorId: devedor, alunoForaDaJanelaId: qualquerAtivo };
+  return { alunoDevedorId: devedor, alunoForaDaJanelaId: qualquerAtivo, turmaComDisciplinas };
 }
 
 async function correrDiagnostico(): Promise<Violacao[]> {
@@ -196,8 +199,18 @@ async function main(): Promise<void> {
 
     if (marco.id === "janela-rematricula" && marco.dataForaDaJanela && alvos.alunoForaDaJanelaId) {
       avancarRelogio(marco.dataForaDaJanela);
+      // Diagnóstico: confirma no fresco, mesmo instante do teste, que a BD concorda que esta
+      // data está mesmo fora da janela configurada — se o botão aparecer na mesma, isto separa
+      // "bug real no dentroDaJanela/RematriculaForm" de "a janela tinha mudado entretanto".
+      const configNoMomento = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { matriculaInicio: true, matriculaFim: true } });
+      console.log(
+        `  [diagnóstico] relógio=${marco.dataForaDaJanela.toISOString()} matriculaInicio=${configNoMomento?.matriculaInicio?.toISOString()} matriculaFim=${configNoMomento?.matriculaFim?.toISOString()}`,
+      );
       const ctx = await browser.newContext();
-      const resultado = await agirComoDaacCaotico(ctx, args.url, contexto.daac, outputDir, { alunoForaDaJanelaId: alvos.alunoForaDaJanelaId });
+      const resultado = await agirComoDaacCaotico(ctx, args.url, contexto.daac, outputDir, {
+        alunoForaDaJanelaId: alvos.alunoForaDaJanelaId,
+        dataSimuladaIso: marco.dataForaDaJanela.toISOString(),
+      });
       await ctx.close();
       resultados.push({
         marco: `${marco.id}-fora-da-janela`,
@@ -262,7 +275,9 @@ async function main(): Promise<void> {
       await ctxP.close();
     } else if (marco.id === "janela-rematricula") {
       const ctxAd = await browser.newContext();
-      tarefasCaoticas.push(correr("admin-caotico", agirComoAdminCaotico(ctxAd, args.url, contexto.admin, outputDir)));
+      tarefasCaoticas.push(
+        correr("admin-caotico", agirComoAdminCaotico(ctxAd, args.url, contexto.admin, outputDir, { turmaComDisciplinas: alvos.turmaComDisciplinas })),
+      );
       const onda = await correrOndaCalma(browser, args.url, outputDir, "secretaria", [contexto.secretaria]);
       agentesOk += onda.ok;
       agentesFalharam += onda.falharam;

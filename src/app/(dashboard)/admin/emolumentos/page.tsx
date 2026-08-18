@@ -1,8 +1,8 @@
-import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
+import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteEmolumentoAction, toggleEmolumentoAtivoAction } from "@/actions/admin";
 import { CreateEmolumentoForm } from "./CreateEmolumentoForm";
 import { EditarValorEmolumento } from "./EditarValorEmolumento";
@@ -56,12 +56,7 @@ export default async function AdminEmolumentosPage() {
                       </form>
                     </Td>
                     <Td className="text-right">
-                      <form action={deleteEmolumentoAction}>
-                        <input type="hidden" name="id" value={emolumento.id} />
-                        <button type="submit" className="rounded-md p-1.5 text-navy-300 hover:bg-red-50 hover:text-red-600" aria-label="Remover">
-                          <Trash2 size={15} />
-                        </button>
-                      </form>
+                      <DeleteButtonForm action={deleteEmolumentoAction} id={emolumento.id} />
                     </Td>
                   </Tr>
                 ))}

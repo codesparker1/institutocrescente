@@ -1,7 +1,7 @@
-import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
+import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteCursoAction } from "@/actions/admin";
 import { CreateCursoForm } from "./CreateCursoForm";
 import { EditarValorPropinaCurso } from "./EditarValorPropinaCurso";
@@ -44,12 +44,7 @@ export default async function AdminCursosPage() {
                       <EditarValorPropinaCurso cursoId={curso.id} valorPropina={Number(curso.valorPropina)} />
                     </Td>
                     <Td className="text-right">
-                      <form action={deleteCursoAction}>
-                        <input type="hidden" name="id" value={curso.id} />
-                        <button type="submit" className="rounded-md p-1.5 text-navy-300 hover:bg-red-50 hover:text-red-600" aria-label="Remover">
-                          <Trash2 size={15} />
-                        </button>
-                      </form>
+                      <DeleteButtonForm action={deleteCursoAction} id={curso.id} />
                     </Td>
                   </Tr>
                 ))}

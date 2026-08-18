@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
+import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteTurmaDisciplinaAction } from "@/actions/admin";
 import { CreateTurmaDisciplinaForm } from "./CreateTurmaDisciplinaForm";
 import { EditarProfessorTurmaDisciplina } from "./EditarProfessorTurmaDisciplina";
@@ -110,12 +111,7 @@ export default async function AdminTurmaDetailPage({ params }: AdminTurmaDetailP
                     <Td>{td._count.horarioSlots}</Td>
                     <Td>{td._count.avaliacoes}</Td>
                     <Td className="text-right">
-                      <form action={deleteTurmaDisciplinaAction}>
-                        <input type="hidden" name="id" value={td.id} />
-                        <button type="submit" className="rounded-md p-1.5 text-navy-300 hover:bg-red-50 hover:text-red-600" aria-label="Remover">
-                          <Trash2 size={15} />
-                        </button>
-                      </form>
+                      <DeleteButtonForm action={deleteTurmaDisciplinaAction} id={td.id} />
                     </Td>
                   </Tr>
                 ))}

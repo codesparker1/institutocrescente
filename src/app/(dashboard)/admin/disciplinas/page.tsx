@@ -1,9 +1,9 @@
-import { Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteDisciplinaAction } from "@/actions/admin";
 import { CreateDisciplinaForm } from "./CreateDisciplinaForm";
 import type { Prisma } from "@/generated/prisma/client";
@@ -79,12 +79,7 @@ export default async function AdminDisciplinasPage({ searchParams }: AdminDiscip
                     <Td>{disciplina.curso.nome}</Td>
                     <Td>{disciplina.cargaHoraria}h</Td>
                     <Td className="text-right">
-                      <form action={deleteDisciplinaAction}>
-                        <input type="hidden" name="id" value={disciplina.id} />
-                        <button type="submit" className="rounded-md p-1.5 text-navy-300 hover:bg-red-50 hover:text-red-600" aria-label="Remover">
-                          <Trash2 size={15} />
-                        </button>
-                      </form>
+                      <DeleteButtonForm action={deleteDisciplinaAction} id={disciplina.id} />
                     </Td>
                   </Tr>
                 ))}

@@ -6,6 +6,8 @@ import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 interface OpcoesDaacCaotico {
   /** Aluno FORA da janela de matrícula corrente — resolvido pelo orquestrador antes da corrida. */
   alunoForaDaJanelaId?: string;
+  /** Data simulada usada para este momento (só para diagnóstico no relatório, não afeta o comportamento). */
+  dataSimuladaIso?: string;
 }
 
 /**
@@ -33,7 +35,9 @@ export async function agirComoDaacCaotico(
 
   if (opts.alunoForaDaJanelaId) {
     acoes.push(
-      await tentarAcao("processar rematrícula fora da janela configurada", true, () => tentarRematriculaForaDaJanela(page, baseUrl, opts.alunoForaDaJanelaId!)),
+      await tentarAcao("processar rematrícula fora da janela configurada", true, () =>
+        tentarRematriculaForaDaJanela(page, baseUrl, opts.alunoForaDaJanelaId!, opts.dataSimuladaIso),
+      ),
     );
   }
 
@@ -87,15 +91,19 @@ async function duploToggleSemestre(page: Page, baseUrl: string): Promise<AcaoCao
   };
 }
 
-async function tentarRematriculaForaDaJanela(page: Page, baseUrl: string, alunoId: string): Promise<AcaoCaotica> {
+async function tentarRematriculaForaDaJanela(page: Page, baseUrl: string, alunoId: string, dataUsadaIso?: string): Promise<AcaoCaotica> {
   await page.goto(`${baseUrl}/alunos/${alunoId}`);
   const botao = page.getByRole("button", { name: "Processar Rematrícula" });
   const avisoForaDaJanela = page.locator("text=Fora do período de matrícula");
   const bloqueadoNaUi = (await avisoForaDaJanela.count()) > 0 && (await botao.count()) === 0;
+  // Diagnóstico para a próxima corrida caso isto volte a falhar: sem isto, um "botão presente
+  // inesperadamente" não dá para distinguir "bug real" de "a data usada não ficou mesmo fora da
+  // janela" sem voltar a correr tudo de novo.
+  const diagnostico = dataUsadaIso ? ` (relógio usado: ${dataUsadaIso})` : "";
   return {
     label: "processar rematrícula fora da janela configurada",
     esperadoRejeitado: true,
     foiRejeitadoGraciosamente: bloqueadoNaUi,
-    detalhe: bloqueadoNaUi ? "botão ausente, aviso mostrado" : "botão presente inesperadamente",
+    detalhe: (bloqueadoNaUi ? "botão ausente, aviso mostrado" : "botão presente inesperadamente") + diagnostico,
   };
 }

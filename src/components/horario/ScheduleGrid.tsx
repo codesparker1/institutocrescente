@@ -1,7 +1,8 @@
-import { Trash2, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
+import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { DIA_SEMANA_LABEL, formatDate, cn } from "@/lib/utils";
 import { EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
@@ -91,14 +92,7 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
                           </a>
                         )
                       ) : null}
-                      {editable ? (
-                        <form action={deleteProvaAction}>
-                          <input type="hidden" name="id" value={prova.id} />
-                          <button type="submit" className="rounded-md p-1 text-navy-300 hover:bg-red-50 hover:text-red-600" aria-label="Remover">
-                            <Trash2 size={14} />
-                          </button>
-                        </form>
-                      ) : null}
+                      {editable ? <DeleteButtonForm action={deleteProvaAction} id={prova.id} /> : null}
                     </div>
                   </div>
                 );
@@ -151,12 +145,7 @@ export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true
                       <p className="text-navy-400">{slot.sala}</p>
                       {slot.cursoAnoLabel ? <p className="text-navy-300">{slot.cursoAnoLabel}</p> : null}
                       {editable ? (
-                        <form action={deleteHorarioSlotAction} className="mt-1">
-                          <input type="hidden" name="id" value={slot.id} />
-                          <button type="submit" className="text-[10px] font-medium text-red-500 hover:text-red-700">
-                            remover
-                          </button>
-                        </form>
+                        <DeleteButtonForm action={deleteHorarioSlotAction} id={slot.id} variant="link" className="mt-1" />
                       ) : null}
                     </div>
                   ))

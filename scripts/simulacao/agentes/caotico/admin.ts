@@ -9,16 +9,24 @@ import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
  * isto sequencialmente, aqui testa-se sob concorrência real — e tenta apagar um curso que ainda
  * tem turmas (deve ser recusado com uma guarda de FK, não crashar).
  */
+interface OpcoesAdminCaotico {
+  /** Turma com pelo menos uma disciplina já atribuída — resolvida pelo orquestrador via Prisma, para o formulário de horário ter sempre opções válidas. */
+  turmaComDisciplinas?: { cursoId: string; anoCurricular: number; periodo: string };
+}
+
 export async function agirComoAdminCaotico(
   context: BrowserContext,
   baseUrl: string,
   credencial: CredencialAgente,
   outputDir: string,
+  opts: OpcoesAdminCaotico = {},
 ): Promise<ResultadoAgenteCaotico> {
   const acoes: AcaoCaotica[] = [];
 
   acoes.push(
-    await tentarAcao("duas abas a marcar o mesmo horário em simultâneo", false, () => conflitoDeHorarioConcorrente(context, baseUrl, credencial, outputDir)),
+    await tentarAcao("duas abas a marcar o mesmo horário em simultâneo", false, () =>
+      conflitoDeHorarioConcorrente(context, baseUrl, credencial, outputDir, opts.turmaComDisciplinas),
+    ),
   );
 
   const page = await context.newPage();
@@ -30,34 +38,55 @@ export async function agirComoAdminCaotico(
   return { acoes };
 }
 
-async function conflitoDeHorarioConcorrente(context: BrowserContext, baseUrl: string, credencial: CredencialAgente, outputDir: string): Promise<AcaoCaotica> {
+async function conflitoDeHorarioConcorrente(
+  context: BrowserContext,
+  baseUrl: string,
+  credencial: CredencialAgente,
+  outputDir: string,
+  turmaComDisciplinas?: { cursoId: string; anoCurricular: number; periodo: string },
+): Promise<AcaoCaotica> {
   const paginaA = await context.newPage();
   const paginaB = await context.newPage();
   instrumentarECapturar(paginaA, outputDir, credencial.papel);
   instrumentarECapturar(paginaB, outputDir, credencial.papel);
 
-  await login(paginaA, baseUrl, credencial);
-  await Promise.all([paginaA.goto(`${baseUrl}/horario`), (async () => { await login(paginaB, baseUrl, credencial); await paginaB.goto(`${baseUrl}/horario`); })()]);
+  // Sem filtros explícitos, /horario usa o 1º curso por ordem alfabética + 1º ano + MATUTINO —
+  // essa combinação pode calhar numa turma com zero disciplinas atribuídas (select vazio,
+  // submissão bloqueada pela validação HTML "required", nunca chega ao servidor). Navegar já
+  // com os filtros de uma turma que sabemos ter disciplinas evita esse falso "sucessoA=false
+  // sucessoB=false" que não tem nada a ver com o conflito que este cenário quer testar.
+  const query = turmaComDisciplinas
+    ? `?cursoId=${turmaComDisciplinas.cursoId}&anoCurricular=${turmaComDisciplinas.anoCurricular}&periodo=${turmaComDisciplinas.periodo}`
+    : "";
 
-  async function submeterSlot(page: Page): Promise<boolean> {
+  await login(paginaA, baseUrl, credencial);
+  await Promise.all([
+    paginaA.goto(`${baseUrl}/horario${query}`),
+    (async () => {
+      await login(paginaB, baseUrl, credencial);
+      await paginaB.goto(`${baseUrl}/horario${query}`);
+    })(),
+  ]);
+
+  async function submeterSlot(page: Page): Promise<"sucesso" | "sem-formulario" | "erro-mostrado"> {
     const form = page.locator("form", { has: page.locator('input[name="sala"]') }).first();
-    if ((await form.count()) === 0) return false;
+    if ((await form.count()) === 0) return "sem-formulario";
     await form.locator('input[name="sala"]').fill("Sala Conflito");
     await form.getByRole("button", { name: /Adicionar/ }).click();
     await page.waitForTimeout(1000);
-    return (await textoDeErroVisivel(page)) === null;
+    return (await textoDeErroVisivel(page)) === null ? "sucesso" : "erro-mostrado";
   }
 
-  const [sucessoA, sucessoB] = await Promise.all([submeterSlot(paginaA), submeterSlot(paginaB)]);
+  const [resultadoA, resultadoB] = await Promise.all([submeterSlot(paginaA), submeterSlot(paginaB)]);
   await paginaA.close();
   await paginaB.close();
 
-  const exatamenteUm = sucessoA !== sucessoB;
+  const exatamenteUmSucesso = (resultadoA === "sucesso") !== (resultadoB === "sucesso");
   return {
     label: "duas abas a marcar o mesmo horário em simultâneo",
     esperadoRejeitado: false,
-    foiRejeitadoGraciosamente: exatamenteUm,
-    detalhe: `sucessoA=${sucessoA} sucessoB=${sucessoB}`,
+    foiRejeitadoGraciosamente: exatamenteUmSucesso,
+    detalhe: `A=${resultadoA} B=${resultadoB}`,
   };
 }
 
