@@ -44,6 +44,7 @@ export function PropinasMensais({ meses, multas = [], editable, selecionados, on
                   Inclui multa por atraso ({formatCurrency(multa.valorDevido)}, {multa.status === "PAGO" ? "paga" : "pendente"})
                 </Badge>
               ) : null}
+              {mes.descricao ? <Badge tone="warning">{mes.descricao}</Badge> : null}
             </div>
 
             <div className="flex items-center gap-3">

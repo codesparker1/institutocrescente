@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, type FormState } from "@/lib/forms";
-import { requireGerirContas } from "@/lib/permissions";
+import { requireGerirReclamacoes } from "@/lib/permissions";
 
 const CATEGORIAS = ["SUGESTAO", "RECLAMACAO", "PROBLEMA_TECNICO", "OUTRO"] as const;
 
@@ -20,15 +20,16 @@ const CAMPOS_RECLAMACAO = ["categoria", "assunto", "mensagem"] as const;
 export type CriarReclamacaoState = FormState<Record<(typeof CAMPOS_RECLAMACAO)[number], string>> & { success?: boolean };
 
 /**
- * Canal de aluno, professor ou secretaria para reportar problemas ou sugerir melhorias — não é
- * um pedido académico/financeiro. SECRETARIA não tem Aluno/Professor próprio, por isso usa
+ * Canal de aluno, professor, secretaria ou ADMIN para reportar problemas ou sugerir melhorias ao
+ * DEV — não é um pedido académico/financeiro. DEV não envia (só recebe, ver
+ * atualizarReclamacaoAction); SECRETARIA e ADMIN não têm Aluno/Professor próprio, por isso usam
  * userId (ver Reclamacao.userId no schema).
  */
 export async function criarReclamacaoAction(_prevState: CriarReclamacaoState, formData: FormData): Promise<CriarReclamacaoState> {
   const session = await auth();
   const alunoId = session?.user.role === "ALUNO" ? session.user.alunoId : undefined;
   const professorId = session?.user.role === "PROFESSOR" ? session.user.professorId : undefined;
-  const userId = session?.user.role === "SECRETARIA" ? session.user.id : undefined;
+  const userId = session?.user.role === "SECRETARIA" || session?.user.role === "ADMIN" ? session.user.id : undefined;
   if (!session?.user || (!alunoId && !professorId && !userId)) {
     return { error: "Sem permissão para esta ação." };
   }
@@ -82,9 +83,9 @@ const STATUS_LABEL: Record<(typeof ESTADOS)[number], string> = {
   RESOLVIDO: "Resolvido",
 };
 
-/** Domínio do ADMIN (gestão geral) — muda o estado e opcionalmente deixa uma resposta curta. */
+/** Exclusivo do DEV (§pedido do cliente 2026-08-18) — muda o estado e opcionalmente deixa uma resposta curta. */
 export async function atualizarReclamacaoAction(_prevState: AtualizarReclamacaoState, formData: FormData): Promise<AtualizarReclamacaoState> {
-  const session = await requireGerirContas();
+  const session = await requireGerirReclamacoes();
 
   const parsed = AtualizarReclamacaoSchema.safeParse({
     id: formData.get("id"),

@@ -13,6 +13,10 @@ enum Role {
   DAAC
   PROFESSOR
   ALUNO
+  /// Conta pessoal do responsável técnico (§pedido do cliente 2026-08-18) — o único papel que
+  /// vê /admin/reclamacoes; não gere mais nada no sistema. ADMIN ganhou acesso de envio (como
+  /// Secretaria/Professor/Aluno) para reportar problemas a este papel, mas perdeu o de gestão.
+  DEV
 }
 
 enum AlunoStatus {
@@ -115,6 +119,10 @@ model Aluno {
   status          AlunoStatus        @default(ATIVO)
   categoria       CategoriaEstudante @default(NORMAL)
   createdAt       DateTime           @default(now())
+  /// Nº de cadeiras que ficaram REPROVADO na última rematrícula processada (processarRematriculaAction)
+  /// — alimenta o agravamento por cadeira em repetição na propina (§pedido do cliente 2026-08-18).
+  /// Continua > 0 enquanto o aluno andar a repetir essas cadeiras, mesmo tendo avançado de ano.
+  cadeirasReprovadasAnoAnterior Int @default(0)
 
   matriculas  Matricula[]
   cobrancas   Cobranca[]
@@ -446,6 +454,10 @@ model ConfiguracaoFinanceira {
   toleranciaDias  Int       @default(0)
   diaVencimento   Int       @default(10)
   valorMulta      Decimal   @default(5000) @db.Decimal(10, 2)
+  /// % agravada sobre a mensalidade por cada cadeira em repetição (Aluno.cadeirasReprovadasAnoAnterior)
+  /// — editado em Admin > Preços, não em Admin > Financeiro > Configuração, mas guardado aqui porque
+  /// gerarCobrancasDoDia já carrega esta linha a cada geração de propinas (evita outra query no hot path).
+  percentagemAgravamentoPorCadeira Decimal @default(0) @db.Decimal(5, 2)
   /// Marca a última corrida da geração automática de propinas/multas — evita repeti-la em cada request (§2).
   ultimaGeracaoEm DateTime?
   updatedAt       DateTime  @updatedAt

@@ -14,6 +14,7 @@ const ROLE_TONE: Record<Role, "info" | "success" | "warning" | "neutral"> = {
   DAAC: "info",
   PROFESSOR: "warning",
   ALUNO: "neutral",
+  DEV: "neutral",
 };
 
 const LIMITE_REGISTOS = 200;

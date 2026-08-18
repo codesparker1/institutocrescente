@@ -11,6 +11,7 @@ const ROLE_LABEL: Record<Role, string> = {
   DAAC: "DAAC",
   PROFESSOR: "Professor",
   ALUNO: "Aluno",
+  DEV: "Responsável Técnico",
 };
 
 interface TopbarProps {

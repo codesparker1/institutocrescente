@@ -17,6 +17,7 @@ async function getConfiguracaoFinanceira() {
       toleranciaDias: 0,
       diaVencimento: 10,
       valorMulta: 5000,
+      percentagemAgravamentoPorCadeira: 0,
       ultimaGeracaoEm: null,
     }
   );
@@ -24,6 +25,25 @@ async function getConfiguracaoFinanceira() {
 
 function inicioDoDia(data: Date): Date {
   return new Date(data.getFullYear(), data.getMonth(), data.getDate());
+}
+
+export interface ValorPropinaCalculado {
+  valorDevido: number;
+  descricao: string | null;
+}
+
+/**
+ * Preço de uma mensalidade: base (PrecoPropina, por categoria×ano curricular) + agravamento
+ * linear por cadeira ainda em repetição do ano anterior (§pedido do cliente 2026-08-18). Função
+ * pura partilhada entre a geração diária (gerarCobrancasDoDia) e a pré-geração do ano letivo
+ * inteiro na rematrícula (processarRematriculaAction) — as duas têm de calcular exatamente o
+ * mesmo valor para a mesma combinação categoria/ano/cadeiras-em-repetição.
+ */
+export function calcularValorPropina(valorBase: number, cadeirasReprovadas: number, percentagemAgravamentoPorCadeira: number): ValorPropinaCalculado {
+  if (cadeirasReprovadas <= 0) return { valorDevido: valorBase, descricao: null };
+  const valorDevido = valorBase * (1 + (percentagemAgravamentoPorCadeira / 100) * cadeirasReprovadas);
+  const descricao = `Inclui agravamento por ${cadeirasReprovadas} cadeira(s) em repetição (+${(percentagemAgravamentoPorCadeira * cadeirasReprovadas).toFixed(2)}%)`;
+  return { valorDevido, descricao };
 }
 
 /**
@@ -56,17 +76,31 @@ export async function garantirCobrancasGeradas(): Promise<void> {
   });
   if (reclamado.count === 0) return;
 
-  after(() => gerarCobrancasDoDia(agora, config.diaVencimento, config.toleranciaDias, Number(config.valorMulta)));
+  after(() =>
+    gerarCobrancasDoDia(
+      agora,
+      config.diaVencimento,
+      config.toleranciaDias,
+      Number(config.valorMulta),
+      Number(config.percentagemAgravamentoPorCadeira),
+    ),
+  );
 }
 
-async function gerarCobrancasDoDia(agora: Date, diaVencimento: number, toleranciaDias: number, valorMulta: number): Promise<void> {
+async function gerarCobrancasDoDia(
+  agora: Date,
+  diaVencimento: number,
+  toleranciaDias: number,
+  valorMulta: number,
+  percentagemAgravamentoPorCadeira: number,
+): Promise<void> {
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
   const dataVencimentoMes = new Date(agora.getFullYear(), agora.getMonth(), diaVencimento);
 
   const [matriculasAtivas, precos] = await Promise.all([
     prisma.matricula.findMany({
       where: { status: "ATIVA" },
-      include: { turma: true, aluno: { select: { categoria: true } } },
+      include: { turma: true, aluno: { select: { categoria: true, cadeirasReprovadasAnoAnterior: true } } },
     }),
     prisma.precoPropina.findMany(),
   ]);
@@ -74,12 +108,23 @@ async function gerarCobrancasDoDia(agora: Date, diaVencimento: number, toleranci
 
   const semPreco = new Set<string>();
   const propinasAGerar = matriculasAtivas.flatMap((m) => {
-    const valorDevido = precoPorChave.get(`${m.aluno.categoria}:${m.turma.anoCurricular}`);
-    if (valorDevido === undefined) {
+    const valorBase = precoPorChave.get(`${m.aluno.categoria}:${m.turma.anoCurricular}`);
+    if (valorBase === undefined) {
       semPreco.add(`${m.aluno.categoria} · ${m.turma.anoCurricular}º Ano`);
       return [];
     }
-    return [{ matriculaId: m.id, alunoId: m.alunoId, tipo: "PROPINA" as const, mesReferencia: inicioMes, valorDevido, dataVencimento: dataVencimentoMes }];
+    const { valorDevido, descricao } = calcularValorPropina(Number(valorBase), m.aluno.cadeirasReprovadasAnoAnterior, percentagemAgravamentoPorCadeira);
+    return [
+      {
+        matriculaId: m.id,
+        alunoId: m.alunoId,
+        tipo: "PROPINA" as const,
+        mesReferencia: inicioMes,
+        descricao,
+        valorDevido,
+        dataVencimento: dataVencimentoMes,
+      },
+    ];
   });
   if (semPreco.size > 0) {
     // Não inventa um valor (0 Kz cobrava de graça sem ninguém notar) — fica por gerar até o DAAC
@@ -280,6 +325,8 @@ export async function getConjuntoAlunosEmDivida(alunoIds: string[]): Promise<Set
 export interface PropinaMes {
   id: string;
   mesReferencia: Date;
+  /** Preenchido só quando a mensalidade inclui agravamento por cadeira(s) em repetição. */
+  descricao: string | null;
   valorDevido: number;
   valorPago: number;
   status: "PENDENTE" | "PAGO";
@@ -319,6 +366,7 @@ export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoF
     .map((c) => ({
       id: c.id,
       mesReferencia: c.mesReferencia!,
+      descricao: c.descricao,
       valorDevido: Number(c.valorDevido),
       valorPago: Number(c.valorPago),
       status: c.status,

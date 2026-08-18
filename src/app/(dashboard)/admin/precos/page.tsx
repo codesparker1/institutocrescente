@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td } from "@/components/ui/Table";
 import { PrecoPropinaCell } from "./PrecoPropinaCell";
+import { PercentagemAgravamentoForm } from "./PercentagemAgravamentoForm";
 import type { CategoriaEstudante } from "@/generated/prisma/client";
 
 const CATEGORIAS: CategoriaEstudante[] = ["NORMAL", "BOLSEIRO_INAGBE", "COMPARTICIPADA"];
@@ -12,9 +13,10 @@ const CATEGORIA_LABEL: Record<CategoriaEstudante, string> = {
 };
 
 export default async function AdminPrecosPage() {
-  const [maxDuracao, precos] = await Promise.all([
+  const [maxDuracao, precos, config] = await Promise.all([
     prisma.curso.aggregate({ _max: { duracaoAnos: true } }),
     prisma.precoPropina.findMany(),
+    prisma.configuracaoFinanceira.findUnique({ where: { id: "config" } }),
   ]);
   // Todos os cursos partilham o mesmo preço (§pedido do cliente 2026-08-18) — a grelha cobre até
   // ao curso mais longo atualmente cadastrado, nunca um número fixo que ficaria desatualizado.
@@ -55,6 +57,16 @@ export default async function AdminPrecosPage() {
               ))}
             </Tbody>
           </Table>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Agravamento por cadeira em repetição"
+          subtitle="Aplicado sobre o valor base da mensalidade de quem ainda arrasta cadeiras reprovadas do ano anterior"
+        />
+        <CardBody>
+          <PercentagemAgravamentoForm valorInicial={Number(config?.percentagemAgravamentoPorCadeira ?? 0)} />
         </CardBody>
       </Card>
     </div>

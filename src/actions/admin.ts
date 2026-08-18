@@ -109,6 +109,42 @@ export async function atualizarPrecoPropinaAction(
   return {};
 }
 
+const PercentagemAgravamentoSchema = z.object({
+  percentagem: z.coerce.number("Indique a percentagem").min(0, "A percentagem não pode ser negativa").max(1000, "Percentagem inválida"),
+});
+
+/**
+ * % agravada sobre a mensalidade por cada cadeira em repetição (Aluno.cadeirasReprovadasAnoAnterior,
+ * atualizado a cada rematrícula) — §pedido do cliente 2026-08-18. Guardada em ConfiguracaoFinanceira
+ * (garantirCobrancasGeradas já carrega essa linha), mas editada aqui em Admin > Preços, ao lado do
+ * resto do preçário da propina.
+ */
+export async function atualizarPercentagemAgravamentoAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = PercentagemAgravamentoSchema.safeParse({ percentagem: formData.get("percentagem") });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Percentagem inválida." };
+
+  const anterior = await prisma.configuracaoFinanceira.findUnique({ where: { id: "config" } });
+  await prisma.configuracaoFinanceira.upsert({
+    where: { id: "config" },
+    create: { id: "config", percentagemAgravamentoPorCadeira: parsed.data.percentagem, updatedPorId: session.user.id },
+    update: { percentagemAgravamentoPorCadeira: parsed.data.percentagem, updatedPorId: session.user.id },
+  });
+  await audit(
+    session,
+    `Atualizou o agravamento por cadeira em repetição para ${parsed.data.percentagem}%`,
+    "ConfiguracaoFinanceira",
+    "config",
+    anterior ? { valorAnterior: `${Number(anterior.percentagemAgravamentoPorCadeira)}%`, valorNovo: `${parsed.data.percentagem}%` } : undefined,
+  );
+
+  revalidatePath("/admin/precos");
+  return {};
+}
+
 export async function deleteCursoAction(formData: FormData) {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));

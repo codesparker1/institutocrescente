@@ -83,6 +83,15 @@ export function podeVerTudo(user: CapabilityUser): boolean {
   return user.role === "ADMIN";
 }
 
+/**
+ * Exclusivo do papel DEV (§pedido do cliente 2026-08-18) — receber e gerir reclamações/sugestões
+ * de todos os outros papéis, incluindo ADMIN. Não passa por podeVerTudo: DEV não tem nenhuma
+ * outra capacidade no sistema, e ADMIN deixou de ver esta caixa de entrada de propósito.
+ */
+export function podeGerirReclamacoes(user: CapabilityUser): boolean {
+  return user.role === "DEV";
+}
+
 export type SessionComUser = Session;
 
 /**
@@ -138,4 +147,8 @@ export function requireGerirFrequencia(): Promise<SessionComUser> {
 
 export function requireGerirContas(): Promise<SessionComUser> {
   return requireCapacidade(podeGerirContas);
+}
+
+export function requireGerirReclamacoes(): Promise<SessionComUser> {
+  return requireCapacidade(podeGerirReclamacoes);
 }

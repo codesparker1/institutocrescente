@@ -35,7 +35,7 @@ interface AdminReclamacoesPageProps {
 export default async function AdminReclamacoesPage({ searchParams }: AdminReclamacoesPageProps) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN") redirect("/dashboard");
+  if (session.user.role !== "DEV") redirect("/dashboard");
 
   const { status } = await searchParams;
   const statusValido = status && ["PENDENTE", "EM_ANALISE", "RESOLVIDO"].includes(status) ? (status as ReclamacaoStatus) : undefined;
