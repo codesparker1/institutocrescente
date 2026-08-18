@@ -68,6 +68,17 @@ export async function createAlunoAction(
     return erroDeValidacao(parsed.error, formData, CAMPOS_ALUNO);
   }
 
+  // Mesma janela de matrícula que processarRematriculaAction já respeitava (§pedido do cliente
+  // 2026-08-18) — só faltava aqui, na primeira matrícula de um aluno novo.
+  const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  if (!configAcademica?.matriculaInicio || !configAcademica.matriculaFim) {
+    return { error: "Defina o período de matrícula em Admin > Configuração Académica antes de matricular alunos." };
+  }
+  const agora = getAgora();
+  if (agora < configAcademica.matriculaInicio || agora > configAcademica.matriculaFim) {
+    return { error: "Fora do período de matrícula — novas matrículas só podem ser criadas dentro da janela configurada." };
+  }
+
   const turma = await prisma.turma.findUnique({
     where: { id: parsed.data.turmaId },
     include: { curso: true },
