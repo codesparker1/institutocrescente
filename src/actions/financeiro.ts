@@ -15,7 +15,7 @@ import {
 } from "@/lib/financeiro";
 import { chaveMes } from "@/lib/utils";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
-import { requireRegistarPagamento, requireGerirContas } from "@/lib/permissions";
+import { requireRegistarPagamento, requireGerirContas, requirePagarMultaAvulsa } from "@/lib/permissions";
 import { getAgora } from "@/lib/tempo";
 
 function revalidarFinanceiro(alunoId: string) {
@@ -143,9 +143,13 @@ const ToggleMultaSchema = z.object({
   multaId: z.string().min(1),
 });
 
-/** Alterna o pagamento de uma multa. Sem ordenação por mês — cada multa é independente das outras. */
+/**
+ * Alterna o pagamento de uma multa sozinha (sem ordenação por mês — cada multa é independente das
+ * outras). Só ADMIN (§pedido do cliente 2026-08-18): a Secretaria vê que a multa está pendente,
+ * mas só a consegue pagar junto de uma mensalidade em confirmarPagamentosEmLoteAction, nunca isolada.
+ */
 export async function toggleMultaAction(formData: FormData): Promise<{ error?: string }> {
-  const session = await requireRegistarPagamento();
+  const session = await requirePagarMultaAvulsa();
   const { multaId } = ToggleMultaSchema.parse({ multaId: formData.get("multaId") });
 
   const multa = await prisma.cobranca.findUnique({ where: { id: multaId }, include: { aluno: true } });

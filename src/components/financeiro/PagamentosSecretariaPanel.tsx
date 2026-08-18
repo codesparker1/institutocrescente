@@ -200,7 +200,9 @@ export function PagamentosSecretariaPanel({
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
                 Outras multas (sem mensalidade correspondente no mesmo mês)
               </p>
-              <MultasPendentes multas={multasOrfas} editable />
+              {/* Só ADMIN paga uma multa órfã isolada (§pedido do cliente 2026-08-18) — a
+                  Secretaria vê que está pendente, mas não a consegue marcar como paga sozinha. */}
+              <MultasPendentes multas={multasOrfas} editable={isAdmin} />
             </div>
           ) : null}
         </div>

@@ -49,6 +49,16 @@ export function podeRegistarPagamento(user: CapabilityUser): boolean {
 }
 
 /**
+ * Pagar uma multa "órfã" (sem mensalidade correspondente no mesmo mês) sozinha, fora do lote
+ * mensalidade+multa — só ADMIN (§pedido do cliente 2026-08-18, mesmo espírito de `semMulta` em
+ * confirmarPagamentosEmLoteAction). Secretaria continua a poder ver que a multa está pendente,
+ * só não a consegue marcar como paga isoladamente — só junto com uma mensalidade, como sempre.
+ */
+export function podePagarMultaAvulsa(user: CapabilityUser): boolean {
+  return user.role === "ADMIN";
+}
+
+/**
  * Documentos do aluno (§pedido do cliente 2026-08-18): é a SECRETARIA quem recebe o documento
  * em mão do aluno, e o DAAC quem depois o consulta/usa academicamente — partilhado entre os dois,
  * ao contrário do resto do domínio académico (podeGerirCurriculo), que continua exclusivo do DAAC.
@@ -115,6 +125,10 @@ export function requireGerirDocumentos(): Promise<SessionComUser> {
 
 export function requireRegistarPagamento(): Promise<SessionComUser> {
   return requireCapacidade(podeRegistarPagamento);
+}
+
+export function requirePagarMultaAvulsa(): Promise<SessionComUser> {
+  return requireCapacidade(podePagarMultaAvulsa);
 }
 
 export function requireGerirFrequencia(): Promise<SessionComUser> {
