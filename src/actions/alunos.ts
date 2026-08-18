@@ -11,6 +11,7 @@ import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores } from "@/lib/forms";
 import { podeRegistarPagamento, requireGerirContas } from "@/lib/permissions";
 import { sincronizarInscricoesTurma } from "@/lib/curriculo";
+import { gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { getAgora } from "@/lib/tempo";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 
@@ -97,8 +98,9 @@ export async function createAlunoAction(
   const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
 
   let alunoId: string;
+  let matriculaId: string;
   try {
-    const aluno = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx) => {
       const novoAluno = await tx.aluno.create({
         data: {
           numeroEstudante,
@@ -126,19 +128,34 @@ export async function createAlunoAction(
         },
       });
 
-      await tx.matricula.create({
+      const novaMatricula = await tx.matricula.create({
         data: { alunoId: novoAluno.id, turmaId: turma.id, status: "ATIVA" },
       });
 
-      return novoAluno;
+      return { aluno: novoAluno, matricula: novaMatricula };
     });
-    alunoId = aluno.id;
+    alunoId = resultado.aluno.id;
+    matriculaId = resultado.matricula.id;
   } catch {
     return {
       error: "Não foi possível criar o aluno (email já registado?).",
       values: extrairValores(formData, CAMPOS_ALUNO),
     };
   }
+
+  // Pré-gera as mensalidades do resto do ano letivo, a partir do mês de entrada (nunca meses
+  // anteriores à própria matrícula) — mesma capacidade de "pagar em avanço" da rematrícula
+  // (§pedido do cliente 2026-08-18), agora também para aluno novo, não só quem já estava no sistema.
+  await gerarPropinasAnoLetivo({
+    alunoId,
+    matriculaId,
+    categoria: parsed.data.categoria,
+    anoCurricular: turma.anoCurricular,
+    cadeirasReprovadas: 0,
+    anoLetivoAlvo: turma.anoLetivo,
+    configAcademica,
+    aPartirDoMes: agora,
+  });
 
   // Inscreve o aluno em todas as cadeiras curriculares já oferecidas pela turma (§4.2).
   await sincronizarInscricoesTurma(turma.id);

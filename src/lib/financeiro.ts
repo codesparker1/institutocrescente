@@ -46,6 +46,74 @@ export function calcularValorPropina(valorBase: number, cadeirasReprovadas: numb
   return { valorDevido, descricao };
 }
 
+export interface GerarPropinasAnoLetivoParams {
+  alunoId: string;
+  matriculaId: string;
+  categoria: CategoriaEstudante;
+  anoCurricular: number;
+  cadeirasReprovadas: number;
+  anoLetivoAlvo: number;
+  configAcademica: { anoLetivoInicio: Date | null; anoLetivoFim: Date | null };
+  /** A partir de que mês começar a gerar (ex.: mês de ingresso de um aluno novo a meio do ciclo) —
+   * omitido usa o início do ciclo inteiro (caso da rematrícula, que começa sempre no 1º mês). */
+  aPartirDoMes?: Date;
+}
+
+/**
+ * Pré-gera todas as mensalidades do ano letivo alvo assim que o aluno entra numa turma — seja por
+ * rematrícula (processarRematriculaAction) ou por matrícula nova (createAlunoAction) — em vez de
+ * esperar que garantirCobrancasGeradas as vá criando uma a uma, mês a mês, à medida que o tempo
+ * passa (§pedido do cliente 2026-08-18: "capacidade de pagar meses em avanço"). A multa continua
+ * exatamente como estava: só nasce quando um mês já gerado passa a sua própria data de vencimento
+ * (gerarCobrancasDoDia, geração diária) — esta função nunca cria multa, só propinas.
+ * Sem `anoLetivoInicio`/`anoLetivoFim` configurados, ou sem PrecoPropina para a combinação, não
+ * bloqueia a matrícula/rematrícula — cai de volta na geração diária normal, mês a mês.
+ */
+export async function gerarPropinasAnoLetivo(params: GerarPropinasAnoLetivoParams): Promise<void> {
+  const { alunoId, matriculaId, categoria, anoCurricular, cadeirasReprovadas, anoLetivoAlvo, configAcademica, aPartirDoMes } = params;
+  if (!configAcademica.anoLetivoInicio || !configAcademica.anoLetivoFim) return;
+
+  const [configFinanceira, precoPropina] = await Promise.all([
+    prisma.configuracaoFinanceira.findUnique({ where: { id: "config" } }),
+    prisma.precoPropina.findUnique({ where: { categoria_anoCurricular: { categoria, anoCurricular } } }),
+  ]);
+  if (!precoPropina) return;
+
+  const diaVencimento = configFinanceira?.diaVencimento ?? 10;
+  const percentagemAgravamentoPorCadeira = Number(configFinanceira?.percentagemAgravamentoPorCadeira ?? 0);
+  const { valorDevido, descricao } = calcularValorPropina(Number(precoPropina.valor), cadeirasReprovadas, percentagemAgravamentoPorCadeira);
+
+  // Âncora a forma do ciclo (ex.: Setembro a Julho) configurada em anoLetivoInicio/Fim ao ano
+  // letivo alvo real — Turma.anoLetivo é sempre o ano civil em que o ciclo começa.
+  const mesInicio = configAcademica.anoLetivoInicio.getMonth();
+  const mesFim = configAcademica.anoLetivoFim.getMonth();
+  const inicioCicloCompleto = new Date(anoLetivoAlvo, mesInicio, 1);
+  const anoCivilFim = mesFim < mesInicio ? anoLetivoAlvo + 1 : anoLetivoAlvo;
+  const fimCiclo = new Date(anoCivilFim, mesFim, 1);
+  // Um aluno novo a meio do ciclo só paga a partir do mês em que entra, nunca meses anteriores à
+  // sua própria matrícula — a rematrícula (sem aPartirDoMes) começa sempre no 1º mês do ciclo.
+  const inicioReal =
+    aPartirDoMes && aPartirDoMes > inicioCicloCompleto ? new Date(aPartirDoMes.getFullYear(), aPartirDoMes.getMonth(), 1) : inicioCicloCompleto;
+
+  const meses: Date[] = [];
+  for (const cursor = new Date(inicioReal); cursor <= fimCiclo; cursor.setMonth(cursor.getMonth() + 1)) {
+    meses.push(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
+  }
+
+  await prisma.cobranca.createMany({
+    data: meses.map((mesReferencia) => ({
+      matriculaId,
+      alunoId,
+      tipo: "PROPINA" as const,
+      mesReferencia,
+      descricao,
+      valorDevido,
+      dataVencimento: new Date(mesReferencia.getFullYear(), mesReferencia.getMonth(), diaVencimento),
+    })),
+    skipDuplicates: true,
+  });
+}
+
 /**
  * Gera a propina do mês corrente (para matrículas ativas sem uma) e as multas devidas por
  * propinas vencidas além da tolerância (MD §2). Corre no máximo uma vez por dia civil: reclama

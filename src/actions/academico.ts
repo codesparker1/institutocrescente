@@ -7,12 +7,11 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireGerirCurriculo, requireRegistarPagamento } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
-import { getEstadoFinanceiroAluno, calcularValorPropina } from "@/lib/financeiro";
+import { getEstadoFinanceiroAluno, gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { formatCurrency } from "@/lib/utils";
 import { decidirRematricula, cadeirasARepetir } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
-import type { CategoriaEstudante } from "@/generated/prisma/client";
 
 const ConfiguracaoAcademicaSchema = z.object({
   limiteReprovacoes: z.coerce.number("Indique o limite").int().min(0, "Mínimo 0"),
@@ -147,66 +146,6 @@ export async function alterarSemestreAction(formData: FormData): Promise<void> {
 export interface ProcessarRematriculaState {
   error?: string;
   resultado?: string;
-}
-
-interface GerarPropinasAnoLetivoParams {
-  alunoId: string;
-  matriculaId: string;
-  categoria: CategoriaEstudante;
-  anoCurricular: number;
-  cadeirasReprovadas: number;
-  anoLetivoAlvo: number;
-  configAcademica: { anoLetivoInicio: Date | null; anoLetivoFim: Date | null };
-}
-
-/**
- * Pré-gera todas as mensalidades do ano letivo alvo assim que a rematrícula é confirmada
- * (§pedido do cliente 2026-08-18: "capacidade de pagar meses em avanço") — em vez de esperar que
- * garantirCobrancasGeradas as vá criando uma a uma, mês a mês, à medida que o tempo passa. A multa
- * continua exatamente como estava: só nasce quando um mês já gerado passa a sua própria data de
- * vencimento (gerarCobrancasDoDia, geração diária) — esta função nunca cria multa, só propinas.
- * Sem `anoLetivoInicio`/`anoLetivoFim` configurados, ou sem PrecoPropina para a combinação, não
- * bloqueia a rematrícula — cai de volta na geração diária normal, mês a mês.
- */
-async function gerarPropinasAnoLetivo(params: GerarPropinasAnoLetivoParams): Promise<void> {
-  const { alunoId, matriculaId, categoria, anoCurricular, cadeirasReprovadas, anoLetivoAlvo, configAcademica } = params;
-  if (!configAcademica.anoLetivoInicio || !configAcademica.anoLetivoFim) return;
-
-  const [configFinanceira, precoPropina] = await Promise.all([
-    prisma.configuracaoFinanceira.findUnique({ where: { id: "config" } }),
-    prisma.precoPropina.findUnique({ where: { categoria_anoCurricular: { categoria, anoCurricular } } }),
-  ]);
-  if (!precoPropina) return;
-
-  const diaVencimento = configFinanceira?.diaVencimento ?? 10;
-  const percentagemAgravamentoPorCadeira = Number(configFinanceira?.percentagemAgravamentoPorCadeira ?? 0);
-  const { valorDevido, descricao } = calcularValorPropina(Number(precoPropina.valor), cadeirasReprovadas, percentagemAgravamentoPorCadeira);
-
-  // Âncora a forma do ciclo (ex.: Setembro a Julho) configurada em anoLetivoInicio/Fim ao ano
-  // letivo alvo real — Turma.anoLetivo é sempre o ano civil em que o ciclo começa.
-  const mesInicio = configAcademica.anoLetivoInicio.getMonth();
-  const mesFim = configAcademica.anoLetivoFim.getMonth();
-  const inicioCiclo = new Date(anoLetivoAlvo, mesInicio, 1);
-  const anoCivilFim = mesFim < mesInicio ? anoLetivoAlvo + 1 : anoLetivoAlvo;
-  const fimCiclo = new Date(anoCivilFim, mesFim, 1);
-
-  const meses: Date[] = [];
-  for (const cursor = new Date(inicioCiclo); cursor <= fimCiclo; cursor.setMonth(cursor.getMonth() + 1)) {
-    meses.push(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
-  }
-
-  await prisma.cobranca.createMany({
-    data: meses.map((mesReferencia) => ({
-      matriculaId,
-      alunoId,
-      tipo: "PROPINA" as const,
-      mesReferencia,
-      descricao,
-      valorDevido,
-      dataVencimento: new Date(mesReferencia.getFullYear(), mesReferencia.getMonth(), diaVencimento),
-    })),
-    skipDuplicates: true,
-  });
 }
 
 /**
