@@ -35,6 +35,7 @@ interface ResultadoMarco {
 interface ResultadoAno {
   timestamp: string;
   url: string;
+  seed?: number;
   duracaoTotalMs: number;
   completo: boolean;
   marcos: ResultadoMarco[];
@@ -117,6 +118,7 @@ function main(): void {
     "",
     `Gerado em: ${new Date().toISOString()}`,
     `Corrida: \`${path.relative(process.cwd(), corridaDir)}\``,
+    `Seed: ${resultado.seed ?? "desconhecido (corrida anterior a esta funcionalidade)"} — repete com \`--seed ${resultado.seed}\` para reproduzir exatamente a mesma amostra de professores/alunos.`,
     `Duração total: ${(resultado.duracaoTotalMs / 1000 / 60).toFixed(1)} min`,
     "",
     "## Motivos",

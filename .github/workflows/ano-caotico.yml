@@ -11,6 +11,9 @@ on:
       professores:
         description: "Contextos concorrentes de professor por marco"
         default: "3"
+      seed:
+        description: "Seed da amostragem (vazio = gera um novo, sempre registado no relatório). Usa o seed de uma corrida vermelha para a reproduzir exatamente."
+        default: ""
 
 jobs:
   ano-caotico:
@@ -85,7 +88,7 @@ jobs:
       # silenciosamente comer o orçamento todo; este aqui protege a corrida em si da mesma forma.
       - name: Simulação caótica do ano letivo (7 marcos)
         timeout-minutes: 40
-        run: npx tsx scripts/simulacao/run-ano.ts --url http://localhost:3000 --alunos "${{ inputs.alunos }}" --professores "${{ inputs.professores }}"
+        run: npx tsx scripts/simulacao/run-ano.ts --url http://localhost:3000 --alunos "${{ inputs.alunos }}" --professores "${{ inputs.professores }}" --seed "${{ inputs.seed }}"
 
       - name: Parar servidor
         if: always()

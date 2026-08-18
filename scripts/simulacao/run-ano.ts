@@ -9,15 +9,20 @@
  * precisar de centenas de browsers.
  *
  * Usage: npx tsx scripts/simulacao/run-ano.ts [--url http://localhost:3000]
- *   [--alunos 8] [--professores 3]
+ *   [--alunos 8] [--professores 3] [--seed 123456]
+ *
+ * O seed da amostragem de professores/alunos é sempre impresso e gravado em resultado-ano.json
+ * — sem `--seed`, um é gerado e registado; com `--seed`, uma corrida vermelha reproduz-se
+ * exatamente (mesmos professores/alunos amostrados) em vez de se tornar um alvo móvel.
  */
 import "dotenv/config";
 import dotenv from "dotenv";
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { garantirNaoENeon } from "../lib/guardarNeon";
+import { gerarSeed } from "../lib/rng";
 import { avancarRelogio } from "./relogio";
 import { escreverRelatorioAnomalias } from "./anomalias";
 import { construirMarcos, type Marco } from "./ano/marcos";
@@ -44,6 +49,7 @@ interface Args {
   url: string;
   alunos: number;
   professores: number;
+  seed?: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -52,6 +58,7 @@ function parseArgs(argv: string[]): Args {
     if (argv[i] === "--url") args.url = argv[i + 1];
     else if (argv[i] === "--alunos") args.alunos = Number(argv[i + 1]);
     else if (argv[i] === "--professores") args.professores = Number(argv[i + 1]);
+    else if (argv[i] === "--seed" && argv[i + 1]) args.seed = Number(argv[i + 1]);
   }
   return args;
 }
@@ -130,23 +137,55 @@ async function correrDiagnostico(): Promise<Violacao[]> {
 }
 
 /** Reaproveita scripts/stress/run.mjs sem alterações — só chamado nos marcos de pico. */
-function correrAutocannon(url: string, rota: string, conexoes: number): Promise<{ p50: number; p99: number; reqsPorSegundo: number; erros: number } | null> {
-  return new Promise((resolve) => {
+/**
+ * scripts/stress/run.mjs escreve o resultado real (latency.average/p99, errors, timeouts) num
+ * JSON em stress-logs/, não no stdout — o que autocannon imprime é uma tabela ASCII formatada
+ * para leitura humana, sem nenhuma das strings que um regex conseguiria apanhar de forma
+ * fiável. Um regex a caçar padrões nesse texto formatado (a versão anterior desta função) tinha
+ * sempre p50=0/p99=0 como fallback silencioso — "0ms" em todas as corridas nunca foi "sem
+ * latência", foi o canal de desempenho inteiro nunca ter medido nada. Ler o ficheiro que o
+ * próprio script já escreve é o caminho fiável.
+ */
+async function correrAutocannon(
+  url: string,
+  rota: string,
+  conexoes: number,
+): Promise<{ p50: number; p99: number; reqsPorSegundo: number; erros: number } | null> {
+  const label = `ano-${rota.replace(/\//g, "_")}`;
+  const logsDir = path.join(process.cwd(), "stress-logs");
+  const antes = new Set(existsSync(logsDir) ? readdirSync(logsDir) : []);
+
+  const sucesso = await new Promise<boolean>((resolve) => {
     const proc = spawn(
       "node",
-      ["scripts/stress/run.mjs", "--url", url, "--path", rota, "--role", "secretaria", "--connections", String(conexoes), "--duration", "20", "--label", `ano-${rota.replace(/\//g, "_")}`],
-      { cwd: process.cwd() },
+      ["scripts/stress/run.mjs", "--url", url, "--path", rota, "--role", "secretaria", "--connections", String(conexoes), "--duration", "20", "--label", label],
+      { cwd: process.cwd(), stdio: "ignore" },
     );
-    let saida = "";
-    proc.stdout.on("data", (d) => (saida += d.toString()));
-    proc.stderr.on("data", (d) => (saida += d.toString()));
-    proc.on("close", () => {
-      const p50 = Number(saida.match(/latency\(avg ms\)=(\d+(\.\d+)?)/)?.[1] ?? saida.match(/Avg\s+([\d.]+)/)?.[1] ?? 0);
-      const p99Match = saida.match(/p99\D+(\d+(\.\d+)?)/i);
-      resolve({ p50, p99: Number(p99Match?.[1] ?? p50), reqsPorSegundo: 0, erros: /erro|error/i.test(saida) && !/erros=0/.test(saida) ? 1 : 0 });
-    });
-    proc.on("error", () => resolve(null));
+    proc.on("close", (code) => resolve(code === 0));
+    proc.on("error", () => resolve(false));
   });
+  if (!sucesso) return null;
+
+  const novoFicheiro = existsSync(logsDir)
+    ? readdirSync(logsDir)
+        .filter((f) => f.endsWith(`_${label}.json`) && !antes.has(f))
+        .sort()
+        .at(-1)
+    : undefined;
+  if (!novoFicheiro) return null;
+
+  try {
+    const conteudo = JSON.parse(readFileSync(path.join(logsDir, novoFicheiro), "utf-8"));
+    const result = conteudo.result;
+    return {
+      p50: Math.round(result.latency.average),
+      p99: Math.round(result.latency.p99),
+      reqsPorSegundo: Math.round(result.requests.average),
+      erros: (result.errors ?? 0) + (result.timeouts ?? 0),
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function correrOndaCalma(
@@ -184,13 +223,15 @@ async function correrOndaCalma(
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  const seed = args.seed ?? gerarSeed();
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `ano-${Date.now()}`);
   mkdirSync(outputDir, { recursive: true });
 
+  console.log(`Seed desta corrida: ${seed} (repete com --seed ${seed} para reproduzir exatamente a mesma amostra de professores/alunos)`);
   console.log("A ler configuração académica e contexto seedado...");
   const configAcademica = await lerConfigAcademica();
   const alvos = await resolverAlvos();
-  const contexto = await getContextoSimulacao({ professores: args.professores, alunos: args.alunos });
+  const contexto = await getContextoSimulacao({ professores: args.professores, alunos: args.alunos, seed });
   await disconnect();
 
   const marcos = construirMarcos(configAcademica);
@@ -332,7 +373,7 @@ async function main(): Promise<void> {
     writeFileSync(
       path.join(outputDir, "resultado-ano.json"),
       JSON.stringify(
-        { timestamp: new Date().toISOString(), url: args.url, duracaoTotalMs: duracaoParcialMs, completo: false, marcos: resultados, estimativaCusto: estimarCusto({ duracaoTotalMs: duracaoParcialMs, pedidos: pedidosParaCusto }) },
+        { timestamp: new Date().toISOString(), url: args.url, seed, duracaoTotalMs: duracaoParcialMs, completo: false, marcos: resultados, estimativaCusto: estimarCusto({ duracaoTotalMs: duracaoParcialMs, pedidos: pedidosParaCusto }) },
         null,
         2,
       ),
@@ -347,10 +388,10 @@ async function main(): Promise<void> {
 
   writeFileSync(
     path.join(outputDir, "resultado-ano.json"),
-    JSON.stringify({ timestamp: new Date().toISOString(), url: args.url, duracaoTotalMs, completo: true, marcos: resultados, estimativaCusto }, null, 2),
+    JSON.stringify({ timestamp: new Date().toISOString(), url: args.url, seed, duracaoTotalMs, completo: true, marcos: resultados, estimativaCusto }, null, 2),
   );
 
-  console.log(`\nSimulação do ano concluída em ${(duracaoTotalMs / 1000 / 60).toFixed(1)} min.`);
+  console.log(`\nSimulação do ano concluída em ${(duracaoTotalMs / 1000 / 60).toFixed(1)} min. Seed: ${seed}`);
   console.log(`Saída completa em: ${outputDir}`);
   await prisma.$disconnect();
 }

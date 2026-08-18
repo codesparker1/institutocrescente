@@ -165,11 +165,30 @@ async function main(): Promise<void> {
     semestre: number;
     sala: string;
   }[] = [];
+
+  // Reserva DELIBERADA, não acidente de aritmética: um round-robin sequencial (profIndex sem
+  // dar wrap) deixava sempre os últimos ~16 professores sem nenhuma disciplina, sem ninguém ter
+  // decidido isso — e corrigir isso "distribuindo melhor" apagaria a única cobertura que a
+  // simulação tinha do estado real "professor sem atribuição este semestre" (entre projetos,
+  // contratado mas sem horário fechado, licença — acontece sempre nalgum semestre real). Em vez
+  // disso: calcula quantos slots de turma-disciplina existem, reserva exatamente os professores
+  // a mais como este fixture documentado, e garante que TODOS os restantes ficam cobertos (não
+  // só os primeiros 84 por acidente de array).
+  const totalSlots = turmas.reduce(
+    (soma, turma) => soma + cadeiras.filter((c) => c.cursoId === turma.cursoId && c.anoCurricular === turma.anoCurricular).length,
+    0,
+  );
+  const nSemAtribuicao = Math.max(0, professores.length - totalSlots);
+  const professoresAtivos = nSemAtribuicao > 0 ? professores.slice(0, professores.length - nSemAtribuicao) : professores;
+  console.log(
+    `  ${nSemAtribuicao} professor(es) deliberadamente sem disciplina atribuída este semestre (fixture do estado real "sem atribuição", não acidente).`,
+  );
+
   let profIndex = 0;
   for (const turma of turmas) {
     const cadeirasDoAno = cadeiras.filter((c) => c.cursoId === turma.cursoId && c.anoCurricular === turma.anoCurricular);
     for (const cadeira of cadeirasDoAno) {
-      const professor = professores[profIndex % professores.length];
+      const professor = professoresAtivos[profIndex % professoresAtivos.length];
       profIndex += 1;
       turmaDisciplinas.push({
         id: id(),

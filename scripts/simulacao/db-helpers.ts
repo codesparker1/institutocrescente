@@ -10,6 +10,7 @@ import "dotenv/config";
 import dotenv from "dotenv";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { criarRng, type Rng } from "../lib/rng";
 
 dotenv.config({ path: ".env.local", override: true });
 
@@ -31,10 +32,10 @@ export interface ContextoSimulacao {
   alunos: CredencialAgente[];
 }
 
-function amostraAleatoria<T>(items: T[], quantidade: number): T[] {
+function amostraAleatoria<T>(items: T[], quantidade: number, rng: Rng): T[] {
   const copia = [...items];
   for (let i = copia.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng.next() * (i + 1));
     [copia[i], copia[j]] = [copia[j], copia[i]];
   }
   return copia.slice(0, quantidade);
@@ -47,9 +48,15 @@ function amostraAleatoria<T>(items: T[], quantidade: number): T[] {
  * corridas repetidas. Reaproveitar contas seedadas (em vez de criar novas via "Nova Matrícula")
  * porque já têm matrícula/inscrições/histórico coerentes; a simulação testa o que acontece a
  * partir daí, não repete a Fase 0 de admissão.
+ *
+ * `seed` é obrigatório aqui de propósito — quem chama (run-ano.ts/run-grande.ts) escolhe e
+ * REGISTA o seed usado. Uma amostra aleatória não-reproduzível significa que uma corrida "verde"
+ * pode simplesmente não ter tocado no caminho que falhou da última vez, e uma corrida "vermelha"
+ * não dá para reproduzir sem adivinhar de novo.
  */
-export async function getContextoSimulacao(opts: { professores?: number; alunos?: number } = {}): Promise<ContextoSimulacao> {
-  const { professores: nProfessores = 2, alunos: nAlunos = 10 } = opts;
+export async function getContextoSimulacao(opts: { professores?: number; alunos?: number; seed: number }): Promise<ContextoSimulacao> {
+  const { professores: nProfessores = 2, alunos: nAlunos = 10, seed } = opts;
+  const rng = criarRng(seed);
   const [admin, secretaria, daac, todosProfessores, todosAlunos] = await Promise.all([
     prisma.user.findFirstOrThrow({ where: { role: "ADMIN" }, select: { email: true } }),
     prisma.user.findFirstOrThrow({ where: { role: "SECRETARIA" }, select: { email: true } }),
@@ -61,8 +68,8 @@ export async function getContextoSimulacao(opts: { professores?: number; alunos?
   if (todosProfessores.length < nProfessores) throw new Error(`Precisa de pelo menos ${nProfessores} professores seedados — corre o seed primeiro.`);
   if (todosAlunos.length < nAlunos) throw new Error(`Precisa de pelo menos ${nAlunos} alunos seedados — corre o seed primeiro.`);
 
-  const professores = amostraAleatoria(todosProfessores, nProfessores);
-  const alunos = amostraAleatoria(todosAlunos, nAlunos);
+  const professores = amostraAleatoria(todosProfessores, nProfessores, rng);
+  const alunos = amostraAleatoria(todosAlunos, nAlunos, rng);
 
   const semEmail = (label: string) => {
     throw new Error(`Conta de ${label} sem email — corre o seed primeiro.`);

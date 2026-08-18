@@ -18,6 +18,7 @@ import { chromium } from "playwright";
 import path from "node:path";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { garantirNaoENeon } from "../lib/guardarNeon";
+import { gerarSeed } from "../lib/rng";
 import { avancarRelogio } from "./relogio";
 import { escreverRelatorioAnomalias } from "./anomalias";
 import { visitarComoAluno } from "./agentes/aluno";
@@ -41,6 +42,7 @@ interface Args {
   secretarias: number;
   admins: number;
   daac: number;
+  seed?: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -54,6 +56,7 @@ function parseArgs(argv: string[]): Args {
     else if (chave === "--secretarias") args.secretarias = Number(valor);
     else if (chave === "--admins") args.admins = Number(valor);
     else if (chave === "--daac") args.daac = Number(valor);
+    else if (chave === "--seed") args.seed = Number(valor);
   }
   return args;
 }
@@ -122,11 +125,12 @@ async function main(): Promise<void> {
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `grande-${Date.now()}`);
   mkdirSync(outputDir, { recursive: true });
 
+  const seed = args.seed ?? gerarSeed();
   console.log(
-    `Contexto: ${args.alunos} alunos, ${args.professores} professores, ${args.secretarias} secretaria(s), ${args.admins} admin(s), ${args.daac} daac — ${args.alunos + args.professores + args.secretarias + args.admins + args.daac} contextos concorrentes.`,
+    `Contexto: ${args.alunos} alunos, ${args.professores} professores, ${args.secretarias} secretaria(s), ${args.admins} admin(s), ${args.daac} daac — ${args.alunos + args.professores + args.secretarias + args.admins + args.daac} contextos concorrentes. Seed: ${seed} (--seed ${seed} para reproduzir).`,
   );
   console.log("A ler contexto seedado...");
-  const contexto = await getContextoSimulacao({ professores: args.professores, alunos: args.alunos });
+  const contexto = await getContextoSimulacao({ professores: args.professores, alunos: args.alunos, seed });
   await disconnect();
 
   console.log("Relógio simulado: 15 de Setembro de 2026 (início do ano letivo).");
@@ -190,6 +194,7 @@ async function main(): Promise<void> {
   const resumo = {
     timestamp: new Date().toISOString(),
     url: args.url,
+    seed,
     totalAgentes: resultados.length,
     duracaoTotalMs,
     agentes: resultados.map(({ papel, ok, duracaoMs, erro }) => ({ papel, ok, duracaoMs, erro })),

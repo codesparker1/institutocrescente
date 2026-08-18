@@ -17,6 +17,7 @@ import { visitarComoSecretaria } from "./agentes/secretaria";
 import { visitarComoAdmin } from "./agentes/admin";
 import { visitarComoDaac } from "./agentes/daac";
 import { getContextoSimulacao, disconnect } from "./db-helpers";
+import { gerarSeed } from "../lib/rng";
 import { diagnosticarTodos, type AlunoParaDiagnostico } from "../../src/lib/diagnostico";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -76,8 +77,9 @@ async function main() {
   const { url } = parseArgs(process.argv.slice(2));
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `pequeno-${Date.now()}`);
 
-  console.log("A ler contexto seedado...");
-  const contexto = await getContextoSimulacao();
+  const seed = gerarSeed();
+  console.log(`A ler contexto seedado... (seed: ${seed})`);
+  const contexto = await getContextoSimulacao({ seed });
   await disconnect();
 
   console.log(`Relógio simulado: 15 de Setembro de 2026 (início do ano letivo).`);
