@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { podeRegistarPagamento } from "@/lib/permissions";
 import { formatDate, parseIntParam } from "@/lib/utils";
 import type { AlunoStatus, CategoriaEstudante, Prisma } from "@/generated/prisma/client";
 
@@ -38,6 +40,11 @@ interface AlunosPageProps {
 export default async function AlunosPage({ searchParams }: AlunosPageProps) {
   const { q, curso, ano, periodo, pagina } = await searchParams;
   const paginaAtual = Math.max(1, parseIntParam(pagina) ?? 1);
+
+  const session = await auth();
+  // Nova matrícula é domínio financeiro/secretaria (createAlunoAction exige podeRegistarPagamento)
+  // — escondido do DAAC para não mostrar um botão que leva sempre a "sem permissão".
+  const podeMatricular = session?.user ? podeRegistarPagamento(session.user) : false;
 
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
 
@@ -88,12 +95,14 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
           <h1 className="text-xl font-bold text-navy-900">Gestão de Matrícula</h1>
           <p className="text-sm text-navy-400">Matrículas e gestão do percurso académico.</p>
         </div>
-        <Link href="/alunos/novo">
-          <Button variant="primary">
-            <Plus size={16} />
-            Nova matrícula
-          </Button>
-        </Link>
+        {podeMatricular ? (
+          <Link href="/alunos/novo">
+            <Button variant="primary">
+              <Plus size={16} />
+              Nova matrícula
+            </Button>
+          </Link>
+        ) : null}
       </div>
 
       <Card>

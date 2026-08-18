@@ -13,6 +13,9 @@ import { CategoriaEstudanteForm } from "@/components/alunos/CategoriaEstudanteFo
 import { RepeticaoForm } from "@/components/alunos/RepeticaoForm";
 import { RematriculaForm } from "@/components/alunos/RematriculaForm";
 import { MudarCursoForm } from "@/components/alunos/MudarCursoForm";
+import { EditarNotaHistoricaForm } from "@/components/alunos/EditarNotaHistoricaForm";
+import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
+import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { formatDate, formatCurrency, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { podeRegistarPagamento, podeGerirCurriculo } from "@/lib/permissions";
@@ -73,10 +76,20 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
     .filter((i) => i.ativa)
     .map((i) => ({ cadeiraCurricularId: i.cadeiraCurricularId, disciplinaNome: i.turmaDisciplina.disciplina.nome }));
 
+  // select, não include: RepeticaoForm (Client Component) só precisa de id/nome — Curso.valorPropina
+  // é Decimal e o Next.js recusa-se a serializar Decimal ao passar de Server para Client Component
+  // (mesmo cuidado já aplicado a outrosCursos/MudarCursoForm, mais abaixo). Ficou latente até agora
+  // porque só DAAC/ADMIN chegam aqui (podeRepetir) e o DAAC só ganhou acesso a /alunos hoje.
   const ofertas = podeRepetir
     ? await prisma.turmaDisciplina.findMany({
         where: { cadeiraCurricularId: { in: cadeirasAtivas.map((c) => c.cadeiraCurricularId) } },
-        include: { turma: { include: { curso: true } }, professor: true, disciplina: true },
+        select: {
+          id: true,
+          cadeiraCurricularId: true,
+          disciplina: { select: { nome: true } },
+          professor: { select: { nome: true } },
+          turma: { select: { anoCurricular: true, curso: { select: { nome: true } } } },
+        },
       })
     : [];
 
@@ -113,6 +126,31 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
     include: { registadoPor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
+
+  // Aproveitamento de cadeiras de outra instituição (aluno transferido) — só cadeiras do curso do
+  // aluno que ainda não têm nenhuma InscricaoCadeira (qualquer tentativa), para não duplicar.
+  const cadeirasJaInscritas = new Set(inscricoes.map((i) => i.cadeiraCurricularId));
+  const cadeirasDisponiveisParaCreditar = podeRepetir
+    ? (
+        await prisma.cadeiraCurricular.findMany({
+          where: { curso: { nome: aluno.curso } },
+          include: { disciplina: true },
+          orderBy: [{ anoCurricular: "asc" }, { disciplina: { nome: "asc" } }],
+        })
+      )
+        .filter((c) => !cadeirasJaInscritas.has(c.id))
+        .map((c) => ({ id: c.id, disciplinaNome: c.disciplina.nome, anoCurricular: c.anoCurricular }))
+    : [];
+
+  // Documentos administrativos anexados pelo DAAC (certificado de transferência, BI, etc.) —
+  // backlog simples, só visível a quem gere o domínio académico.
+  const documentos = podeRepetir
+    ? await prisma.documentoAluno.findMany({
+        where: { alunoId: aluno.id },
+        include: { carregadoPor: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -206,10 +244,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       ) : null}
 
       <Disclosure title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`}>
-        {inscricoes.length === 0 ? (
-          <EmptyState message="Sem cadeiras inscritas." />
-        ) : (
-          <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
+          {inscricoes.length === 0 ? (
+            <EmptyState message="Sem cadeiras inscritas." />
+          ) : (
             <Table>
               <Thead>
                 <tr>
@@ -225,7 +263,17 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
               <Tbody>
                 {inscricoes.map((inscricao) => (
                   <Tr key={inscricao.id}>
-                    <Td className="font-medium text-navy-900">{inscricao.turmaDisciplina.disciplina.nome}</Td>
+                    <Td className="font-medium text-navy-900">
+                      {inscricao.turmaDisciplina.disciplina.nome}
+                      {inscricao.creditada ? (
+                        <span
+                          className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                          title={inscricao.instituicaoOrigemCreditado ?? undefined}
+                        >
+                          Creditado
+                        </span>
+                      ) : null}
+                    </Td>
                     <Td>
                       {inscricao.turmaDisciplina.turma.curso.nome} · {inscricao.turmaDisciplina.turma.anoCurricular}º Ano
                     </Td>
@@ -236,26 +284,56 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                       <Badge tone={inscricao.ativa ? "success" : "neutral"}>{inscricao.ativa ? "Ativa" : "Anterior"}</Badge>
                     </Td>
                     <Td>
-                      {inscricao.notas.length === 0
-                        ? "—"
-                        : inscricao.notas.map((n) => `${EPOCA_LABEL[n.avaliacao.epoca]}: ${n.valor}`).join(" · ")}
+                      <div className="flex flex-col items-start gap-1">
+                        <span>
+                          {inscricao.notas.length === 0
+                            ? "—"
+                            : inscricao.notas.map((n) => `${EPOCA_LABEL[n.avaliacao.epoca]}: ${n.valor}`).join(" · ")}
+                        </span>
+                        {podeRepetir ? (
+                          <EditarNotaHistoricaForm
+                            inscricaoCadeiraId={inscricao.id}
+                            notasAtuais={Object.fromEntries(
+                              inscricao.notas.map((n) => [
+                                { P1: "p1", P2: "p2", EXAME: "exame", RECURSO: "recurso", EXAME_ESPECIAL: "exameEspecial" }[n.avaliacao.epoca],
+                                Number(n.valor),
+                              ]),
+                            )}
+                          />
+                        ) : null}
+                      </div>
                     </Td>
                   </Tr>
                 ))}
               </Tbody>
             </Table>
+          )}
 
-            {podeRepetir && cadeirasAtivas.length > 0 ? (
-              <div className="border-t border-navy-50 pt-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
-                  Inscrever numa nova tentativa (repetição)
-                </p>
-                <RepeticaoForm alunoId={aluno.id} cadeirasAtivas={cadeirasAtivas} ofertas={ofertas} />
-              </div>
-            ) : null}
-          </div>
-        )}
+          {podeRepetir && cadeirasAtivas.length > 0 ? (
+            <div className="border-t border-navy-50 pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+                Inscrever numa nova tentativa (repetição)
+              </p>
+              <RepeticaoForm alunoId={aluno.id} cadeirasAtivas={cadeirasAtivas} ofertas={ofertas} />
+            </div>
+          ) : null}
+
+          {podeRepetir ? (
+            <div className="border-t border-navy-50 pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+                Aproveitamento (aluno transferido)
+              </p>
+              <CreditarCadeiraForm alunoId={aluno.id} cadeirasDisponiveis={cadeirasDisponiveisParaCreditar} />
+            </div>
+          ) : null}
+        </div>
       </Disclosure>
+
+      {podeRepetir ? (
+        <Disclosure title="Documentos" subtitle={`${documentos.length} documento(s)`}>
+          <DocumentosAlunoCard alunoId={aluno.id} documentos={documentos} />
+        </Disclosure>
+      ) : null}
 
       <Disclosure title="Histórico de Pagamentos" subtitle={`${cobrancas.length} registo(s)`}>
         {cobrancas.length === 0 ? (

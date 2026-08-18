@@ -13,7 +13,11 @@ const ROLE_HOME: Record<string, string> = {
 };
 
 const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
-  { prefix: "/alunos", roles: ["ADMIN", "SECRETARIA"] },
+  // DAAC entrou aqui a 2026-08-18 (esquecido no pedido original de aproveitamento/histórico/
+  // documentos — sem isto nenhuma dessa funcionalidade era alcançável pelo DAAC). Vê a ficha do
+  // aluno em modo leitura no financeiro (podeRegistarPagamento continua ADMIN/SECRETARIA só, ver
+  // src/lib/permissions.ts) — a separação de domínio continua a viver aí, não aqui.
+  { prefix: "/alunos", roles: ["ADMIN", "SECRETARIA", "DAAC"] },
   // Mais específicos primeiro — contas de staff e configuração financeira geral não são domínio
   // do DAAC, ao contrário do resto de /admin (currículo, cursos, turmas, emolumentos), que
   // podeGerirCurriculo já autoriza ao nível da Server Action (src/lib/permissions.ts).

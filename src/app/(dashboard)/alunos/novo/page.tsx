@@ -1,10 +1,16 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { podeRegistarPagamento } from "@/lib/permissions";
 import { turmaLabel } from "@/lib/utils";
 import { NovoAlunoForm } from "./NovoAlunoForm";
 
 export default async function NovoAlunoPage() {
+  const session = await auth();
+  if (!session?.user || !podeRegistarPagamento(session.user)) redirect("/alunos");
+
   const turmas = await prisma.turma.findMany({
     include: { curso: true },
     orderBy: [{ anoLetivo: "desc" }, { curso: { nome: "asc" } }, { anoCurricular: "asc" }],

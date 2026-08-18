@@ -119,7 +119,10 @@ function ProfessorNav() {
   );
 }
 
-// Domínio do DAAC (§3): currículo, horário/provas e notas — sem Alunos nem Financeiro.
+// Domínio do DAAC (§3): currículo, horário/provas e notas, mais Gestão de Estudante (2026-08-18 —
+// esquecido no pedido original de aproveitamento/histórico/documentos, sem isto inalcançável).
+// Continua sem Financeiro: /alunos mostra a Situação Financeira em modo leitura só
+// (podeRegistarPagamento continua ADMIN/SECRETARIA só, ver src/lib/permissions.ts).
 function DaacNav() {
   return (
     <>
@@ -138,6 +141,7 @@ function DaacNav() {
       />
       <NavItem href="/horario" label="Horário e Provas" icon={<CalendarClock size={18} />} />
       <NavItem href="/notas" label="Notas e Frequência" icon={<GraduationCap size={18} />} />
+      <NavItem href="/alunos" label="Gestão de Estudante" icon={<Users size={18} />} />
     </>
   );
 }

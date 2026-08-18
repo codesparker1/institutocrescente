@@ -409,6 +409,81 @@ async function main(): Promise<void> {
   ];
   await prisma.user.createMany({ data: staffUsers });
 
+  const daacUser = staffUsers.find((u) => u.role === "DAAC")!;
+
+  // Aproveitamento de cadeiras de outra instituição + documentos anexados (§pergunta do cliente
+  // 2026-08-18) — mesmo espírito do fixture de professores sem atribuição acima: uma fração
+  // pequena e DELIBERADA de "alunos transferidos", não um acidente de distribuição. Só alunos com
+  // anoCurricular > 1 são elegíveis (senão não há nenhum ano anterior para creditar); a cadeira
+  // creditada é sempre de um ano abaixo do ano atual do aluno, garantidamente ainda não coberta
+  // pelas inscrições normais (essas só cobrem as cadeiras da turma do ano corrente). Mesma técnica
+  // de creditarCadeiraAction (src/actions/notas.ts): grava a mesma nota em P1/P2/Exame para a
+  // cascata de calcularNotaFinal resolver sozinha, sem precisar de um estado novo.
+  const candidatosTransferencia = alunos.filter((a) => a.anoCurricular > 1);
+  const nTransferidos = Math.min(candidatosTransferencia.length, Math.max(5, Math.round(alunos.length * 0.02)));
+  const alunosTransferidos = candidatosTransferencia.slice(0, nTransferidos);
+  console.log(`  ${nTransferidos} aluno(s) deliberadamente marcados como "transferidos" (fixture de aproveitamento/documentos, não acidente).`);
+
+  const turmaDisciplinaPorCadeira = new Map(turmaDisciplinas.map((td) => [td.cadeiraCurricularId, td]));
+  const INSTITUICOES_ORIGEM = ["Universidade Metodista de Angola", "Universidade Óscar Ribas", "Instituto Superior Técnico de Angola"];
+
+  const inscricoesCreditadas: {
+    id: string;
+    alunoId: string;
+    cadeiraCurricularId: string;
+    turmaDisciplinaId: string;
+    tentativa: number;
+    ativa: boolean;
+    permiteDispensaAplicada: boolean;
+    notaMinimaDispensaAplicada: number;
+    creditada: boolean;
+    instituicaoOrigemCreditado: string;
+  }[] = [];
+  const notasCreditadas: typeof notas = [];
+  const documentosAluno: { id: string; alunoId: string; nome: string; blobUrl: string; blobPathname: string; tamanhoBytes: number; tipoMime: string; carregadoPorId: string }[] = [];
+
+  for (const aluno of alunosTransferidos) {
+    const cadeiraAnterior = pick(cadeiras.filter((c) => c.cursoId === aluno.cursoId && c.anoCurricular < aluno.anoCurricular));
+    const turmaDisciplina = turmaDisciplinaPorCadeira.get(cadeiraAnterior.id);
+    if (!turmaDisciplina) continue;
+
+    const inscricaoId = id();
+    inscricoesCreditadas.push({
+      id: inscricaoId,
+      alunoId: aluno.id,
+      cadeiraCurricularId: cadeiraAnterior.id,
+      turmaDisciplinaId: turmaDisciplina.id,
+      tentativa: 1,
+      ativa: false,
+      permiteDispensaAplicada: true,
+      notaMinimaDispensaAplicada: 14,
+      creditada: true,
+      instituicaoOrigemCreditado: pick(INSTITUICOES_ORIGEM),
+    });
+
+    const notaCreditada = randomInt(14, 19);
+    for (const av of avaliacoesPorTurmaDisciplina.get(turmaDisciplina.id) ?? []) {
+      notasCreditadas.push({ id: id(), avaliacaoId: av.id, inscricaoCadeiraId: inscricaoId, valor: notaCreditada });
+    }
+
+    // blobUrl/blobPathname fictícios — este seed nunca chama o Vercel Blob (nem precisa de
+    // BLOB_READ_WRITE_TOKEN). Servem só para exercitar a listagem/contagem de documentos em
+    // escala; não abrir estes links a partir de um ambiente semeado, não há ficheiro real por trás.
+    documentosAluno.push({
+      id: id(),
+      alunoId: aluno.id,
+      nome: "Certificado de transferência",
+      blobUrl: `https://seed-fixture.local/documentos/${aluno.id}.pdf`,
+      blobPathname: `alunos/${aluno.id}/seed-certificado.pdf`,
+      tamanhoBytes: randomInt(80_000, 900_000),
+      tipoMime: "application/pdf",
+      carregadoPorId: daacUser.id,
+    });
+  }
+  await createManyEmLotes(prisma.inscricaoCadeira, inscricoesCreditadas);
+  await createManyEmLotes(prisma.nota, notasCreditadas);
+  await createManyEmLotes(prisma.documentoAluno, documentosAluno);
+
   const professorUsers = professores.filter((p) => p.id !== primeiroProfessor.id).map((p) => ({
     id: id(),
     name: p.nome,
@@ -455,6 +530,7 @@ async function main(): Promise<void> {
   console.log(`  Avaliações: ${avaliacoes.length} | Notas: ${notas.length}`);
   console.log(`  Aulas: ${aulas.length} | Frequências: ${frequencias.length}`);
   console.log(`  Cobranças: ${cobrancas.length}`);
+  console.log(`  Alunos transferidos (aproveitamento): ${inscricoesCreditadas.length} | Documentos: ${documentosAluno.length}`);
   console.log(`  Utilizadores: ${staffUsers.length + professorUsers.length + alunoUsers.length}`);
   console.log(`\nTodas as contas usam a senha: ${DEMO_PASSWORD}`);
   console.log("Atalhos: admin@ispc.ao · secretaria@ispc.ao · daac@ispc.ao · professor@ispc.ao · aluno@ispc.ao");

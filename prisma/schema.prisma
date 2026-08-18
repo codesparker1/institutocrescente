@@ -85,6 +85,7 @@ model User {
   configuracoesFinanceirasAtualizadas ConfiguracaoFinanceira[] @relation("ConfigFinanceiraAtualizadaPor")
   configuracoesAcademicasAtualizadas  ConfiguracaoAcademica[]  @relation("ConfigAcademicaAtualizadaPor")
   reclamacoes                         Reclamacao[]
+  documentosCarregados                DocumentoAluno[]         @relation("DocumentoCarregadoPor")
 }
 
 model Professor {
@@ -119,7 +120,28 @@ model Aluno {
   cobrancas   Cobranca[]
   inscricoes  InscricaoCadeira[]
   reclamacoes Reclamacao[]
+  documentos  DocumentoAluno[]
   user        User?
+}
+
+/// Documentos administrativos anexados a um aluno pelo DAAC (certificado de transferência, BI,
+/// etc.) — um "backlog" simples, sem categorias fixas por agora. Ficheiro em si vive no Vercel
+/// Blob; blobUrl nunca é exposto ao browser diretamente (documentos sensíveis) — só lido do lado
+/// do servidor pela route handler de download (src/app/api/documentos/[id]/route.tsx).
+model DocumentoAluno {
+  id             String    @id @default(cuid())
+  alunoId        String
+  aluno          Aluno     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  nome           String
+  blobUrl        String
+  blobPathname   String
+  tamanhoBytes   Int
+  tipoMime       String
+  carregadoPorId String?
+  carregadoPor   User?     @relation("DocumentoCarregadoPor", fields: [carregadoPorId], references: [id])
+  createdAt      DateTime  @default(now())
+
+  @@index([alunoId])
 }
 
 model Curso {
@@ -254,6 +276,11 @@ model InscricaoCadeira {
   /// nota já lançada é facto histórico, mudar a regra no ano seguinte não reabre contas antigas.
   permiteDispensaAplicada    Boolean
   notaMinimaDispensaAplicada Decimal           @db.Decimal(4, 2)
+  /// Aproveitamento de uma cadeira já aprovada noutra instituição (aluno transferido) — nunca
+  /// frequentada aqui. Não entra em calcularNotaFinal (P1=P2=Exame=nota creditada faz a cascata
+  /// já existente resolver sozinha); só metadado de exibição/auditoria.
+  creditada                  Boolean           @default(false)
+  instituicaoOrigemCreditado String?
 
   notas       Nota[]
   frequencias Frequencia[]
