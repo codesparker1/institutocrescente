@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { gerarSenhaTemporaria } from "@/lib/credentials";
+import { SENHA_INICIAL_PADRAO } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
@@ -307,7 +307,7 @@ export async function createProfessorAction(
     return erroDeValidacao(parsed.error, formData, CAMPOS_PROFESSOR);
   }
 
-  const senhaTemporaria = gerarSenhaTemporaria();
+  const senhaTemporaria = SENHA_INICIAL_PADRAO;
   const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
 
   let professorId: string;
@@ -360,6 +360,69 @@ export async function deleteProfessorAction(formData: FormData) {
     throw error;
   }
   revalidatePath("/admin/professores");
+}
+
+const StaffSchema = z.object({
+  nome: z.string().min(2, "Nome é obrigatório"),
+  email: z.string().email("Email inválido"),
+  role: z.enum(["DAAC", "SECRETARIA"], { message: "Papel inválido" }),
+});
+
+const CAMPOS_STAFF = ["nome", "email", "role"] as const;
+type CampoStaff = (typeof CAMPOS_STAFF)[number];
+
+export interface CreateStaffState {
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  values?: Record<CampoStaff, string>;
+  success?: {
+    nome: string;
+    email: string;
+    senhaTemporaria: string;
+  };
+}
+
+/**
+ * Cria uma conta DAAC ou Secretaria (§pedido do cliente 2026-08-18: "o admin é quem corre o
+ * espetáculo" — antes só existiam via seed, sem nenhuma ação para o ADMIN criar uma de raiz).
+ * ADMIN de propósito fora do enum aceite aqui: multiplicar contas ADMIN não foi pedido, e cada
+ * uma tem acesso total — se vier a ser preciso, é um pedido à parte.
+ */
+export async function createStaffUserAction(_prevState: CreateStaffState, formData: FormData): Promise<CreateStaffState> {
+  const session = await requireGerirContas();
+  const parsed = StaffSchema.safeParse({
+    nome: formData.get("nome"),
+    email: formData.get("email"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_STAFF);
+
+  const senhaTemporaria = SENHA_INICIAL_PADRAO;
+  const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
+
+  try {
+    await prisma.user.create({
+      data: { name: parsed.data.nome, email: parsed.data.email, passwordHash, deveTrocarSenha: true, role: parsed.data.role },
+    });
+  } catch {
+    return {
+      error: "Não foi possível criar a conta (email já registado?).",
+      values: extrairValores(formData, CAMPOS_STAFF),
+    };
+  }
+
+  await audit(session, `Criou a conta ${parsed.data.role} de ${parsed.data.nome}`, "User");
+  revalidatePath("/admin/equipa");
+
+  return { success: { nome: parsed.data.nome, email: parsed.data.email, senhaTemporaria } };
+}
+
+export async function deleteStaffUserAction(formData: FormData) {
+  const session = await requireGerirContas();
+  const id = String(formData.get("id"));
+  const staff = await prisma.user.delete({ where: { id } });
+  await audit(session, `Removeu a conta ${staff.role} de ${staff.name}`, "User", id);
+  revalidatePath("/admin/equipa");
 }
 
 const TurmaSchema = z.object({

@@ -6,12 +6,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
-import { gerarSenhaTemporaria } from "@/lib/credentials";
+import { SENHA_INICIAL_PADRAO } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores } from "@/lib/forms";
-import { podeRegistarPagamento } from "@/lib/permissions";
+import { podeRegistarPagamento, requireGerirContas } from "@/lib/permissions";
 import { sincronizarInscricoesTurma } from "@/lib/curriculo";
 import { getAgora } from "@/lib/tempo";
+import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 
 const CAMPOS_ALUNO = ["nome", "email", "telefone", "dataNascimento", "genero", "turmaId", "categoria"] as const;
 type CampoAluno = (typeof CAMPOS_ALUNO)[number];
@@ -92,7 +93,7 @@ export async function createAlunoAction(
 
   const totalAlunos = await prisma.aluno.count();
   const numeroEstudante = `ISPC${getAgora().getFullYear()}-${String(totalAlunos + 1).padStart(4, "0")}`;
-  const senhaTemporaria = gerarSenhaTemporaria();
+  const senhaTemporaria = SENHA_INICIAL_PADRAO;
   const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
 
   let alunoId: string;
@@ -225,6 +226,69 @@ export async function atualizarCategoriaEstudanteAction(
   });
 
   revalidatePath(`/alunos/${aluno.id}`);
+  revalidatePath("/alunos");
+
+  return {};
+}
+
+const AtualizarDadosPessoaisSchema = z.object({
+  alunoId: z.string().min(1),
+  nome: z.string().min(3, "Nome é obrigatório"),
+  numeroEstudante: z.string().min(3, "Nº de estudante é obrigatório"),
+});
+
+export interface AtualizarDadosPessoaisState {
+  error?: string;
+}
+
+/**
+ * Nome e nº de estudante — só ADMIN (§pedido do cliente 2026-08-18). numeroEstudante é
+ * desnormalizado em User.numeroEstudante (login por nº de estudante sem join, ver schema) e nome
+ * em User.name — os dois têm de mudar juntos, na mesma transação, senão o aluno passa a logar
+ * com um nº que já não bate certo com o que aparece na ficha, ou o nome fica dessincronizado.
+ */
+export async function atualizarDadosPessoaisAlunoAction(
+  _prevState: AtualizarDadosPessoaisState,
+  formData: FormData,
+): Promise<AtualizarDadosPessoaisState> {
+  const session = await requireGerirContas();
+  const parsed = AtualizarDadosPessoaisSchema.safeParse({
+    alunoId: formData.get("alunoId"),
+    nome: formData.get("nome"),
+    numeroEstudante: formData.get("numeroEstudante"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+  const { alunoId, nome, numeroEstudante } = parsed.data;
+
+  const alunoAntes = await prisma.aluno.findUnique({ where: { id: alunoId } });
+  if (!alunoAntes) return { error: "Aluno não encontrado." };
+
+  try {
+    await prisma.$transaction([
+      prisma.aluno.update({ where: { id: alunoId }, data: { nome, numeroEstudante } }),
+      prisma.user.updateMany({ where: { alunoId }, data: { name: nome, numeroEstudante } }),
+    ]);
+  } catch (error) {
+    if (isUniqueConstraintViolation(error)) {
+      return { error: "Já existe um aluno com este nº de estudante." };
+    }
+    throw error;
+  }
+
+  await registrarAuditoria({
+    userId: session.user.id,
+    userName: session.user.name ?? session.user.email ?? "Utilizador",
+    userRole: session.user.role,
+    action: `Alterou os dados pessoais do aluno "${alunoAntes.nome}" (${alunoAntes.numeroEstudante})`,
+    entityType: "Aluno",
+    entityId: alunoId,
+    valorAnterior: `${alunoAntes.nome} · ${alunoAntes.numeroEstudante}`,
+    valorNovo: `${nome} · ${numeroEstudante}`,
+  });
+
+  revalidatePath(`/alunos/${alunoId}`);
   revalidatePath("/alunos");
 
   return {};

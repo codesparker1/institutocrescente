@@ -49,12 +49,13 @@ export function podeRegistarPagamento(user: CapabilityUser): boolean {
 }
 
 /**
- * Pagar uma multa "órfã" (sem mensalidade correspondente no mesmo mês) sozinha, fora do lote
- * mensalidade+multa — só ADMIN (§pedido do cliente 2026-08-18, mesmo espírito de `semMulta` em
- * confirmarPagamentosEmLoteAction). Secretaria continua a poder ver que a multa está pendente,
- * só não a consegue marcar como paga isoladamente — só junto com uma mensalidade, como sempre.
+ * Alterar (confirmar/reverter) uma única propina ou multa isolada, fora do fluxo de lote de
+ * Registo de Pagamentos — só ADMIN (§pedido do cliente 2026-08-18). Cobre dois casos: a multa
+ * "órfã" (sem mensalidade correspondente no mesmo mês) e o toggle individual na ficha do aluno
+ * (Situação Financeira, /alunos/[id]) — a Secretaria continua a ver os valores, só não os
+ * consegue alterar por aqui; confirma/reverte sempre pelo lote em Registo de Pagamentos.
  */
-export function podePagarMultaAvulsa(user: CapabilityUser): boolean {
+export function podeAlterarPagamentoIndividual(user: CapabilityUser): boolean {
   return user.role === "ADMIN";
 }
 
@@ -127,8 +128,8 @@ export function requireRegistarPagamento(): Promise<SessionComUser> {
   return requireCapacidade(podeRegistarPagamento);
 }
 
-export function requirePagarMultaAvulsa(): Promise<SessionComUser> {
-  return requireCapacidade(podePagarMultaAvulsa);
+export function requireAlterarPagamentoIndividual(): Promise<SessionComUser> {
+  return requireCapacidade(podeAlterarPagamentoIndividual);
 }
 
 export function requireGerirFrequencia(): Promise<SessionComUser> {

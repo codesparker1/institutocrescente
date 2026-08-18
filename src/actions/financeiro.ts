@@ -15,7 +15,7 @@ import {
 } from "@/lib/financeiro";
 import { chaveMes } from "@/lib/utils";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
-import { requireRegistarPagamento, requireGerirContas, requirePagarMultaAvulsa } from "@/lib/permissions";
+import { requireRegistarPagamento, requireGerirContas, requireAlterarPagamentoIndividual } from "@/lib/permissions";
 import { getAgora } from "@/lib/tempo";
 
 function revalidarFinanceiro(alunoId: string) {
@@ -32,8 +32,14 @@ const TogglePropinaSchema = z.object({
   propinaId: z.string().min(1),
 });
 
+/**
+ * Toggle individual de uma propina (fora do lote de Registo de Pagamentos) — só ADMIN
+ * (§pedido do cliente 2026-08-18): é o único caminho que ainda invoca esta ação (Situação
+ * Financeira em /alunos/[id], editável só para ADMIN); a Secretaria confirma/reverte sempre
+ * pelo lote em confirmarPagamentosEmLoteAction.
+ */
 export async function togglePropinaAction(formData: FormData): Promise<{ error?: string }> {
-  const session = await requireRegistarPagamento();
+  const session = await requireAlterarPagamentoIndividual();
   const { propinaId } = TogglePropinaSchema.parse({
     propinaId: formData.get("propinaId"),
   });
@@ -149,7 +155,7 @@ const ToggleMultaSchema = z.object({
  * mas só a consegue pagar junto de uma mensalidade em confirmarPagamentosEmLoteAction, nunca isolada.
  */
 export async function toggleMultaAction(formData: FormData): Promise<{ error?: string }> {
-  const session = await requirePagarMultaAvulsa();
+  const session = await requireAlterarPagamentoIndividual();
   const { multaId } = ToggleMultaSchema.parse({ multaId: formData.get("multaId") });
 
   const multa = await prisma.cobranca.findUnique({ where: { id: multaId }, include: { aluno: true } });

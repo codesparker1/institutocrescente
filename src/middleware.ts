@@ -23,6 +23,7 @@ const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   // podeGerirCurriculo já autoriza ao nível da Server Action (src/lib/permissions.ts).
   { prefix: "/admin/professores", roles: ["ADMIN"] },
   { prefix: "/admin/financeiro", roles: ["ADMIN"] },
+  { prefix: "/admin/equipa", roles: ["ADMIN"] },
   { prefix: "/admin", roles: ["ADMIN", "DAAC"] },
   { prefix: "/auditoria", roles: ["ADMIN"] },
   { prefix: "/professor", roles: ["ADMIN", "PROFESSOR"] },

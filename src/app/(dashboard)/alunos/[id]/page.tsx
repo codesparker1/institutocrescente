@@ -16,9 +16,10 @@ import { MudarCursoForm } from "@/components/alunos/MudarCursoForm";
 import { EditarNotaHistoricaForm } from "@/components/alunos/EditarNotaHistoricaForm";
 import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
+import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
 import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
-import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos } from "@/lib/permissions";
+import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas } from "@/lib/permissions";
 import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 import type { AlunoStatus, CobrancaTipo } from "@/generated/prisma/client";
@@ -69,6 +70,12 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   const session = await auth();
   const podeEditarCategoria = session?.user ? podeRegistarPagamento(session.user) : false;
   const podeRepetir = session?.user ? podeGerirCurriculo(session.user) : false;
+  // Situação Financeira volta a ser editável aqui, mas só para ADMIN (§pedido do cliente
+  // 2026-08-18) — a Secretaria mantém-se só leitura nesta página, continua a confirmar/reverter
+  // exclusivamente pelo fluxo de Registo de Pagamentos.
+  const podeEditarFinanceiroAqui = session?.user?.role === "ADMIN";
+  // Nome/nº de estudante — só ADMIN (§pedido do cliente 2026-08-18).
+  const podeEditarDadosPessoais = session?.user ? podeGerirContas(session.user) : false;
   // Documentos é partilhado com a Secretaria (recebe em mão do aluno), ao contrário do resto
   // deste domínio académico (podeRepetir), que continua exclusivo do DAAC.
   const podeVerDocumentos = session?.user ? podeGerirDocumentos(session.user) : false;
@@ -175,6 +182,11 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           <p className="text-sm text-navy-400">
             {aluno.numeroEstudante} · {aluno.curso} · {aluno.anoCurricular}º Ano
           </p>
+          {podeEditarDadosPessoais ? (
+            <div className="mt-1">
+              <DadosPessoaisAlunoForm alunoId={aluno.id} nome={aluno.nome} numeroEstudante={aluno.numeroEstudante} />
+            </div>
+          ) : null}
         </div>
         <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
       </div>
@@ -219,14 +231,18 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       <Card>
         <CardHeader
           title="Situação Financeira"
-          subtitle={`Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)} · só leitura — confirme ou reverta pagamentos em Registo de Pagamentos`}
+          subtitle={
+            podeEditarFinanceiroAqui
+              ? `Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)}`
+              : `Dívida: ${formatCurrency(estadoFinanceiro.saldoEmDivida)} · só leitura — confirme ou reverta pagamentos em Registo de Pagamentos`
+          }
         />
         <CardBody className="flex flex-col gap-4">
-          {/* Sempre não-editável aqui, mesmo para ADMIN/SECRETARIA (§pedido do cliente
-              2026-08-18) — confirmar/reverter um pagamento é exclusivo do fluxo de Registo de
-              Pagamentos (emite recibo, respeita seleção em lote); esta ficha do aluno é só consulta. */}
-          <PropinasMensais meses={estadoFinanceiro.meses} multas={estadoFinanceiro.multas} editable={false} />
-          <MultasPendentes multas={multasOrfas} editable={false} />
+          {/* Editável só para ADMIN aqui (§pedido do cliente 2026-08-18) — a Secretaria continua
+              só-leitura, confirma/reverte exclusivamente pelo fluxo de Registo de Pagamentos
+              (emite recibo, respeita seleção em lote). */}
+          <PropinasMensais meses={estadoFinanceiro.meses} multas={estadoFinanceiro.multas} editable={podeEditarFinanceiroAqui} />
+          <MultasPendentes multas={multasOrfas} editable={podeEditarFinanceiroAqui} />
         </CardBody>
       </Card>
 

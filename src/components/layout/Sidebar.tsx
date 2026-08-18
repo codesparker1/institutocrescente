@@ -87,6 +87,7 @@ function AdminNav() {
         icon={<Users size={18} />}
         items={[
           { href: "/admin/professores", label: "Professores" },
+          { href: "/admin/equipa", label: "Equipa (DAAC/Secretaria)" },
           { href: "/alunos", label: "Gestão de Matrícula" },
         ]}
       />
