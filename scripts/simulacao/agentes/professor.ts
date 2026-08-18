@@ -67,24 +67,32 @@ async function criarAulaSeForDiaLetivo(page: Page, papel: string): Promise<boole
 }
 
 /**
- * Alterna presença dos primeiros N alunos da aula mais recente. `button[type="button"]` sem
- * escopo apanhava também o botão "Abrir menu" do Topbar (móvel, `md:hidden` — invisível no
- * viewport desktop do CI, Playwright espera 90s por ele ficar visível e nunca acontece) e,
- * mesmo escopado a `main`, o botão "Guardar alterações" do GradebookEditor (também
- * type="button", desativado sempre que não há edições pendentes — mesmo tipo de hang). Os dois
- * eram o erro real por trás de todas as falhas "professor" nesta simulação, nada a ver com
- * professores sem disciplina atribuída (só descoberto depois de parar de adivinhar e capturar a
- * mensagem de erro real). AttendanceChip.tsx é o único botão com `rounded-full` na página —
- * mais fiável do que tentar excluir cada botão-armadilha um a um.
+ * Alterna presença dos primeiros N alunos da aula mais recente. Versões anteriores usavam
+ * seletores estruturais (`button[type="button"]`, depois `main button[type="button"]`, depois
+ * `main button.rounded-full`) — cada uma apanhava por acidente outro botão desativado/invisível
+ * da página (menu do Topbar, "Guardar alterações" do GradebookEditor) e ficava presa 90s à
+ * espera dele ficar clicável, o que nunca acontecia. Isto era o erro real por trás de todas as
+ * falhas "professor" nesta simulação, nada a ver com professores sem disciplina atribuída (só
+ * descoberto depois de parar de adivinhar e capturar a mensagem de erro real). Ligar por nome
+ * acessível em vez de posição/classe CSS não parte quando alguém adiciona um botão parecido
+ * noutro sítio da página; o timeout curto + a checagem de "enabled" fazem uma falha real (botão
+ * certo mas desativado por alguma razão) rebentar em segundos com uma mensagem legível, não em
+ * 90s de silêncio.
  */
 async function marcarPresencas(page: Page, quantidade = 3): Promise<number> {
-  const chips = page.locator("main button.rounded-full");
+  const chips = page.getByRole("button", { name: "Marcar presenças" });
   const total = Math.min(quantidade, await chips.count());
+  let marcadas = 0;
   for (let i = 0; i < total; i += 1) {
-    await chips.nth(i).click();
+    const chip = chips.nth(i);
+    if (!(await chip.isEnabled({ timeout: 10000 }))) {
+      throw new Error(`marcarPresencas: chip ${i} não está clicável (desativado ou ausente) — botão errado ou estado inesperado.`);
+    }
+    await chip.click({ timeout: 10000 });
     await page.waitForTimeout(150);
+    marcadas += 1;
   }
-  return total;
+  return marcadas;
 }
 
 export interface ResultadoProfessor {

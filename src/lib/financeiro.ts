@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
 import { ehVencidoAlemDaTolerancia } from "@/lib/divida";
@@ -30,6 +31,13 @@ function inicioDoDia(data: Date): Date {
  * propinas vencidas além da tolerância (MD §2). Corre no máximo uma vez por dia civil: reclama
  * o "turno" com um updateMany condicional (0 linhas afetadas = outro request já tratou disto hoje).
  * Nunca cron horário — mataria o scale-to-zero do Neon.
+ *
+ * A geração pesada corre em `after()` (fora do request-response), não bloqueada no render do
+ * dashboard. Só o claim (um updateMany rápido) é síncrono — evita que o primeiro pedido a seguir
+ * a uma virada de dia fique preso atrás de um findMany+createMany sobre todas as matrículas
+ * ativas, e liberta a ligação à BD do pool mais depressa sob concorrência (achado na simulação de
+ * ano caótico: p99 em picos de tráfego batia sempre nos marcos com viragem de dia, nunca nos
+ * outros, e em rotas diferentes — sinal de um custo partilhado no layout, não de N+1 na rota).
  */
 export async function garantirCobrancasGeradas(): Promise<void> {
   const config = await getConfiguracaoFinanceira();
@@ -48,8 +56,12 @@ export async function garantirCobrancasGeradas(): Promise<void> {
   });
   if (reclamado.count === 0) return;
 
+  after(() => gerarCobrancasDoDia(agora, config.diaVencimento, config.toleranciaDias, Number(config.valorMulta)));
+}
+
+async function gerarCobrancasDoDia(agora: Date, diaVencimento: number, toleranciaDias: number, valorMulta: number): Promise<void> {
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
-  const dataVencimentoMes = new Date(agora.getFullYear(), agora.getMonth(), config.diaVencimento);
+  const dataVencimentoMes = new Date(agora.getFullYear(), agora.getMonth(), diaVencimento);
 
   const matriculasAtivas = await prisma.matricula.findMany({
     where: { status: "ATIVA" },
@@ -74,7 +86,7 @@ export async function garantirCobrancasGeradas(): Promise<void> {
     where: { tipo: "PROPINA", status: "PENDENTE" },
   });
   const emAtraso = propinasPendentes.filter((p) =>
-    ehVencidoAlemDaTolerancia(p.dataVencimento, config.toleranciaDias, agora),
+    ehVencidoAlemDaTolerancia(p.dataVencimento, toleranciaDias, agora),
   );
 
   if (emAtraso.length > 0) {
@@ -84,7 +96,7 @@ export async function garantirCobrancasGeradas(): Promise<void> {
         alunoId: p.alunoId,
         tipo: "MULTA" as const,
         mesReferencia: p.mesReferencia,
-        valorDevido: config.valorMulta,
+        valorDevido: valorMulta,
         dataVencimento: p.dataVencimento,
       })),
       skipDuplicates: true,

@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAgora } from "@/lib/tempo";
 import { calcularNotaFinal, extrairNotasPorEpoca, proximaEpocaPendente, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira } from "@/lib/avaliacao";
@@ -40,6 +41,14 @@ export async function garantirNotasAutomaticasPorFalta(): Promise<void> {
   });
   if (reclamado.count === 0) return;
 
+  after(() => atribuirNotasAutomaticas(agora));
+}
+
+/**
+ * Corre em `after()`, fora do request-response — ver o mesmo raciocínio em
+ * garantirCobrancasGeradas (src/lib/financeiro.ts).
+ */
+async function atribuirNotasAutomaticas(agora: Date): Promise<void> {
   const avaliacoesVencidas = await prisma.avaliacao.findMany({
     where: { prazoLancamento: { lt: agora } },
     select: { turmaDisciplinaId: true },

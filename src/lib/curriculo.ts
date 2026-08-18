@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAgora } from "@/lib/tempo";
 
@@ -128,11 +129,21 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   });
   if (reclamado.count === 0) return;
 
+  after(() => suspenderNaoRematriculados(agora, config.semestreAtual));
+}
+
+/**
+ * Corre em `after()`, fora do request-response — ver o mesmo raciocínio em
+ * garantirCobrancasGeradas (src/lib/financeiro.ts). Este findMany sobre todos os alunos ATIVO
+ * é da mesma família de custo pesado-no-dia-da-virada que causava contenção no pool de ligações
+ * sob os picos de tráfego da simulação de ano caótico.
+ */
+async function suspenderNaoRematriculados(agora: Date, semestreAtual: number): Promise<void> {
   // Passado o fim do ano letivo, um novo ano letivo começa — o semestre volta sempre a 1º, para o
   // DAAC não ter de se lembrar de o repor manualmente todos os anos. Incondicional (não depende de
   // haver alunos a suspender) e idempotente, porque este job corre uma vez por dia civil enquanto
   // a data atual continuar depois de `anoLetivoFim`.
-  if (config.semestreAtual !== 1) {
+  if (semestreAtual !== 1) {
     await prisma.configuracaoAcademica.update({ where: { id: "config" }, data: { semestreAtual: 1 } });
   }
 
