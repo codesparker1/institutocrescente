@@ -63,7 +63,7 @@ jobs:
           # contra "agora" real em vez da data simulada de cada marco.
           SIMULATION_MODE: "true"
         run: |
-          npm run start > next-start.log 2>&1 &
+          stdbuf -oL -eL npm run start > next-start.log 2>&1 &
           echo $! > server.pid
           for i in $(seq 1 60); do
             if curl -sf http://localhost:3000/login > /dev/null; then
@@ -89,7 +89,9 @@ jobs:
 
       - name: Parar servidor
         if: always()
-        run: kill "$(cat server.pid)" 2>/dev/null || true
+        run: |
+          kill "$(cat server.pid)" 2>/dev/null || true
+          sleep 2
 
       - name: Relatório por marco
         if: always()
