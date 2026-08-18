@@ -98,8 +98,11 @@ async function tentarRematriculaForaDaJanela(page: Page, baseUrl: string, alunoI
   const bloqueadoNaUi = (await avisoForaDaJanela.count()) > 0 && (await botao.count()) === 0;
   // Diagnóstico para a próxima corrida caso isto volte a falhar: sem isto, um "botão presente
   // inesperadamente" não dá para distinguir "bug real" de "a data usada não ficou mesmo fora da
-  // janela" sem voltar a correr tudo de novo.
-  const diagnostico = dataUsadaIso ? ` (relógio usado: ${dataUsadaIso})` : "";
+  // janela" sem voltar a correr tudo de novo. Lido diretamente do DOM (marcador temporário em
+  // alunos/[id]/page.tsx) — mais fiável neste workflow do que qualquer captura de log de servidor.
+  const marcador = page.locator("[data-diag-rematricula]");
+  const valoresServidor = (await marcador.count()) > 0 ? await marcador.getAttribute("data-diag-rematricula") : "marcador não encontrado";
+  const diagnostico = ` (relógio usado pelo teste: ${dataUsadaIso ?? "?"} | valores do servidor: ${valoresServidor})`;
   return {
     label: "processar rematrícula fora da janela configurada",
     esperadoRejeitado: true,

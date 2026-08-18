@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { appendFileSync } from "node:fs";
-import path from "node:path";
 import { ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -92,16 +90,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       agora <= configAcademica.matriculaFim,
   );
   // DIAGNÓSTICO TEMPORÁRIO (remover depois de explicar o achado do cost-meter sobre a janela de
-  // rematrícula) — fs.appendFileSync direto em vez de console.log: o stdout do next start sob
-  // este workflow tem-se mostrado nada fiável a chegar ao ficheiro capturado pelo CI.
-  try {
-    appendFileSync(
-      path.join(process.cwd(), "diagnostico-servidor.log"),
-      `[diag-rematricula] alunoId=${aluno.id} agora=${agora.toISOString()} matriculaInicio=${configAcademica?.matriculaInicio?.toISOString()} matriculaFim=${configAcademica?.matriculaFim?.toISOString()} dentroDaJanela=${dentroDaJanela} SIMULATION_MODE=${process.env.SIMULATION_MODE}\n`,
-    );
-  } catch {
-    // Melhor perder o diagnóstico do que partir a página por causa dele.
-  }
+  // rematrícula) — captura de logs do servidor (stdout, depois fs.appendFileSync) mostrou-se nada
+  // fiável neste workflow; em vez disso, um marcador no próprio HTML que o Playwright lê
+  // diretamente — a mesma pipeline (resultado-ano.json) que já se mostrou 100% fiável.
+  const diagRematriculaTexto = `agora=${agora.toISOString()}|matriculaInicio=${configAcademica?.matriculaInicio?.toISOString()}|matriculaFim=${configAcademica?.matriculaFim?.toISOString()}|dentroDaJanela=${dentroDaJanela}|SIMULATION_MODE=${process.env.SIMULATION_MODE}`;
   const reprovacoesAnoCorrente = inscricoes.filter((i) => {
     if (!i.ativa) return false;
     const notas = i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
@@ -202,6 +194,8 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           />
           <CardBody>
             <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} />
+            {/* DIAGNÓSTICO TEMPORÁRIO — remover depois de explicar o achado do cost-meter. */}
+            <span data-diag-rematricula={diagRematriculaTexto} style={{ display: "none" }} />
           </CardBody>
         </Card>
       ) : null}
