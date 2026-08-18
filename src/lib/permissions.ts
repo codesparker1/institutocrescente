@@ -48,6 +48,15 @@ export function podeRegistarPagamento(user: CapabilityUser): boolean {
   return user.role === "ADMIN" || user.role === "SECRETARIA";
 }
 
+/**
+ * Documentos do aluno (§pedido do cliente 2026-08-18): é a SECRETARIA quem recebe o documento
+ * em mão do aluno, e o DAAC quem depois o consulta/usa academicamente — partilhado entre os dois,
+ * ao contrário do resto do domínio académico (podeGerirCurriculo), que continua exclusivo do DAAC.
+ */
+export function podeGerirDocumentos(user: CapabilityUser): boolean {
+  return user.role === "ADMIN" || user.role === "SECRETARIA" || user.role === "DAAC";
+}
+
 /** Marcação de presenças e criação de aulas — hoje aberto a quem lecciona ou administra o dia a dia. */
 export function podeGerirFrequencia(user: CapabilityUser): boolean {
   return user.role === "ADMIN" || user.role === "SECRETARIA" || user.role === "PROFESSOR";
@@ -98,6 +107,10 @@ async function requireCapacidade(check: (user: CapabilityUser) => boolean): Prom
 
 export function requireGerirCurriculo(): Promise<SessionComUser> {
   return requireCapacidade(podeGerirCurriculo);
+}
+
+export function requireGerirDocumentos(): Promise<SessionComUser> {
+  return requireCapacidade(podeGerirDocumentos);
 }
 
 export function requireRegistarPagamento(): Promise<SessionComUser> {

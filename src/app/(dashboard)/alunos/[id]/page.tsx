@@ -18,7 +18,7 @@ import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
-import { podeRegistarPagamento, podeGerirCurriculo } from "@/lib/permissions";
+import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos } from "@/lib/permissions";
 import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 import type { AlunoStatus, CobrancaTipo } from "@/generated/prisma/client";
@@ -69,6 +69,9 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   const session = await auth();
   const podeEditarCategoria = session?.user ? podeRegistarPagamento(session.user) : false;
   const podeRepetir = session?.user ? podeGerirCurriculo(session.user) : false;
+  // Documentos é partilhado com a Secretaria (recebe em mão do aluno), ao contrário do resto
+  // deste domínio académico (podeRepetir), que continua exclusivo do DAAC.
+  const podeVerDocumentos = session?.user ? podeGerirDocumentos(session.user) : false;
   const estadoFinanceiro = await getEstadoFinanceiroAluno(aluno.id);
 
   // Multas sem mensalidade correspondente no mesmo mês ficam de fora do merge de
@@ -147,9 +150,9 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         .map((c) => ({ id: c.id, disciplinaNome: c.disciplina.nome, anoCurricular: c.anoCurricular }))
     : [];
 
-  // Documentos administrativos anexados pelo DAAC (certificado de transferência, BI, etc.) —
-  // backlog simples, só visível a quem gere o domínio académico.
-  const documentos = podeRepetir
+  // Documentos administrativos (certificado de transferência, BI, etc.) — backlog simples,
+  // partilhado entre Secretaria (recebe o documento em mão) e DAAC (consulta/usa academicamente).
+  const documentos = podeVerDocumentos
     ? await prisma.documentoAluno.findMany({
         where: { alunoId: aluno.id },
         include: { carregadoPor: { select: { name: true } } },
@@ -337,7 +340,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         </div>
       </Disclosure>
 
-      {podeRepetir ? (
+      {podeVerDocumentos ? (
         <Disclosure title="Documentos" subtitle={`${documentos.length} documento(s)`}>
           <DocumentosAlunoCard alunoId={aluno.id} documentos={documentos} />
         </Disclosure>

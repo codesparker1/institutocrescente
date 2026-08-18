@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { put, del } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requireGerirCurriculo } from "@/lib/permissions";
+import { requireGerirDocumentos } from "@/lib/permissions";
 
 const TAMANHO_MAXIMO_BYTES = 10 * 1024 * 1024;
 const TIPOS_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png"];
@@ -21,7 +21,7 @@ export interface CarregarDocumentoState {
  * (src/app/api/documentos/[id]/route.tsx), nunca embutido diretamente numa página.
  */
 export async function carregarDocumentoAlunoAction(_prevState: CarregarDocumentoState, formData: FormData): Promise<CarregarDocumentoState> {
-  const session = await requireGerirCurriculo();
+  const session = await requireGerirDocumentos();
 
   const alunoId = String(formData.get("alunoId") ?? "");
   const nome = String(formData.get("nome") ?? "").trim();
@@ -75,7 +75,7 @@ export async function carregarDocumentoAlunoAction(_prevState: CarregarDocumento
 }
 
 export async function apagarDocumentoAlunoAction(formData: FormData): Promise<void> {
-  const session = await requireGerirCurriculo();
+  const session = await requireGerirDocumentos();
   const id = String(formData.get("id") ?? "");
 
   const documento = await prisma.documentoAluno.findUniqueOrThrow({ where: { id } });

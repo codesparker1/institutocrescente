@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { podeGerirCurriculo } from "@/lib/permissions";
+import { podeGerirDocumentos } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -15,7 +15,7 @@ interface RouteParams {
  */
 export async function GET(_req: Request, { params }: RouteParams) {
   const session = await auth();
-  if (!session?.user || !podeGerirCurriculo(session.user)) {
+  if (!session?.user || !podeGerirDocumentos(session.user)) {
     return new Response("Não autorizado", { status: 403 });
   }
 
