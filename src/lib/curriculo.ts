@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAgora } from "@/lib/tempo";
+import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -129,7 +130,72 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   });
   if (reclamado.count === 0) return;
 
-  after(() => suspenderNaoRematriculados(agora, config.semestreAtual));
+  after(async () => {
+    await rolloverTurmas(agora);
+    await suspenderNaoRematriculados(agora, config.semestreAtual);
+  });
+}
+
+/**
+ * Cria a turma do ano letivo novo para cada combinação curso×ano curricular×período que já tinha
+ * turma no ano que acabou (§pedido do cliente 2026-08-18: "quando o ano letivo termina, a página
+ * de turmas atualiza automaticamente, a antiga fica só como histórico"). Sem isto,
+ * processarRematriculaAction rejeitava toda rematrícula com "crie a turma primeiro em Admin >
+ * Turmas" — alguém tinha de pré-criar cada combinação à mão antes da época de rematrícula.
+ * Copia também as TurmaDisciplina (disciplina/professor/sala) da turma antiga — decisão do
+ * cliente: nasce com a mesma grelha do ano anterior, o DAAC só corrige o que mudou, em vez de
+ * montar tudo de novo. A turma antiga nunca é tocada — fica exatamente como histórico.
+ */
+async function rolloverTurmas(agora: Date): Promise<void> {
+  const anoLetivoCorrente = agora.getFullYear();
+  const turmasAnoAnterior = await prisma.turma.findMany({
+    where: { anoLetivo: anoLetivoCorrente - 1 },
+    include: { turmaDisciplinas: true },
+  });
+
+  for (const turmaAntiga of turmasAnoAnterior) {
+    let turmaNova;
+    try {
+      turmaNova = await prisma.turma.create({
+        data: {
+          cursoId: turmaAntiga.cursoId,
+          anoCurricular: turmaAntiga.anoCurricular,
+          periodo: turmaAntiga.periodo,
+          anoLetivo: anoLetivoCorrente,
+        },
+      });
+    } catch (error) {
+      // Já rolada (corrida entre dois pedidos no mesmo dia da virada, ou reprocessamento) — só
+      // continua se a turma nova ainda não tiver nenhuma TurmaDisciplina copiada.
+      if (!isUniqueConstraintViolation(error)) throw error;
+      turmaNova = await prisma.turma.findUniqueOrThrow({
+        where: {
+          cursoId_anoCurricular_periodo_anoLetivo: {
+            cursoId: turmaAntiga.cursoId,
+            anoCurricular: turmaAntiga.anoCurricular,
+            periodo: turmaAntiga.periodo,
+            anoLetivo: anoLetivoCorrente,
+          },
+        },
+      });
+      const jaTemDisciplinas = await prisma.turmaDisciplina.findFirst({ where: { turmaId: turmaNova.id } });
+      if (jaTemDisciplinas) continue;
+    }
+
+    if (turmaAntiga.turmaDisciplinas.length > 0) {
+      await prisma.turmaDisciplina.createMany({
+        data: turmaAntiga.turmaDisciplinas.map((td) => ({
+          turmaId: turmaNova.id,
+          disciplinaId: td.disciplinaId,
+          cadeiraCurricularId: td.cadeiraCurricularId,
+          professorId: td.professorId,
+          semestre: td.semestre,
+          sala: td.sala,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  }
 }
 
 /**
