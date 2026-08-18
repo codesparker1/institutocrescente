@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { cn, formatCurrency, chaveMes } from "@/lib/utils";
 import { confirmarPagamentosEmLoteAction, registarEmolumentosEmLoteAction } from "@/actions/financeiro";
 import { PropinasMensais } from "./PropinasMensais";
+import { MultasPendentes } from "./MultasPendentes";
 import { EmolumentosPagos } from "./EmolumentosPagos";
 import type { EstadoFinanceiroAluno, EmolumentoCatalogo, EmolumentoPago } from "@/lib/financeiro";
 
@@ -64,6 +65,14 @@ export function PagamentosSecretariaPanel({
   );
   const valorPorIdEmolumento = new Map(catalogoEmolumentos.map((e) => [e.id, e.valor]));
 
+  // Multas sem mensalidade correspondente no mesmo mês (mesReferencia nulo, ou o mês da propina já
+  // não existe) ficavam invisíveis aqui — PropinasMensais só embute a multa na linha da mensalidade
+  // do mesmo mês; nunca havia nenhum outro sítio nesta página onde uma multa "órfã" aparecesse,
+  // apesar de já vir em estado.multas. Mesmo tratamento (MultasPendentes, chip individual) que já
+  // existe em /alunos/[id].
+  const mesesChaves = new Set(estado.meses.map((mes) => chaveMes(mes.mesReferencia)));
+  const multasOrfas = estado.multas.filter((m) => !m.mesReferencia || !mesesChaves.has(chaveMes(m.mesReferencia)));
+
   function toggleSelecionadoPropina(id: string) {
     setErro(null);
     setSelecionadosPropinas((atual) => {
@@ -92,47 +101,53 @@ export function PagamentosSecretariaPanel({
   function handleConfirmar() {
     setErro(null);
     startTransition(async () => {
-      const idsConfirmados: string[] = [];
+      try {
+        const idsConfirmados: string[] = [];
 
-      if (selecionadosPropinas.size > 0) {
-        // Não é preciso juntar a multa aqui: confirmarPagamentosEmLoteAction inclui-a sempre no
-        // servidor quando existir, para o mesmo mês de uma mensalidade selecionada.
-        const formData = new FormData();
-        formData.set("alunoId", alunoId);
-        selecionadosPropinas.forEach((id) => formData.append("cobrancaIds", id));
+        if (selecionadosPropinas.size > 0) {
+          // Não é preciso juntar a multa aqui: confirmarPagamentosEmLoteAction inclui-a sempre no
+          // servidor quando existir, para o mesmo mês de uma mensalidade selecionada.
+          const formData = new FormData();
+          formData.set("alunoId", alunoId);
+          selecionadosPropinas.forEach((id) => formData.append("cobrancaIds", id));
 
-        const resultado = await confirmarPagamentosEmLoteAction(formData);
-        if (resultado.error) {
-          setErro(resultado.error);
-          return;
+          const resultado = await confirmarPagamentosEmLoteAction(formData);
+          if (resultado.error) {
+            setErro(resultado.error);
+            return;
+          }
+          idsConfirmados.push(...(resultado.cobrancaIds ?? []));
         }
-        idsConfirmados.push(...(resultado.cobrancaIds ?? []));
-      }
 
-      if (selecionadosEmolumentos.size > 0) {
-        const formData = new FormData();
-        formData.set("alunoId", alunoId);
-        selecionadosEmolumentos.forEach((id) => formData.append("emolumentoIds", id));
+        if (selecionadosEmolumentos.size > 0) {
+          const formData = new FormData();
+          formData.set("alunoId", alunoId);
+          selecionadosEmolumentos.forEach((id) => formData.append("emolumentoIds", id));
 
-        const resultado = await registarEmolumentosEmLoteAction(formData);
-        if (resultado.error) {
-          // As propinas já confirmadas acima não podem ser desfeitas — emite o recibo do que
-          // já ficou pago e mostra o erro dos emolumentos, em vez de perder o registo do sucesso parcial.
-          if (idsConfirmados.length > 0) window.open(`/api/recibo?ids=${idsConfirmados.join(",")}`, "_blank");
-          setErro(resultado.error);
-          setSelecionadosPropinas(new Set());
-          onAtualizado();
-          return;
+          const resultado = await registarEmolumentosEmLoteAction(formData);
+          if (resultado.error) {
+            // As propinas já confirmadas acima não podem ser desfeitas — emite o recibo do que
+            // já ficou pago e mostra o erro dos emolumentos, em vez de perder o registo do sucesso parcial.
+            if (idsConfirmados.length > 0) window.open(`/api/recibo?ids=${idsConfirmados.join(",")}`, "_blank");
+            setErro(resultado.error);
+            setSelecionadosPropinas(new Set());
+            onAtualizado();
+            return;
+          }
+          idsConfirmados.push(...(resultado.cobrancaIds ?? []));
         }
-        idsConfirmados.push(...(resultado.cobrancaIds ?? []));
-      }
 
-      if (idsConfirmados.length > 0) {
-        window.open(`/api/recibo?ids=${idsConfirmados.join(",")}`, "_blank");
+        if (idsConfirmados.length > 0) {
+          window.open(`/api/recibo?ids=${idsConfirmados.join(",")}`, "_blank");
+        }
+        setSelecionadosPropinas(new Set());
+        setSelecionadosEmolumentos(new Set());
+        onAtualizado();
+      } catch (error) {
+        // As ações lançam Error diretamente em alguns casos (ex. sessão desatualizada em
+        // requireSessao) — sem isto o botão parecia não fazer nada.
+        setErro(error instanceof Error ? error.message : "Não foi possível confirmar os pagamentos.");
       }
-      setSelecionadosPropinas(new Set());
-      setSelecionadosEmolumentos(new Set());
-      onAtualizado();
     });
   }
 
@@ -157,6 +172,15 @@ export function PagamentosSecretariaPanel({
               onToggleSelecionado={toggleSelecionadoPropina}
             />
           </div>
+
+          {multasOrfas.length > 0 ? (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+                Outras multas (sem mensalidade correspondente no mesmo mês)
+              </p>
+              <MultasPendentes multas={multasOrfas} editable />
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="flex flex-col gap-4">

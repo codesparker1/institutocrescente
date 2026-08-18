@@ -7,7 +7,9 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireGerirCurriculo, requireRegistarPagamento } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
+import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
+import { formatCurrency } from "@/lib/utils";
 import { decidirRematricula, cadeirasARepetir } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
 
@@ -172,6 +174,16 @@ export async function processarRematriculaAction(
 
   const aluno = await prisma.aluno.findUnique({ where: { id: alunoId } });
   if (!aluno) return { error: "Aluno não encontrado." };
+
+  // Rematrícula exige todos os pagamentos em dia (§pedido do cliente 2026-08-18) — mais estrito
+  // que verificarBloqueioAluno (que só bloqueia notas quando há mês vencido além da tolerância):
+  // aqui basta haver QUALQUER saldo em dívida, vencido ou não, para travar a confirmação.
+  const estadoFinanceiro = await getEstadoFinanceiroAluno(alunoId);
+  if (estadoFinanceiro.saldoEmDivida > 0) {
+    return {
+      error: `${aluno.nome} tem um saldo em dívida de ${formatCurrency(estadoFinanceiro.saldoEmDivida)} — confirme todos os pagamentos antes de processar a rematrícula.`,
+    };
+  }
 
   const matriculaAtual = await prisma.matricula.findFirst({
     where: { alunoId },

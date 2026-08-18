@@ -21,12 +21,18 @@ export function PropinaMesChip({ propinaId, pagoInicial, disabled }: PropinaMesC
     const formData = new FormData();
     formData.set("propinaId", propinaId);
     startTransition(async () => {
-      const resultado = await togglePropinaAction(formData);
-      if (resultado?.error) {
-        setErro(resultado.error);
-        return;
+      try {
+        const resultado = await togglePropinaAction(formData);
+        if (resultado?.error) {
+          setErro(resultado.error);
+          return;
+        }
+        setPago((v) => !v);
+      } catch (error) {
+        // togglePropinaAction lança Error diretamente em alguns casos (ex. sessão desatualizada
+        // em requireSessao) — sem isto o clique parecia não fazer nada.
+        setErro(error instanceof Error ? error.message : "Não foi possível atualizar o estado.");
       }
-      setPago((v) => !v);
     });
   }
 
