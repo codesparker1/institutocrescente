@@ -145,16 +145,26 @@ model DocumentoAluno {
 }
 
 model Curso {
-  id           String  @id @default(cuid())
-  nome         String
-  codigo       String  @unique
-  duracaoAnos  Int
-  /// Preço mensal da propina, definido pelo DAAC ao criar/editar o curso (MD §2).
-  valorPropina Decimal @default(15000) @db.Decimal(10, 2)
+  id          String @id @default(cuid())
+  nome        String
+  codigo      String @unique
+  duracaoAnos Int
 
   disciplinas          Disciplina[]
   turmas               Turma[]
   cadeirasCurriculares CadeiraCurricular[]
+}
+
+/// Preço mensal da propina por categoria de estudante × ano curricular — igual em todos os
+/// cursos (substituiu Curso.valorPropina em 2026-08-18, a pedido do cliente: 3 tipos de
+/// estudante, preço por ano, sem distinção por curso). Gerido pelo DAAC em Admin > Preços.
+model PrecoPropina {
+  id            String             @id @default(cuid())
+  categoria     CategoriaEstudante
+  anoCurricular Int
+  valor         Decimal            @db.Decimal(10, 2)
+
+  @@unique([categoria, anoCurricular])
 }
 
 model Disciplina {

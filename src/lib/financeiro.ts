@@ -63,23 +63,32 @@ async function gerarCobrancasDoDia(agora: Date, diaVencimento: number, toleranci
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
   const dataVencimentoMes = new Date(agora.getFullYear(), agora.getMonth(), diaVencimento);
 
-  const matriculasAtivas = await prisma.matricula.findMany({
-    where: { status: "ATIVA" },
-    include: { turma: { include: { curso: true } } },
-  });
+  const [matriculasAtivas, precos] = await Promise.all([
+    prisma.matricula.findMany({
+      where: { status: "ATIVA" },
+      include: { turma: true, aluno: { select: { categoria: true } } },
+    }),
+    prisma.precoPropina.findMany(),
+  ]);
+  const precoPorChave = new Map(precos.map((p) => [`${p.categoria}:${p.anoCurricular}`, p.valor]));
 
-  if (matriculasAtivas.length > 0) {
-    await prisma.cobranca.createMany({
-      data: matriculasAtivas.map((m) => ({
-        matriculaId: m.id,
-        alunoId: m.alunoId,
-        tipo: "PROPINA" as const,
-        mesReferencia: inicioMes,
-        valorDevido: m.turma.curso.valorPropina,
-        dataVencimento: dataVencimentoMes,
-      })),
-      skipDuplicates: true,
-    });
+  const semPreco = new Set<string>();
+  const propinasAGerar = matriculasAtivas.flatMap((m) => {
+    const valorDevido = precoPorChave.get(`${m.aluno.categoria}:${m.turma.anoCurricular}`);
+    if (valorDevido === undefined) {
+      semPreco.add(`${m.aluno.categoria} · ${m.turma.anoCurricular}º Ano`);
+      return [];
+    }
+    return [{ matriculaId: m.id, alunoId: m.alunoId, tipo: "PROPINA" as const, mesReferencia: inicioMes, valorDevido, dataVencimento: dataVencimentoMes }];
+  });
+  if (semPreco.size > 0) {
+    // Não inventa um valor (0 Kz cobrava de graça sem ninguém notar) — fica por gerar até o DAAC
+    // preencher a combinação em falta em Admin > Preços, mesmo que isso atrase a cobrança do mês.
+    console.warn(`garantirCobrancasGeradas: sem PrecoPropina configurado para ${[...semPreco].join(", ")} — propina não gerada para essas combinações.`);
+  }
+
+  if (propinasAGerar.length > 0) {
+    await prisma.cobranca.createMany({ data: propinasAGerar, skipDuplicates: true });
   }
 
   const propinasPendentes = await prisma.cobranca.findMany({

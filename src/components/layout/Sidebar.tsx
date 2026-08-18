@@ -66,6 +66,7 @@ function AdminNav() {
           { href: "/admin/curriculo", label: "Plano Curricular" },
           { href: "/admin/turmas", label: "Turmas" },
           { href: "/admin/emolumentos", label: "Emolumentos" },
+          { href: "/admin/precos", label: "Preços de Propina" },
         ]}
       />
       <NavItem href="/horario" label="Horário e Provas" icon={<CalendarClock size={18} />} />
@@ -137,6 +138,7 @@ function DaacNav() {
           { href: "/admin/curriculo", label: "Plano Curricular" },
           { href: "/admin/turmas", label: "Turmas" },
           { href: "/admin/emolumentos", label: "Emolumentos" },
+          { href: "/admin/precos", label: "Preços de Propina" },
         ]}
       />
       <NavItem href="/horario" label="Horário e Provas" icon={<CalendarClock size={18} />} />

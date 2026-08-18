@@ -57,12 +57,17 @@ async function createManyEmLotes<T>(
 }
 
 const CURSOS_DEF = [
-  { nome: "Engenharia Informática", codigo: "ENG-INF", duracaoAnos: 4, valorPropina: 18000 },
-  { nome: "Gestão de Empresas", codigo: "GESTAO", duracaoAnos: 3, valorPropina: 15000 },
-  { nome: "Direito", codigo: "DIREITO", duracaoAnos: 5, valorPropina: 20000 },
-  { nome: "Enfermagem", codigo: "ENFERM", duracaoAnos: 4, valorPropina: 17000 },
-  { nome: "Arquitetura", codigo: "ARQ", duracaoAnos: 5, valorPropina: 22000 },
+  { nome: "Engenharia Informática", codigo: "ENG-INF", duracaoAnos: 4 },
+  { nome: "Gestão de Empresas", codigo: "GESTAO", duracaoAnos: 3 },
+  { nome: "Direito", codigo: "DIREITO", duracaoAnos: 5 },
+  { nome: "Enfermagem", codigo: "ENFERM", duracaoAnos: 4 },
+  { nome: "Arquitetura", codigo: "ARQ", duracaoAnos: 5 },
 ];
+
+// Preço por categoria × ano curricular, igual em todos os cursos (§pedido do cliente
+// 2026-08-18) — sobe ligeiramente por ano, e bolseiro/comparticipada pagam menos que normal.
+const PRECO_BASE_POR_ANO = [15000, 16000, 17000, 18000, 19000];
+const MULTIPLICADOR_CATEGORIA: Record<string, number> = { NORMAL: 1, BOLSEIRO_INAGBE: 0.3, COMPARTICIPADA: 0.6 };
 
 const TEMAS_DISCIPLINA = [
   "Introdução a", "Fundamentos de", "Metodologia de", "Prática de",
@@ -233,6 +238,9 @@ async function main(): Promise<void> {
       anoCurricular: randomInt(1, curso.duracaoAnos),
       status: "ATIVO" as const,
       periodo: pick(PERIODOS),
+      // Distribuição realista: maioria normal, uma fração de bolseiros/comparticipados —
+      // exercita a nova grelha de preços por categoria (§pedido do cliente 2026-08-18).
+      categoria: pick(["NORMAL", "NORMAL", "NORMAL", "BOLSEIRO_INAGBE", "COMPARTICIPADA"] as const),
     };
   });
   await createManyEmLotes(
@@ -334,8 +342,21 @@ async function main(): Promise<void> {
   }
   await createManyEmLotes(prisma.frequencia, frequencias);
 
+  console.log("A definir preços de propina por categoria × ano curricular...");
+  const CATEGORIAS_PRECO = ["NORMAL", "BOLSEIRO_INAGBE", "COMPARTICIPADA"] as const;
+  const maxAnoCurricular = Math.max(...CURSOS_DEF.map((c) => c.duracaoAnos));
+  const precosPropina = Array.from({ length: maxAnoCurricular }, (_, i) => i + 1).flatMap((ano) =>
+    CATEGORIAS_PRECO.map((categoria) => ({
+      id: id(),
+      categoria,
+      anoCurricular: ano,
+      valor: Math.round(PRECO_BASE_POR_ANO[Math.min(ano, PRECO_BASE_POR_ANO.length) - 1] * MULTIPLICADOR_CATEGORIA[categoria]),
+    })),
+  );
+  await createManyEmLotes(prisma.precoPropina, precosPropina);
+  const precoPorChave = new Map(precosPropina.map((p) => [`${p.categoria}:${p.anoCurricular}`, p.valor]));
+
   console.log("A gerar cobranças financeiras...");
-  const cursoPorId = new Map(cursos.map((c) => [c.id, c]));
   const matriculaPorAluno = new Map(matriculas.map((m) => [m.alunoId, m]));
   const cobrancas: {
     id: string;
@@ -352,7 +373,8 @@ async function main(): Promise<void> {
   for (const aluno of alunos) {
     const matricula = matriculaPorAluno.get(aluno.id);
     if (!matricula) continue;
-    const curso = cursoPorId.get(aluno.cursoId)!;
+    const valorPropina = precoPorChave.get(`${aluno.categoria}:${aluno.anoCurricular}`);
+    if (valorPropina === undefined) continue; // sem preço configurado para esta combinação — nada a gerar
     const mesesPendentes = Math.random() < 0.5 ? 0 : randomInt(1, 6);
     for (let i = 5; i >= 0; i -= 1) {
       const base = daysAgo(30 * i);
@@ -363,8 +385,8 @@ async function main(): Promise<void> {
         alunoId: aluno.id,
         tipo: "PROPINA",
         mesReferencia: new Date(base.getFullYear(), base.getMonth(), 1),
-        valorDevido: Number(curso.valorPropina),
-        valorPago: estaPendente ? 0 : Number(curso.valorPropina),
+        valorDevido: valorPropina,
+        valorPago: estaPendente ? 0 : valorPropina,
         status: estaPendente ? "PENDENTE" : "PAGO",
         dataVencimento: new Date(base.getFullYear(), base.getMonth(), 8),
         dataPagamento: estaPendente ? null : base,

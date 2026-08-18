@@ -45,17 +45,6 @@ export function CreateCursoForm() {
           defaultValue={state.values?.duracaoAnos ?? 4}
         />
       </Field>
-      <Field label="Propina mensal (Kz)" htmlFor="curso-valor-propina" error={state.fieldErrors?.valorPropina}>
-        <Input
-          id="curso-valor-propina"
-          name="valorPropina"
-          type="number"
-          min={0}
-          step="0.01"
-          required
-          defaultValue={state.values?.valorPropina ?? 15000}
-        />
-      </Field>
       {state.error ? <p className="sm:col-span-4 text-sm text-red-600">{state.error}</p> : null}
       <Button type="submit" disabled={isPending}>
         {isPending ? "A adicionar..." : "Adicionar"}

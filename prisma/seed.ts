@@ -80,10 +80,21 @@ async function main() {
 
   console.log("A criar cursos e disciplinas...");
   const cursoEngInf = await prisma.curso.create({
-    data: { nome: "Engenharia Informática", codigo: "ENG-INF", duracaoAnos: 4, valorPropina: 18000 },
+    data: { nome: "Engenharia Informática", codigo: "ENG-INF", duracaoAnos: 4 },
   });
   const cursoGestao = await prisma.curso.create({
-    data: { nome: "Gestão de Empresas", codigo: "GESTAO", duracaoAnos: 3, valorPropina: 15000 },
+    data: { nome: "Gestão de Empresas", codigo: "GESTAO", duracaoAnos: 3 },
+  });
+
+  // Preço por categoria × ano curricular, igual em todos os cursos (substituiu Curso.valorPropina).
+  await prisma.precoPropina.createMany({
+    data: (["NORMAL", "BOLSEIRO_INAGBE", "COMPARTICIPADA"] as const).flatMap((categoria) =>
+      [1, 2, 3, 4].map((anoCurricular) => ({
+        categoria,
+        anoCurricular,
+        valor: categoria === "NORMAL" ? 17000 : categoria === "COMPARTICIPADA" ? 10000 : 5000,
+      })),
+    ),
   });
 
   const [progI, progII, basesDados, redes] = await Promise.all(
@@ -532,10 +543,6 @@ async function main() {
   );
 
   console.log("A criar cobranças (módulo financeiro)...");
-  const VALOR_PROPINA_POR_CURSO: Record<string, number> = {
-    "Engenharia Informática": Number(cursoEngInf.valorPropina),
-    "Gestão de Empresas": Number(cursoGestao.valorPropina),
-  };
 
   await prisma.configuracaoFinanceira.create({
     data: { id: "config", bloqueioAtivo: true, toleranciaDias: 0, diaVencimento: 10, valorMulta: 5000 },
@@ -554,7 +561,7 @@ async function main() {
 
   for (const matricula of matriculas) {
     const aluno = alunos.find((a) => a.id === matricula.alunoId)!;
-    const valorBase = VALOR_PROPINA_POR_CURSO[aluno.curso] ?? 15000;
+    const valorBase = 17000; // preço NORMAL fixo (todo aluno seedado aqui é categoria NORMAL)
     const valorDevido = valorBase + pick([0, 250, 500, 750]);
 
     // alunos[0] fica sempre "em dívida recente" para o fluxo de demonstração da Secção 8 ser reprodutível.

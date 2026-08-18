@@ -53,13 +53,18 @@ export async function getSeededContext() {
     create: { id: "config" },
   });
 
+  const precoPropina = await prisma.precoPropina.findUnique({
+    where: { categoria_anoCurricular: { categoria: alunoEmDivida.categoria, anoCurricular: turma.anoCurricular } },
+  });
+  if (!precoPropina) throw new Error(`Sem PrecoPropina para ${alunoEmDivida.categoria}/${turma.anoCurricular}º Ano — corre o seed primeiro.`);
+
   return {
     turma,
     turmaDisciplina,
     avaliacao,
     alunoEmDivida,
     matriculaEmDivida,
-    valorPropina: Number(turma.curso.valorPropina),
+    valorPropina: Number(precoPropina.valor),
     bloqueioAtivo: config.bloqueioAtivo,
   };
 }
@@ -72,10 +77,14 @@ export async function matricularNovoAlunoComPropinaPendente(email: string, turma
     data: { alunoId: aluno.id, turmaId, status: "ATIVA" },
   });
 
-  const turma = await prisma.turma.findUniqueOrThrow({ where: { id: turmaId }, include: { curso: true } });
+  const turma = await prisma.turma.findUniqueOrThrow({ where: { id: turmaId } });
   const hoje = new Date();
   const mesReferencia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   const dataVencimento = new Date(hoje.getFullYear(), hoje.getMonth(), 10);
+
+  const precoPropina = await prisma.precoPropina.findUniqueOrThrow({
+    where: { categoria_anoCurricular: { categoria: aluno.categoria, anoCurricular: turma.anoCurricular } },
+  });
 
   const propina = await prisma.cobranca.create({
     data: {
@@ -83,7 +92,7 @@ export async function matricularNovoAlunoComPropinaPendente(email: string, turma
       alunoId: aluno.id,
       tipo: "PROPINA",
       mesReferencia,
-      valorDevido: turma.curso.valorPropina,
+      valorDevido: precoPropina.valor,
       dataVencimento,
       status: "PENDENTE",
     },

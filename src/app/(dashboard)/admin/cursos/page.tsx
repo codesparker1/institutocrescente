@@ -4,7 +4,6 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteCursoAction } from "@/actions/admin";
 import { CreateCursoForm } from "./CreateCursoForm";
-import { EditarValorPropinaCurso } from "./EditarValorPropinaCurso";
 
 export default async function AdminCursosPage() {
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
@@ -30,7 +29,6 @@ export default async function AdminCursosPage() {
                   <Th>Nome</Th>
                   <Th>Código</Th>
                   <Th>Duração</Th>
-                  <Th>Propina mensal (Kz)</Th>
                   <Th></Th>
                 </tr>
               </Thead>
@@ -40,9 +38,6 @@ export default async function AdminCursosPage() {
                     <Td className="font-medium text-navy-900">{curso.nome}</Td>
                     <Td>{curso.codigo}</Td>
                     <Td>{curso.duracaoAnos} anos</Td>
-                    <Td>
-                      <EditarValorPropinaCurso cursoId={curso.id} valorPropina={Number(curso.valorPropina)} />
-                    </Td>
                     <Td className="text-right">
                       <DeleteButtonForm action={deleteCursoAction} id={curso.id} />
                     </Td>

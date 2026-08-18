@@ -35,10 +35,9 @@ const CursoSchema = z.object({
   nome: z.string().min(2, "Nome é obrigatório"),
   codigo: z.string().min(2, "Código é obrigatório"),
   duracaoAnos: z.coerce.number("Indique a duração").int().min(1, "Mínimo 1 ano").max(8, "Máximo 8 anos"),
-  valorPropina: z.coerce.number("Indique o valor da propina").min(0, "O valor não pode ser negativo"),
 });
 
-const CAMPOS_CURSO = ["nome", "codigo", "duracaoAnos", "valorPropina"] as const;
+const CAMPOS_CURSO = ["nome", "codigo", "duracaoAnos"] as const;
 export type CreateCursoState = FormState<Record<(typeof CAMPOS_CURSO)[number], string>>;
 
 export async function createCursoAction(
@@ -50,7 +49,6 @@ export async function createCursoAction(
     nome: formData.get("nome"),
     codigo: formData.get("codigo"),
     duracaoAnos: formData.get("duracaoAnos"),
-    valorPropina: formData.get("valorPropina"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CURSO);
 
@@ -68,36 +66,46 @@ export async function createCursoAction(
   return {};
 }
 
-const ValorPropinaCursoSchema = z.object({
-  cursoId: z.string().min(1),
-  valorPropina: z.coerce.number("Indique o valor da propina").min(0, "O valor não pode ser negativo"),
+const PrecoPropinaSchema = z.object({
+  categoria: z.enum(["NORMAL", "BOLSEIRO_INAGBE", "COMPARTICIPADA"]),
+  anoCurricular: z.coerce.number("Indique o ano").int().min(1, "Mínimo 1º ano").max(8, "Máximo 8º ano"),
+  valor: z.coerce.number("Indique o valor da propina").min(0, "O valor não pode ser negativo"),
 });
 
-export async function atualizarValorPropinaCursoAction(
+/**
+ * Preço da propina por categoria × ano curricular, igual em todos os cursos (§pedido do cliente
+ * 2026-08-18 — substitui Curso.valorPropina). Upsert: a combinação categoria+anoCurricular é
+ * única, editar uma célula já existente atualiza-a em vez de duplicar.
+ */
+export async function atualizarPrecoPropinaAction(
   _prevState: { error?: string },
   formData: FormData,
 ): Promise<{ error?: string }> {
   const session = await requireGerirCurriculo();
-  const parsed = ValorPropinaCursoSchema.safeParse({
-    cursoId: formData.get("cursoId"),
-    valorPropina: formData.get("valorPropina"),
+  const parsed = PrecoPropinaSchema.safeParse({
+    categoria: formData.get("categoria"),
+    anoCurricular: formData.get("anoCurricular"),
+    valor: formData.get("valor"),
   });
   if (!parsed.success) return { error: "Valor inválido." };
 
-  const cursoAntes = await prisma.curso.findUnique({ where: { id: parsed.data.cursoId } });
-  const curso = await prisma.curso.update({
-    where: { id: parsed.data.cursoId },
-    data: { valorPropina: parsed.data.valorPropina },
+  const anterior = await prisma.precoPropina.findUnique({
+    where: { categoria_anoCurricular: { categoria: parsed.data.categoria, anoCurricular: parsed.data.anoCurricular } },
+  });
+  await prisma.precoPropina.upsert({
+    where: { categoria_anoCurricular: { categoria: parsed.data.categoria, anoCurricular: parsed.data.anoCurricular } },
+    create: parsed.data,
+    update: { valor: parsed.data.valor },
   });
   await audit(
     session,
-    `Atualizou o valor da propina de ${curso.nome} para ${parsed.data.valorPropina} Kz`,
-    "Curso",
-    curso.id,
-    cursoAntes ? { valorAnterior: `${Number(cursoAntes.valorPropina)} Kz`, valorNovo: `${parsed.data.valorPropina} Kz` } : undefined,
+    `Atualizou o preço da propina de ${parsed.data.categoria} · ${parsed.data.anoCurricular}º Ano para ${parsed.data.valor} Kz`,
+    "PrecoPropina",
+    undefined,
+    anterior ? { valorAnterior: `${Number(anterior.valor)} Kz`, valorNovo: `${parsed.data.valor} Kz` } : undefined,
   );
 
-  revalidatePath("/admin/cursos");
+  revalidatePath("/admin/precos");
   return {};
 }
 
