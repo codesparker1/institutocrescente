@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Pencil } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { atualizarDadosPessoaisAlunoAction, type AtualizarDadosPessoaisState } from "@/actions/alunos";
@@ -20,9 +21,10 @@ export function DadosPessoaisAlunoForm({ alunoId, nome, numeroEstudante }: Dados
 
   if (!aberto) {
     return (
-      <button type="button" onClick={() => setAberto(true)} className="text-xs font-medium text-navy-500 hover:text-navy-700 hover:underline">
-        editar
-      </button>
+      <Button type="button" variant="secondary" onClick={() => setAberto(true)} className="px-3 py-1.5 text-xs">
+        <Pencil size={14} />
+        Editar dados
+      </Button>
     );
   }
 

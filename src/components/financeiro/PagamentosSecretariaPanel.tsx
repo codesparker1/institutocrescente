@@ -16,7 +16,7 @@ interface PagamentosSecretariaPanelProps {
   catalogoEmolumentos: EmolumentoCatalogo[];
   emolumentosPagos: EmolumentoPago[];
   onAtualizado: () => void;
-  /** Só ADMIN pode dividir a mensalidade da multa (§pedido do cliente 2026-08-18) — Secretaria/DAAC nunca. */
+  /** Só ADMIN vê mensalidade e multa como checkboxes independentes (§pedido do cliente 2026-08-18) — Secretaria/DAAC continuam com a multa sempre embutida e junta automaticamente. */
   isAdmin?: boolean;
 }
 
@@ -34,11 +34,12 @@ export function PagamentosSecretariaPanel({
   isAdmin = false,
 }: PagamentosSecretariaPanelProps) {
   const [tab, setTab] = useState<Tab>("propinas");
-  // IDs de mensalidade (PROPINA) PENDENTE selecionados na tab Propinas. A multa por atraso do mesmo
-  // mês nunca é selecionada à parte — confirmarPagamentosEmLoteAction junta-a sempre no servidor,
-  // exceto quando `semMulta` (só ADMIN) está marcado.
+  // IDs de mensalidade (PROPINA) e de multa (MULTA) PENDENTE selecionados na tab Propinas — o mesmo
+  // Set serve para os dois tipos porque confirmarPagamentosEmLoteAction aceita cobrancaIds mistos.
+  // Para ADMIN, mensalidade e multa são sempre checkboxes independentes (§pedido do cliente
+  // 2026-08-18: voltar ao layout com tickbox próprio para juntar cada uma ao lote); só a Secretaria/
+  // DAAC continuam com a multa do mesmo mês embutida e junta automaticamente no servidor.
   const [selecionadosPropinas, setSelecionadosPropinas] = useState<Set<string>>(new Set());
-  const [semMulta, setSemMulta] = useState(false);
   const [selecionadosEmolumentos, setSelecionadosEmolumentos] = useState<Set<string>>(new Set());
   const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -54,30 +55,30 @@ export function PagamentosSecretariaPanel({
     setErro(null);
   }
 
-  // Multa por atraso é embutida na linha da mensalidade do mesmo mês (como no lado do aluno) — o
-  // valor mostrado e o total do lote já contam com ela, mesmo sem uma checkbox própria para a multa.
+  // Multa por atraso é embutida na linha da mensalidade do mesmo mês (como no lado do aluno) só para
+  // Secretaria/DAAC — o valor mostrado e o total do lote já contam com ela. Para ADMIN, mensalidade
+  // e multa são sempre linhas e checkboxes independentes (ver JSX abaixo), por isso o valor da
+  // mensalidade nunca inclui a multa aqui.
   const multaPendentePorChaveMes = new Map(
     estado.multas.filter((m) => m.status === "PENDENTE" && m.mesReferencia).map((m) => [chaveMes(m.mesReferencia!), m]),
   );
 
-  const dividirMulta = isAdmin && semMulta;
   const valorPorIdPropina = new Map(
     estado.meses
       .filter((mes) => mes.status === "PENDENTE")
       .map((mes) => {
+        if (isAdmin) return [mes.id, mes.valorDevido] as const;
         const multa = multaPendentePorChaveMes.get(chaveMes(mes.mesReferencia));
-        // Refletir no ecrã exatamente o que vai ser cobrado — se a multa vai ficar de fora
-        // (dividirMulta), o total mostrado não pode incluí-la, senão engana quem está a confirmar.
-        return [mes.id, mes.valorDevido + (dividirMulta ? 0 : (multa?.valorDevido ?? 0))] as const;
+        return [mes.id, mes.valorDevido + (multa?.valorDevido ?? 0)] as const;
       }),
   );
+  const valorPorIdMulta = new Map(estado.multas.filter((m) => m.status === "PENDENTE").map((m) => [m.id, m.valorDevido]));
   const valorPorIdEmolumento = new Map(catalogoEmolumentos.map((e) => [e.id, e.valor]));
 
   // Multas sem mensalidade correspondente no mesmo mês (mesReferencia nulo, ou o mês da propina já
-  // não existe) ficavam invisíveis aqui — PropinasMensais só embute a multa na linha da mensalidade
-  // do mesmo mês; nunca havia nenhum outro sítio nesta página onde uma multa "órfã" aparecesse,
-  // apesar de já vir em estado.multas. Mesmo tratamento (MultasPendentes, chip individual) que já
-  // existe em /alunos/[id].
+  // não existe) — só relevante para Secretaria/DAAC, que veem a mensalidade e a multa embutidas
+  // numa única lista e por isso precisam de uma secção à parte para as multas "órfãs". Para ADMIN a
+  // lista de multas já é sempre uma secção própria (todas, órfãs ou não).
   const mesesChaves = new Set(estado.meses.map((mes) => chaveMes(mes.mesReferencia)));
   const multasOrfas = estado.multas.filter((m) => !m.mesReferencia || !mesesChaves.has(chaveMes(m.mesReferencia)));
 
@@ -101,8 +102,9 @@ export function PagamentosSecretariaPanel({
     });
   }
 
+  const valorPorIdSelecao = new Map([...valorPorIdPropina, ...valorPorIdMulta]);
   const totalSelecionado =
-    [...selecionadosPropinas].reduce((soma, id) => soma + (valorPorIdPropina.get(id) ?? 0), 0) +
+    [...selecionadosPropinas].reduce((soma, id) => soma + (valorPorIdSelecao.get(id) ?? 0), 0) +
     [...selecionadosEmolumentos].reduce((soma, id) => soma + (valorPorIdEmolumento.get(id) ?? 0), 0);
   const totalItens = selecionadosPropinas.size + selecionadosEmolumentos.size;
 
@@ -113,12 +115,13 @@ export function PagamentosSecretariaPanel({
         const idsConfirmados: string[] = [];
 
         if (selecionadosPropinas.size > 0) {
-          // Não é preciso juntar a multa aqui: confirmarPagamentosEmLoteAction inclui-a sempre no
-          // servidor quando existir, para o mesmo mês de uma mensalidade selecionada — exceto
-          // com dividirMulta, e mesmo aí o servidor confirma de novo que a sessão é ADMIN.
+          // Para ADMIN a seleção já é granular (mensalidade e multa são checkboxes independentes),
+          // por isso semMulta vai sempre true — nunca deixar o servidor juntar sozinho uma multa que
+          // o ADMIN decidiu não marcar. Secretaria/DAAC continuam com o comportamento anterior: a
+          // multa do mesmo mês junta-se sempre no servidor, mesmo sem seleção explícita.
           const formData = new FormData();
           formData.set("alunoId", alunoId);
-          if (dividirMulta) formData.set("semMulta", "true");
+          if (isAdmin) formData.set("semMulta", "true");
           selecionadosPropinas.forEach((id) => formData.append("cobrancaIds", id));
 
           const resultado = await confirmarPagamentosEmLoteAction(formData);
@@ -176,7 +179,7 @@ export function PagamentosSecretariaPanel({
             </p>
             <PropinasMensais
               meses={estado.meses}
-              multas={estado.multas}
+              multas={isAdmin ? [] : estado.multas}
               editable
               selecionados={selecionadosPropinas}
               onToggleSelecionado={toggleSelecionadoPropina}
@@ -184,25 +187,29 @@ export function PagamentosSecretariaPanel({
           </div>
 
           {isAdmin ? (
-            <label className="flex items-center gap-2 text-xs font-medium text-navy-600">
-              <input
-                type="checkbox"
-                checked={semMulta}
-                onChange={(e) => setSemMulta(e.target.checked)}
-                className="h-4 w-4 rounded border-navy-200 text-navy-700 focus:ring-navy-500"
-              />
-              Pagar mensalidade sem incluir a multa (só ADMIN)
-            </label>
-          ) : null}
-
-          {multasOrfas.length > 0 ? (
+            // ADMIN: mensalidade e multa são sempre secções e checkboxes independentes — tickar a
+            // mensalidade, a multa, ou ambas junta-as no mesmo lote (§pedido do cliente 2026-08-18).
+            estado.multas.length > 0 ? (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+                  Multas por atraso (selecione as pendentes para confirmar em conjunto)
+                </p>
+                <MultasPendentes
+                  multas={estado.multas}
+                  editable
+                  selecionados={selecionadosPropinas}
+                  onToggleSelecionado={toggleSelecionadoPropina}
+                />
+              </div>
+            ) : null
+          ) : multasOrfas.length > 0 ? (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
                 Outras multas (sem mensalidade correspondente no mesmo mês)
               </p>
               {/* Só ADMIN paga uma multa órfã isolada (§pedido do cliente 2026-08-18) — a
                   Secretaria vê que está pendente, mas não a consegue marcar como paga sozinha. */}
-              <MultasPendentes multas={multasOrfas} editable={isAdmin} />
+              <MultasPendentes multas={multasOrfas} editable={false} />
             </div>
           ) : null}
         </div>
