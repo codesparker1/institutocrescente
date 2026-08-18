@@ -57,6 +57,7 @@ export function CreateStaffForm() {
         <Select id="staff-role" name="role" defaultValue={state.values?.role ?? "SECRETARIA"}>
           <option value="SECRETARIA">Secretaria</option>
           <option value="DAAC">DAAC</option>
+          <option value="DEV">Dev</option>
         </Select>
       </Field>
       {state.error ? <p className="sm:col-span-4 text-sm text-red-600">{state.error}</p> : null}

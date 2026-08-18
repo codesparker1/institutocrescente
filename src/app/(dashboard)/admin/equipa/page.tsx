@@ -9,15 +9,15 @@ import { formatDate } from "@/lib/utils";
 
 export default async function AdminEquipaPage() {
   const staff = await prisma.user.findMany({
-    where: { role: { in: ["DAAC", "SECRETARIA"] } },
+    where: { role: { in: ["DAAC", "SECRETARIA", "DEV"] } },
     orderBy: [{ role: "asc" }, { name: "asc" }],
   });
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Equipa (DAAC e Secretaria)</h1>
-        <p className="text-sm text-navy-400">Contas de staff do DAAC e da Secretaria — exclusivo do ADMIN.</p>
+        <h1 className="text-xl font-bold text-navy-900">Equipa (DAAC, Secretaria e Dev)</h1>
+        <p className="text-sm text-navy-400">Contas de staff do DAAC, da Secretaria e do Dev — exclusivo do ADMIN.</p>
       </div>
 
       <Card>
@@ -26,7 +26,7 @@ export default async function AdminEquipaPage() {
           <CreateStaffForm />
 
           {staff.length === 0 ? (
-            <EmptyState message="Nenhuma conta de DAAC/Secretaria cadastrada." />
+            <EmptyState message="Nenhuma conta de DAAC/Secretaria/Dev cadastrada." />
           ) : (
             <Table>
               <Thead>
@@ -44,7 +44,7 @@ export default async function AdminEquipaPage() {
                     <Td className="font-medium text-navy-900">{user.name}</Td>
                     <Td>{user.email}</Td>
                     <Td>
-                      <Badge tone={user.role === "DAAC" ? "info" : "neutral"}>{user.role}</Badge>
+                      <Badge tone={user.role === "DAAC" ? "info" : user.role === "DEV" ? "warning" : "neutral"}>{user.role}</Badge>
                     </Td>
                     <Td>{formatDate(user.createdAt)}</Td>
                     <Td className="text-right">

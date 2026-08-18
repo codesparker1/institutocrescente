@@ -50,7 +50,7 @@ export default async function AdminReclamacoesPage({ searchParams }: AdminReclam
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-navy-900">Reclamações e Sugestões</h1>
-        <p className="text-sm text-navy-400">Mensagens enviadas pelos alunos sobre o próprio sistema.</p>
+        <p className="text-sm text-navy-400">Mensagens enviadas por qualquer utilizador (aluno, professor, secretaria ou admin) sobre o sistema.</p>
       </div>
 
       <Card>
@@ -89,7 +89,9 @@ export default async function AdminReclamacoesPage({ searchParams }: AdminReclam
                       ) : r.professor ? (
                         <>{r.professor.nome} · Professor</>
                       ) : (
-                        <>{r.user?.name} · Secretaria</>
+                        <>
+                          {r.user?.name} · {r.user?.role === "ADMIN" ? "Admin" : "Secretaria"}
+                        </>
                       )}
                     </span>
                   </div>

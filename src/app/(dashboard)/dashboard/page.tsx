@@ -23,6 +23,10 @@ export default async function DashboardPage() {
     return <SecretariaDashboard nome={session.user.name ?? "Utilizador"} email={session.user.email ?? "—"} />;
   }
 
+  // DEV não tem nenhuma outra capacidade no sistema (§pedido do cliente 2026-08-18) — a "página
+  // inicial" é diretamente a caixa de entrada de reclamações/sugestões, não um dashboard genérico.
+  if (session.user.role === "DEV") redirect("/admin/reclamacoes");
+
   return (
     <AdminDashboard
       nome={session.user.name ?? "Utilizador"}

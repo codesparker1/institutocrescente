@@ -43,6 +43,7 @@ export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
           {role === "PROFESSOR" ? <ProfessorNav /> : null}
           {role === "ALUNO" ? <AlunoNav /> : null}
           {role === "DAAC" ? <DaacNav /> : null}
+          {role === "DEV" ? <DevNav /> : null}
         </nav>
         {/* Só quem acede ao Registo de Pagamentos (a página pensada para acessibilidade) precisa disto. */}
         {role === "ADMIN" || role === "SECRETARIA" ? <AcessibilidadeSlider /> : null}
@@ -81,13 +82,15 @@ function AdminNav() {
         ]}
       />
       <NavItem href="/auditoria" label="Registo de Auditoria" icon={<ScrollText size={18} />} />
-      <NavItem href="/admin/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
+      {/* Gestão das reclamações de todos passou a ser exclusiva do papel DEV (§pedido do cliente
+          2026-08-18) — ADMIN agora só envia, como Secretaria/Professor/Aluno, ver DevNav abaixo. */}
+      <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
       <NavGroup
         label="Usuários"
         icon={<Users size={18} />}
         items={[
           { href: "/admin/professores", label: "Professores" },
-          { href: "/admin/equipa", label: "Equipa (DAAC/Secretaria)" },
+          { href: "/admin/equipa", label: "Equipa (DAAC/Secretaria/Dev)" },
           { href: "/alunos", label: "Gestão de Matrícula" },
         ]}
       />
@@ -145,6 +148,16 @@ function DaacNav() {
       <NavItem href="/horario" label="Horário e Provas" icon={<CalendarClock size={18} />} />
       <NavItem href="/notas" label="Notas e Frequência" icon={<GraduationCap size={18} />} />
       <NavItem href="/alunos" label="Gestão de Estudante" icon={<Users size={18} />} />
+    </>
+  );
+}
+
+// Papel DEV (§pedido do cliente 2026-08-18): só recebe reclamações/sugestões de todos os outros
+// papéis, nenhuma outra capacidade no sistema — por isso a navegação tem um único item.
+function DevNav() {
+  return (
+    <>
+      <NavItem href="/admin/reclamacoes" label="Reclamações e Sugestões" icon={<MessageSquareWarning size={18} />} />
     </>
   );
 }

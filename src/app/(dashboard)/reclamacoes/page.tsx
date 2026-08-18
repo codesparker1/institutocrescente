@@ -32,7 +32,7 @@ export default async function ReclamacoesPage() {
   if (!session?.user) redirect("/login");
   const alunoId = session.user.role === "ALUNO" ? session.user.alunoId : undefined;
   const professorId = session.user.role === "PROFESSOR" ? session.user.professorId : undefined;
-  const userId = session.user.role === "SECRETARIA" ? session.user.id : undefined;
+  const userId = session.user.role === "SECRETARIA" || session.user.role === "ADMIN" ? session.user.id : undefined;
   if (!alunoId && !professorId && !userId) redirect("/dashboard");
 
   const reclamacoes = await prisma.reclamacao.findMany({
