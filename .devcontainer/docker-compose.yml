@@ -1,0 +1,33 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/base:bookworm
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
+    environment:
+      # garantirNaoENeon() (scripts/lib/guardarNeon.ts) refuses to run any seed/simulation script
+      # against a neon.tech host on purpose — this local Postgres service is what lets
+      # scripts/simulacao/teste-5-alunos.ts actually run here instead of tripping that guard.
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/institutocrescente?sslmode=disable
+      DIRECT_URL: postgresql://postgres:postgres@db:5432/institutocrescente?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: institutocrescente
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
