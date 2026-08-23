@@ -1,0 +1,115 @@
+name: Simulacao E2E — 5 alunos (relogio simulado)
+
+# Executado manualmente (Actions tab > Run workflow) — nunca em push/PR. É um teste longo (4 anos
+# letivos simulados via Playwright real) para apanhar bugs antes da corrida final com utilizadores
+# reais, não um gate de CI normal. Corre num runner limpo do GitHub em vez do PC local (sem gargalo
+# de CPU/RAM), com Postgres como serviço em vez de Neon — scripts/lib/guardarNeon.ts recusa-se a
+# correr contra qualquer host neon.tech de propósito.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  simulacao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: institutocrescente
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/institutocrescente?sslmode=disable
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/institutocrescente?sslmode=disable
+      SIMULATION_MODE: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Gerar AUTH_SECRET (sessão só desta corrida — nunca persistida)
+        run: echo "AUTH_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")" >> "$GITHUB_ENV"
+
+      - name: Prisma — gerar client
+        run: npx prisma generate
+
+      - name: Prisma — aplicar migrações
+        run: npx prisma migrate deploy
+
+      - name: Instalar Chromium do Playwright (+ deps do SO)
+        run: npx playwright install --with-deps chromium
+
+      - name: Seed — 5 alunos + staff
+        run: npm run seed:teste-5-anos
+
+      - name: Arrancar o servidor em segundo plano (next dev — mesmo modo usado localmente)
+        run: |
+          nohup npm run dev > next-server.log 2>&1 &
+          echo $! > next-server.pid
+
+      - name: Esperar o servidor ficar pronto
+        # next dev/Turbopack compila a 1ª rota pedida on-demand — pode ultrapassar bastante o "Ready
+        # in Xs" do arranque (mesma razão do timeout de 90s em scripts/simulacao/anomalias.ts).
+        run: |
+          for i in $(seq 1 120); do
+            if curl -sf http://localhost:3000/login > /dev/null; then
+              echo "Servidor pronto após ${i}s."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Servidor não respondeu em 120s — ver next-server.log."
+          cat next-server.log || true
+          exit 1
+
+      - name: Correr a simulação de 5 alunos
+        id: simulacao
+        run: npm run teste:5-alunos -- --url http://localhost:3000
+        continue-on-error: true
+
+      - name: Parar o servidor
+        if: always()
+        run: |
+          if [ -f next-server.pid ]; then kill "$(cat next-server.pid)" || true; fi
+
+      - name: Upload — relatório da simulação + screenshots de anomalias
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-teste-5-alunos
+          path: |
+            scripts/simulacao/output/**
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload — log do servidor Next.js
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-server-log
+          path: next-server.log
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Falhar o job se a simulação falhou
+        if: steps.simulacao.outcome == 'failure'
+        run: exit 1
