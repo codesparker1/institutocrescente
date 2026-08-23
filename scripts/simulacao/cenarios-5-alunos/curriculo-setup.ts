@@ -42,15 +42,18 @@ export async function garantirCurriculoAnos2a4(prisma: PrismaClient): Promise<vo
  */
 export async function garantirTurmaAnoCurricular(prisma: PrismaClient, anoCurricular: number, anoLetivo: number): Promise<void> {
   const curso = await prisma.curso.findFirstOrThrow();
-  const existente = await prisma.turma.findUnique({
-    where: { cursoId_anoCurricular_periodo_anoLetivo: { cursoId: curso.id, anoCurricular, periodo: "MATUTINO", anoLetivo } },
-  });
-  if (existente) {
-    const jaTemDisciplinas = await prisma.turmaDisciplina.findFirst({ where: { turmaId: existente.id } });
-    if (jaTemDisciplinas) return;
-  }
 
-  const turma = existente ?? (await prisma.turma.create({ data: { cursoId: curso.id, anoCurricular, periodo: "MATUTINO", anoLetivo } }));
+  // upsert em vez de findUnique+create: a mesma combinação (anoCurricular, anoLetivo) é pedida duas
+  // vezes em iterações diferentes do loop principal (pré-criada como "ano seguinte" numa iteração,
+  // depois pedida de novo como "ano corrente" na iteração seguinte) — um upsert nunca colide com
+  // uma corrida real (retry, cancelamento a meio, etc.), ao contrário de um check-then-create.
+  const turma = await prisma.turma.upsert({
+    where: { cursoId_anoCurricular_periodo_anoLetivo: { cursoId: curso.id, anoCurricular, periodo: "MATUTINO", anoLetivo } },
+    update: {},
+    create: { cursoId: curso.id, anoCurricular, periodo: "MATUTINO", anoLetivo },
+  });
+  const jaTemDisciplinas = await prisma.turmaDisciplina.findFirst({ where: { turmaId: turma.id } });
+  if (jaTemDisciplinas) return;
 
   const [cadeiraProgI, cadeiraBasesDados] = await Promise.all([
     prisma.cadeiraCurricular.findFirstOrThrow({ where: { cursoId: curso.id, anoCurricular, semestre: 1 } }),

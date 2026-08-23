@@ -30,8 +30,13 @@ export async function confirmarPropinaMaisAntiga(
 
   await page.goto(`${baseUrl}/financeiro/registo`);
   await page.fill("#busca-registo-pagamentos", alunoNome);
+  // RegistoPagamentosBusca.tsx faz debounce de 300ms antes de sequer chamar searchAlunosAction
+  // (mais o round-trip do próprio server action) — sem esperar pelo resultado aparecer, o count()
+  // corre sempre antes da lista ser preenchida e falha 100% das vezes, mesmo com o aluno seedado.
   const linhaResultado = page.locator("button", { hasText: alunoNome }).first();
-  if ((await linhaResultado.count()) === 0) {
+  try {
+    await linhaResultado.waitFor({ state: "visible", timeout: 5000 });
+  } catch {
     await registarAnomalia(page, outputDir, staffCredencial.papel, `${alunoNome} não encontrado na busca de /financeiro/registo`);
     return false;
   }
