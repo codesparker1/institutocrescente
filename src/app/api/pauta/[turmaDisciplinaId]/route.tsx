@@ -76,7 +76,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       disciplina={turmaDisciplina.disciplina.nome}
       anoTurma={`${turmaDisciplina.turma.anoCurricular}º Ano · ${PERIODO_LABEL[turmaDisciplina.turma.periodo]}`}
       docente={turmaDisciplina.professor.nome}
-      dataEmissao={formatDate(getAgora())}
+      dataEmissao={formatDate(await getAgora())}
       alunos={alunos}
     />,
   );

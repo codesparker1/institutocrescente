@@ -1,0 +1,6 @@
+[1.5] antes: turmas=[2026], alunos ATIVO=5
+[1.5] setup: semestreAtual forçado a 2 (o job deve repor a 1)
+[1.5] relogio: (?)
+[1.5] rollover-turmas: ✓ turma 2027 criada ([2027,2026])
+[1.5] suspensao: ✓ suspensão ocorreu: ATIVO 5→0, TRANCADO=5
+[1.5] semestre-reset: ✓ semestreAtual reposto a 1

@@ -1,29 +1,33 @@
 import "server-only";
-import { readFileSync } from "node:fs";
-import path from "node:path";
+import { prisma } from "@/lib/prisma";
 
 /**
- * Relógio simulado — usado só pelo harness de simulação de ano letivo (scripts/simulacao/).
+ * Relógio simulado — a "máquina do tempo" do papel DEV (src/app/(dashboard)/dev/relogio/).
  * Fora de simulação (SIMULATION_MODE não definida) `getAgora()` é sempre `new Date()`: zero
  * efeito em produção ou no dia a dia de desenvolvimento.
  *
- * O script Playwright corre como processo Node separado do `next dev`/`next start` e só fala com
- * ele por HTTP — não pode mudar variáveis de ambiente do servidor a meio da simulação. Por isso o
- * relógio vive num ficheiro partilhado no filesystem (não na BD: é infraestrutura de teste, não
- * merece um modelo Prisma nem uma migração): o orquestrador escreve a data simulada antes de cada
- * marco do ano, e qualquer pedido ao servidor a partir daí lê a data nova.
+ * A data simulada vive na BD (modelo RelogioSimulado, id fixo "config"), não num ficheiro —
+ * para funcionar também em deploys serverless/self-hosted, onde o filesystem não é partilhado
+ * nem gravável. O DEV avança-a pela página /dev/relogio (src/actions/dev.ts) e o próximo acesso
+ * ao dashboard dispara as reacções preguiçosas (garantirCobrancasGeradas, garantirSuspensaoAutomatica,
+ * garantirNotasAutomaticasPorFalta) contra a data nova — é assim que "avançar o tempo" tem efeito real.
+ *
+ * Só consultado quando SIMULATION_MODE=true. Fora disso, fazer a query por request nem sequer acontece.
  */
 export const SIMULATION_MODE = process.env.SIMULATION_MODE === "true";
 
-export const RELOGIO_PATH = path.join(process.cwd(), "scripts", "simulacao", ".relogio");
-
-export function getAgora(): Date {
+export async function getAgora(): Promise<Date> {
   if (!SIMULATION_MODE) return new Date();
   try {
-    const data = new Date(readFileSync(RELOGIO_PATH, "utf-8").trim());
-    if (!Number.isNaN(data.getTime())) return data;
+    const relogio = await prisma.relogioSimulado.findUnique({ where: { id: "config" } });
+    if (relogio) return relogio.agora;
   } catch {
-    // Ficheiro ainda não existe — simulação ainda não definiu um relógio, usa a hora real.
+    // Relógio ainda não existe — simulação ainda não definiu a data, usa a hora real.
   }
+  return new Date();
+}
+
+/** Versão síncrona para sítios que não podem esperar (ex.: render inicial de client components). */
+export function getAgoraSincrono(): Date {
   return new Date();
 }

@@ -41,7 +41,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
     prisma.auditLog.count({ where }),
     prisma.auditLog.findMany({ distinct: ["entityType"], select: { entityType: true }, orderBy: { entityType: "asc" } }),
   ]);
-  const agora = getAgora();
+  const agora = await getAgora();
 
   return (
     <div className="flex flex-col gap-6">

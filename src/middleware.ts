@@ -24,6 +24,15 @@ const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   { prefix: "/admin/professores", roles: ["ADMIN"] },
   { prefix: "/admin/financeiro", roles: ["ADMIN"] },
   { prefix: "/admin/equipa", roles: ["ADMIN"] },
+  // DEV gere o relógio simulado (2026-08-21) — sem isto o middleware redireciona DEV para
+  // /dashboard, que por sua vez volta a redirecionar para /admin/relogio? Não — mas DEV não
+  // está em /admin, e ROLE_HOME["DEV"] é undefined → fallback /dashboard. Loop evitado ao
+  // autorizar DEV explicitamente aqui.
+  { prefix: "/admin/relogio", roles: ["DEV"] },
+  // Caixa de entrada de reclamações é a "página inicial" do DEV (dashboard/page.tsx redireciona
+  // para lá) — sem esta linha DEV entra em loop /admin/reclamacoes ↔ /dashboard (achado em teste
+  // Playwright 2026-08: ERR_TOO_MANY_REDIRECTS ao logar como DEV).
+  { prefix: "/admin/reclamacoes", roles: ["ADMIN", "DEV"] },
   { prefix: "/admin", roles: ["ADMIN", "DAAC"] },
   { prefix: "/auditoria", roles: ["ADMIN"] },
   { prefix: "/professor", roles: ["ADMIN", "PROFESSOR"] },

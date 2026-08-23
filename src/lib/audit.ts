@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { getAgora, SIMULATION_MODE } from "@/lib/tempo";
 import type { Role } from "@/generated/prisma/client";
 
 interface RegistrarAuditoriaInput {
@@ -25,6 +26,9 @@ async function getClientIp(): Promise<string | null> {
 export async function registrarAuditoria(input: RegistrarAuditoriaInput): Promise<void> {
   try {
     const ipAddress = await getClientIp();
+    // Em simulação, a auditoria segue o relógio simulado (dataEvento) — a hora real fica em
+    // createdAt. Fora de simulação os dois coincidem.
+    const dataEvento = SIMULATION_MODE ? await getAgora() : new Date();
 
     await prisma.auditLog.create({
       data: {
@@ -37,6 +41,7 @@ export async function registrarAuditoria(input: RegistrarAuditoriaInput): Promis
         valorAnterior: input.valorAnterior ?? null,
         valorNovo: input.valorNovo ?? null,
         ipAddress,
+        dataEvento,
       },
     });
   } catch (error) {

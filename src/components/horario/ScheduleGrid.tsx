@@ -29,13 +29,13 @@ interface ScheduleGridProps {
   canPrint?: boolean;
 }
 
-export function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true }: ScheduleGridProps) {
+export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true }: ScheduleGridProps) {
   if (turmaDisciplinas.length === 0) {
     return <EmptyState message="Sem disciplinas para mostrar." />;
   }
 
   if (view === "provas") {
-    const agora = getAgora();
+    const agora = await getAgora();
     const provas = turmaDisciplinas
       .flatMap((td) => td.avaliacoes.map((av) => ({ ...av, disciplina: td.disciplina, turmaDisciplinaId: td.id, cursoAnoLabel: td.cursoAnoLabel })))
       .sort((a, b) => a.data.getTime() - b.data.getTime());

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { podeRegistarPagamento } from "@/lib/permissions";
+import { getAgora } from "@/lib/tempo";
 import { formatDate, parseIntParam } from "@/lib/utils";
 import type { AlunoStatus, CategoriaEstudante, Prisma } from "@/generated/prisma/client";
 
@@ -45,6 +46,25 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
   // Nova matrícula é domínio financeiro/secretaria (createAlunoAction exige podeRegistarPagamento)
   // — escondido do DAAC para não mostrar um botão que leva sempre a "sem permissão".
   const podeMatricular = session?.user ? podeRegistarPagamento(session.user) : false;
+
+  // Estado da janela de matrícula lido uma vez no render — o botão fica desativado fora dela
+  // (a mesma regra que createAlunoAction impõe no submit), com aviso do porquê e de quando abre.
+  const configJanela = await prisma.configuracaoAcademica.findUnique({
+    where: { id: "config" },
+    select: { matriculaInicio: true, matriculaFim: true },
+  });
+  const agoraJanela = await getAgora();
+  const janelaAberta =
+    Boolean(configJanela?.matriculaInicio && configJanela?.matriculaFim) &&
+    agoraJanela >= configJanela!.matriculaInicio! &&
+    agoraJanela <= configJanela!.matriculaFim!;
+  const avisoJanela = !configJanela?.matriculaInicio || !configJanela?.matriculaFim
+    ? "Período de matrícula não configurado — defina-o em Admin > Configuração Académica."
+    : janelaAberta
+      ? null
+      : agoraJanela < configJanela.matriculaInicio
+        ? `Fora do período de matrícula — abre a ${formatDate(configJanela.matriculaInicio)}.`
+        : `Fora do período de matrícula — encerrou a ${formatDate(configJanela.matriculaFim)}.`;
 
   const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
 
@@ -96,12 +116,20 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
           <p className="text-sm text-navy-400">Matrículas e gestão do percurso académico.</p>
         </div>
         {podeMatricular ? (
-          <Link href="/alunos/novo">
-            <Button variant="primary">
-              <Plus size={16} />
-              Nova matrícula
-            </Button>
-          </Link>
+          <div className="flex flex-col items-end gap-1">
+            <Link
+              href="/alunos/novo"
+              aria-disabled={!janelaAberta}
+              className={janelaAberta ? "" : "pointer-events-none opacity-50"}
+              title={avisoJanela ?? undefined}
+            >
+              <Button variant="primary" disabled={!janelaAberta}>
+                <Plus size={16} />
+                Nova matrícula
+              </Button>
+            </Link>
+            {avisoJanela ? <p className="text-xs text-navy-400">{avisoJanela}</p> : null}
+          </div>
         ) : null}
       </div>
 

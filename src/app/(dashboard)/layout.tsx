@@ -1,24 +1,48 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { garantirCobrancasGeradas } from "@/lib/financeiro";
 import { garantirSuspensaoAutomatica } from "@/lib/curriculo";
 import { garantirNotasAutomaticasPorFalta } from "@/lib/notas-automaticas";
+import { SIMULATION_MODE, getAgora } from "@/lib/tempo";
+import { registarSimEventoFogoEForge, medirJobGarantir } from "@/lib/telemetria";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  // Geração preguiçosa das propinas/multas do mês, no primeiro acesso ao dashboard do dia (MD §2).
-  await garantirCobrancasGeradas();
+  // Telemetria da simulação: cada acesso ao dashboard é um ponto de dados (papel, rota de origem,
+  // offset do relógio). Fire-and-forget — nunca atrasa o render.
+  if (SIMULATION_MODE) {
+    const [agora, headerList] = await Promise.all([getAgora(), headers()]);
+    registarSimEventoFogoEForge({
+      tipo: "ACESSO_DASHBOARD",
+      dataSimulada: agora,
+      etiqueta: headerList.get("x-invoke-path") ?? headerList.get("referer") ?? "/dashboard",
+      userId: session.user.id,
+      userRole: session.user.role,
+    });
+  }
+
   // Suspende quem não rematriculou dentro da janela, no primeiro acesso do dia (§4.2/Fase 8b).
-  await garantirSuspensaoAutomatica();
+  // TEM de correr ANTES de garantirCobrancasGeradas: na virada do ano letivo, gerar propinas
+  // antes de suspender cobrava mais um mês de alunos que já deviam estar TRANCADO (achado em
+  // teste com o relógio simulado — salto de vários meses de uma vez criava PROPINA do mês
+  // corrente para matrículas que a suspensão logo a seguir fechava).
+  await medirJobGarantir("garantirSuspensaoAutomatica", () => garantirSuspensaoAutomatica());
+  // Geração preguiçosa das propinas/multas do mês, no primeiro acesso ao dashboard do dia (MD §2).
+  await medirJobGarantir("garantirCobrancasGeradas", () => garantirCobrancasGeradas());
   // Atribui 0 automático a quem devia ter feito uma época e o prazo passou sem nota (§4.3).
-  await garantirNotasAutomaticasPorFalta();
+  await medirJobGarantir("garantirNotasAutomaticasPorFalta", () => garantirNotasAutomaticasPorFalta());
 
   return (
-    <DashboardShell role={session.user.role} name={session.user.name ?? session.user.email ?? "Utilizador"}>
+    <DashboardShell
+      role={session.user.role}
+      name={session.user.name ?? session.user.email ?? "Utilizador"}
+      simulationMode={SIMULATION_MODE}
+    >
       {children}
     </DashboardShell>
   );

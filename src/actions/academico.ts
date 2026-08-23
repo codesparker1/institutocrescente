@@ -167,21 +167,29 @@ export async function processarRematriculaAction(
   if (!config?.matriculaInicio || !config.matriculaFim) {
     return { error: "Defina o período de matrícula em Admin > Configuração Académica antes de processar rematrículas." };
   }
-  const agora = getAgora();
-  if (agora < config.matriculaInicio || agora > config.matriculaFim) {
-    return { error: "Fora do período de matrícula — a rematrícula só pode ser processada dentro da janela configurada." };
+  const agora = await getAgora();
+  // §pedido do cliente 2026-08 (confirmado): fora da janela, a rematrícula tardia é PODER da
+  // ADMIN — a Secretaria continua limitada à janela. A multa por rematrícula tardia é o valor
+  // configurável valorMultaRematriculaTardia (ConfiguracaoFinanceira, 0 = desligada por defeito).
+  const dentroDaJanela = agora >= config.matriculaInicio && agora <= config.matriculaFim;
+  const rematriculaTardia = !dentroDaJanela && session.user.role === "ADMIN";
+  if (!dentroDaJanela && !rematriculaTardia) {
+    return { error: "Fora do período de matrícula — a rematrícula só pode ser processada dentro da janela configurada (ou pela ADMIN, fora dela)." };
   }
 
   const aluno = await prisma.aluno.findUnique({ where: { id: alunoId } });
   if (!aluno) return { error: "Aluno não encontrado." };
 
-  // Rematrícula exige todos os pagamentos em dia (§pedido do cliente 2026-08-18) — mais estrito
-  // que verificarBloqueioAluno (que só bloqueia notas quando há mês vencido além da tolerância):
-  // aqui basta haver QUALQUER saldo em dívida, vencido ou não, para travar a confirmação.
+  // §regra confirmada 2026-08: só a PROPINA em dívida trava a rematrícula — a multa (mesmo
+  // órfã, pendente) nunca bloqueia o regresso do aluno; continua a dever-se, e só a ADMIN a
+  // confirma (toggleMultaAction). O saldo aqui é calculado sobre as mensalidades pendentes.
   const estadoFinanceiro = await getEstadoFinanceiroAluno(alunoId);
-  if (estadoFinanceiro.saldoEmDivida > 0) {
+  const saldoPropinas = estadoFinanceiro.meses
+    .filter((m) => m.status === "PENDENTE")
+    .reduce((soma, m) => soma + (m.valorDevido - m.valorPago), 0);
+  if (saldoPropinas > 0) {
     return {
-      error: `${aluno.nome} tem um saldo em dívida de ${formatCurrency(estadoFinanceiro.saldoEmDivida)} — confirme todos os pagamentos antes de processar a rematrícula.`,
+      error: `${aluno.nome} tem ${formatCurrency(saldoPropinas)} em mensalidades por pagar — confirme os pagamentos das mensalidades antes de processar a rematrícula (as multas não bloqueiam).`,
     };
   }
 
@@ -319,6 +327,38 @@ export async function processarRematriculaAction(
     configAcademica: config,
   });
 
+  // Multa por rematrícula tardia (§pedido do cliente 2026-08): valor configurável em
+  // ConfiguracaoFinanceira.valorMultaRematriculaTardia, 0 = desligada (defeito). Nasce como
+  // Cobranca MULTA órfã (sem mesReferencia — os tipos pontuais não restringem unicidade),
+  // presa ao aluno, confirmável/reversível só pela ADMIN (toggleMultaAction).
+  let avisoMultaTardia = "";
+  if (rematriculaTardia) {
+    const configFinanceira = await prisma.configuracaoFinanceira.findUnique({ where: { id: "config" } });
+    const valorMultaTardia = Number(configFinanceira?.valorMultaRematriculaTardia ?? 0);
+    if (valorMultaTardia > 0) {
+      await prisma.cobranca.create({
+        data: {
+          matriculaId: matriculaNovaId,
+          alunoId,
+          tipo: "MULTA",
+          descricao: `Multa por rematrícula tardia (${agora.getFullYear()}) — confirmada fora da janela pela ADMIN`,
+          valorDevido: valorMultaTardia,
+          dataVencimento: agora,
+        },
+      });
+      avisoMultaTardia = ` Multa por rematrícula tardia aplicada: ${formatCurrency(valorMultaTardia)}.`;
+      await registrarAuditoria({
+        userId: session.user.id,
+        userName: session.user.name ?? session.user.email ?? "Utilizador",
+        userRole: session.user.role,
+        action: `Aplicou multa por rematrícula tardia de ${formatCurrency(valorMultaTardia)} ao aluno ${aluno.nome} (${aluno.curso}, ${aluno.anoCurricular}º Ano)`,
+        entityType: "Cobranca",
+        entityId: alunoId,
+        valorNovo: formatCurrency(valorMultaTardia),
+      });
+    }
+  }
+
   const resultadoLabel =
     decisao.resultado === "AVANCA" ? `Avançou para o ${decisao.novoAnoCurricular}º Ano` : `Ficou retido no ${decisao.novoAnoCurricular}º Ano`;
   const cadeirasRepetidasLabel = aRepetir.length > 0 ? ` — repete: ${aRepetir.map((r) => r.inscricao.turmaDisciplina.disciplina.nome).join(", ")}` : "";
@@ -345,7 +385,7 @@ export async function processarRematriculaAction(
       ? ` Aviso: sem oferta atual para ${semOferta.map((r) => r.item.inscricao.turmaDisciplina.disciplina.nome).join(", ")} — tentativa anterior mantida ativa.`
       : "";
 
-  return { resultado: `${resultadoLabel}.${cadeirasRepetidasLabel}${avisoOferta}` };
+  return { resultado: `${resultadoLabel}.${cadeirasRepetidasLabel}${avisoOferta}${avisoMultaTardia}` };
 }
 
 export interface IniciarNovoCursoState {
@@ -377,7 +417,8 @@ export async function iniciarNovoCursoAction(
   if (!aluno) return { error: "Aluno não encontrado." };
   if (!novoCurso) return { error: "Curso não encontrado." };
 
-  const anoLetivoAlvo = getAgora().getFullYear();
+  const agora = await getAgora();
+  const anoLetivoAlvo = agora.getFullYear();
   const turmaAlvo = await prisma.turma.findFirst({
     where: {
       cursoId: novoCursoId,

@@ -59,7 +59,7 @@ export async function GET(req: Request) {
       anoCurricular={aluno.anoCurricular}
       itens={itens}
       total={total}
-      dataEmissao={formatDateTime(getAgora())}
+      dataEmissao={formatDateTime(await getAgora())}
       registadoPorNome={registadoPorNome}
     />,
   );

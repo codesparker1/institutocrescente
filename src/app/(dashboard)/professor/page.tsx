@@ -18,7 +18,8 @@ export default async function ProfessorDisciplinasPage() {
   // ano letivo e o semestre correntes — o resto (anos anteriores, semestre ainda não aberto)
   // torna-se histórico/futuro, consultável pelo DAAC/Admin/Secretaria, não trabalho do dia a dia
   // do professor.
-  const anoAtual = getAgora().getFullYear();
+  const agora = await getAgora();
+  const anoAtual = agora.getFullYear();
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
   // "Alunos" tem de contar o roster real da disciplina (InscricaoCadeira ativa, §4.2) — não

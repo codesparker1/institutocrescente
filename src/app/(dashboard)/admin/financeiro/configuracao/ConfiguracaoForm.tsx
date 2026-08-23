@@ -12,9 +12,16 @@ interface ConfiguracaoFormProps {
   toleranciaDias: number;
   diaVencimento: number;
   valorMulta: number;
+  valorMultaRematriculaTardia: number;
 }
 
-export function ConfiguracaoForm({ bloqueioAtivo, toleranciaDias, diaVencimento, valorMulta }: ConfiguracaoFormProps) {
+export function ConfiguracaoForm({
+  bloqueioAtivo,
+  toleranciaDias,
+  diaVencimento,
+  valorMulta,
+  valorMultaRematriculaTardia,
+}: ConfiguracaoFormProps) {
   const [state, formAction, isPending] = useActionState(atualizarConfiguracaoFinanceiraAction, initialState);
 
   return (
@@ -64,6 +71,25 @@ export function ConfiguracaoForm({ bloqueioAtivo, toleranciaDias, diaVencimento,
           step="0.01"
           defaultValue={state.values?.valorMulta ?? valorMulta}
         />
+      </Field>
+
+      <Field
+        label="Multa por rematrícula tardia (Kz)"
+        htmlFor="valorMultaRematriculaTardia"
+        error={state.fieldErrors?.valorMultaRematriculaTardia}
+      >
+        <Input
+          id="valorMultaRematriculaTardia"
+          name="valorMultaRematriculaTardia"
+          type="number"
+          min={0}
+          step="0.01"
+          defaultValue={state.values?.valorMultaRematriculaTardia ?? valorMultaRematriculaTardia}
+        />
+        <p className="mt-1 text-xs text-navy-400">
+          Cobrada (uma vez, como multa órfã) quando a ADMIN rematrícula um aluno fora do período de matrícula.
+          0 = desligada. Não bloqueia o aluno — só a propina bloqueia.
+        </p>
       </Field>
 
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}

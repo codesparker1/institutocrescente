@@ -1,0 +1,5 @@
+[relogio-inicial] (?)
+[salto--10d] (?)
+[1.1-DENTRO] ✓ formulário acessível (http://localhost:3001/alunos/novo)
+[salto+70d] (?)
+[1.1-FORA] ✗ sem erro de janela visível (http://localhost:3001/alunos/novo)

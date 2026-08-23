@@ -38,7 +38,7 @@ const LancarNotasEmLoteSchema = z
  */
 async function criarAvaliacaoEmFalta(turmaDisciplinaId: string, epoca: Epoca, salaHerdada: string) {
   const config = await prisma.configuracaoAcademica.upsert({ where: { id: "config" }, update: {}, create: { id: "config" } });
-  const agora = getAgora();
+  const agora = await getAgora();
   const dias = diasPrazoParaEpoca(config, epoca);
   const prazoLancamento = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + dias);
   try {
@@ -147,7 +147,7 @@ export async function lancarNotasEmLoteAction(entradas: unknown): Promise<Lancar
     return { error: "Disciplina não encontrada." };
   }
 
-  const agora = getAgora();
+  const agora = await getAgora();
   const avaliacoesExistentes = await prisma.avaliacao.findMany({ where: { turmaDisciplinaId } });
   const avaliacaoPorEpoca = new Map(avaliacoesExistentes.map((a) => [a.epoca, a]));
   const epocasEnvolvidas = [...new Set(entries.map((e) => e.epoca))];

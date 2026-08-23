@@ -14,6 +14,7 @@ export default async function ConfiguracaoFinanceiraPage() {
   const toleranciaDias = config?.toleranciaDias ?? 0;
   const diaVencimento = config?.diaVencimento ?? 10;
   const valorMulta = config ? Number(config.valorMulta) : 5000;
+  const valorMultaRematriculaTardia = config ? Number(config.valorMultaRematriculaTardia) : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -33,6 +34,7 @@ export default async function ConfiguracaoFinanceiraPage() {
             toleranciaDias={toleranciaDias}
             diaVencimento={diaVencimento}
             valorMulta={valorMulta}
+            valorMultaRematriculaTardia={valorMultaRematriculaTardia}
           />
         </CardBody>
       </Card>

@@ -375,6 +375,10 @@ model AuditLog {
   valorAnterior String?
   valorNovo     String?
   ipAddress     String?
+  /// Data SIMULADA do evento (getAgora()) — a hora real vive em createdAt. Fora de
+  /// SIMULATION_MODE é igual a createdAt; dentro, mantém a auditoria coerente com o tempo em que
+  /// o sistema "acreditava" estar (senão avançar o relógio 6 meses deixava trilhos datados de hoje).
+  dataEvento    DateTime @default(now())
   createdAt     DateTime @default(now())
 
   @@index([entityType, entityId])
@@ -457,7 +461,11 @@ model ConfiguracaoFinanceira {
   /// % agravada sobre a mensalidade por cada cadeira em repetição (Aluno.cadeirasReprovadasAnoAnterior)
   /// — editado em Admin > Preços, não em Admin > Financeiro > Configuração, mas guardado aqui porque
   /// gerarCobrancasDoDia já carrega esta linha a cada geração de propinas (evita outra query no hot path).
-  percentagemAgravamentoPorCadeira Decimal @default(0) @db.Decimal(5, 2)
+  percentagemAgravamentoPorCadeira Decimal   @default(0) @db.Decimal(5, 2)
+  /// Multa por rematrícula tardia — confirmada pela ADMIN fora da janela de matrícula
+  /// (§pedido do cliente 2026-08). 0 = desligada (defeito). Nasce como Cobranca MULTA órfã,
+  /// presa ao aluno, confirmável/reversível só pela ADMIN (toggleMultaAction).
+  valorMultaRematriculaTardia       Decimal   @default(0) @db.Decimal(10, 2)
   /// Marca a última corrida da geração automática de propinas/multas — evita repeti-la em cada request (§2).
   ultimaGeracaoEm DateTime?
   updatedAt       DateTime  @updatedAt
@@ -470,6 +478,51 @@ model ConfiguracaoFinanceira {
 enum RegraRetencao {
   SO_REPROVADAS
   ANO_INTEIRO
+}
+
+/// Relógio simulado (id fixo "config") — a "máquina do tempo" do papel DEV. Quando
+/// `SIMULATION_MODE=true`, `getAgora()` (src/lib/tempo.ts) lê a data daqui em vez da hora real,
+/// e o DEV pode avançá-la pela página /dev/relogio para ver o sistema reagir (geração de
+/// propinas/multas, suspensão automática, rollover de turmas) como se o tempo tivesse passado.
+/// Vive na BD (não num ficheiro) para funcionar também em deploys serverless/self-hosted, onde
+/// o filesystem não é partilhado nem gravável. Fora de `SIMULATION_MODE` é completamente ignorado.
+model RelogioSimulado {
+  id        String   @id @default("config")
+  agora     DateTime
+  updatedAt DateTime @updatedAt
+}
+
+/// Telemetria da simulação (só escrita com SIMULATION_MODE=true). Captura tudo o que acontece
+/// sob tempo acelerado para análise posterior: saltos do relógio, corridas dos jobs preguiçosos
+/// (garantir*), acessos ao dashboard por papel. Escrita fire-and-forget — nunca bloqueia nem
+/// derruba a ação que a originou. A análise vive em scripts/telemetria/relatorio.ts.
+enum SimEventoTipo {
+  SALTO_RELOGIO
+  REPOR_RELOGIO
+  JOB_GARANTIR
+  ACESSO_DASHBOARD
+  AGENTE_SIMULACAO
+}
+
+model SimEvento {
+  id            String        @id @default(cuid())
+  tipo          SimEventoTipo
+  /// Data SIMULADA no momento do evento (getAgora()).
+  dataSimulada  DateTime
+  /// Hora real do servidor — é esta que mede latências e permite reconstruir a linha temporal real.
+  dataReal      DateTime      @default(now())
+  /// Offset simulado-real em ms no momento do evento (dataSimulada - dataReal).
+  offsetMs      BigInt
+  userId        String?
+  userRole      String?
+  /// Ex.: "garantirCobrancasGeradas", "/financeiro", "avancarRelogio +30d".
+  etiqueta      String
+  detalhes      Json?
+  duracaoMs     Int?
+
+  @@index([tipo])
+  @@index([dataSimulada])
+  @@index([tipo, dataSimulada])
 }
 
 /// Configuração singleton da rematrícula/retenção (id fixo "config", §4.2/8b — não é promoção

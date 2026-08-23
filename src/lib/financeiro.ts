@@ -3,11 +3,11 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
 import { ehVencidoAlemDaTolerancia } from "@/lib/divida";
+import { estadoCobrancaVisual, type EstadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { getAgora } from "@/lib/tempo";
+import { TIPOS_QUE_BLOQUEIAM, TIPOS_QUE_CONTAM_COMO_DIVIDA } from "@/lib/financeiro-tipos";
 
 export { mesReferenciaLabel } from "@/lib/utils";
-
-const TIPOS_QUE_BLOQUEIAM = ["PROPINA", "MULTA"] as const;
 
 async function getConfiguracaoFinanceira() {
   const config = await prisma.configuracaoFinanceira.findUnique({ where: { id: "config" } });
@@ -129,7 +129,7 @@ export async function gerarPropinasAnoLetivo(params: GerarPropinasAnoLetivoParam
  */
 export async function garantirCobrancasGeradas(): Promise<void> {
   const config = await getConfiguracaoFinanceira();
-  const agora = getAgora();
+  const agora = await getAgora();
 
   if (config.ultimaGeracaoEm && inicioDoDia(config.ultimaGeracaoEm).getTime() === inicioDoDia(agora).getTime()) {
     return;
@@ -250,7 +250,7 @@ export async function verificarBloqueioAluno(alunoId: string): Promise<EstadoBlo
     }),
   ]);
 
-  const agora = getAgora();
+  const agora = await getAgora();
   const mesesPendentes: MesPendente[] = cobrancasPendentes.map((c) => ({
     propinaId: c.id,
     mesReferencia: c.mesReferencia ?? c.dataVencimento,
@@ -297,7 +297,7 @@ export interface FiltrosListaDevedores {
 export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Promise<DevedorListItem[]> {
   const { sort = "antiguidade", curso, turmaId, anoLetivo, periodo, categoria } = filtros;
   const config = await getConfiguracaoFinanceira();
-  const agora = getAgora();
+  const agora = await getAgora();
 
   // dataVencimento é sempre meia-noite do dia (garantirCobrancasGeradas), por isso a fronteira
   // exata de ehVencidoAlemDaTolerancia é expressável como uma data-limite fixa aqui, e o SQL
@@ -308,7 +308,9 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
 
   const whereBase = {
     status: "PENDENTE" as const,
-    tipo: { in: [...TIPOS_QUE_BLOQUEIAM] },
+    // Lista de devedores = dinheiro que o aluno deve à instituição, incluindo multas órfãs
+    // (§pedido do cliente 2026-08) — diferente do portão de bloqueio, que é só PROPINA.
+    tipo: { in: [...TIPOS_QUE_CONTAM_COMO_DIVIDA] },
     dataVencimento: { lte: limite },
     aluno: {
       ...(curso ? { curso } : {}),
@@ -376,7 +378,7 @@ export async function getConjuntoAlunosEmDivida(alunoIds: string[]): Promise<Set
   const config = await getConfiguracaoFinanceira();
   if (!config.bloqueioAtivo) return new Set();
 
-  const agora = getAgora();
+  const agora = await getAgora();
   const cobrancasPendentes = await prisma.cobranca.findMany({
     where: { alunoId: { in: alunoIds }, status: "PENDENTE", tipo: { in: [...TIPOS_QUE_BLOQUEIAM] } },
   });
@@ -400,6 +402,9 @@ export interface PropinaMes {
   status: "PENDENTE" | "PAGO";
   dataPagamento: Date | null;
   registadoPorNome: string | null;
+  /// Estado visual derivado (Opção A) — "Devendo" só quando vencido além da tolerância,
+  /// a MESMA condição que bloqueia notas. Ver src/lib/estado-cobranca.ts.
+  estadoVisual: EstadoCobrancaVisual;
 }
 
 export interface CobrancaAvulsa {
@@ -411,6 +416,7 @@ export interface CobrancaAvulsa {
   status: "PENDENTE" | "PAGO";
   dataPagamento: Date | null;
   registadoPorNome: string | null;
+  estadoVisual: EstadoCobrancaVisual;
 }
 
 export interface EstadoFinanceiroAluno {
@@ -423,11 +429,17 @@ export interface EstadoFinanceiroAluno {
 
 /** Histórico financeiro completo de um aluno — usado pela ficha do aluno e pela sua própria página financeira. */
 export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoFinanceiroAluno> {
-  const cobrancas = await prisma.cobranca.findMany({
-    where: { alunoId, tipo: { in: [...TIPOS_QUE_BLOQUEIAM] } },
-    include: { registadoPor: true },
-    orderBy: { mesReferencia: "asc" },
-  });
+  const [config, cobrancas] = await Promise.all([
+    getConfiguracaoFinanceira(),
+    prisma.cobranca.findMany({
+      // Histórico completo mostra PROPINA+MULTA (a multa órfã tem de continuar visível na ficha,
+      // §pedido do cliente 2026-08) — TIPOS_QUE_BLOQUEIAM é só para portões de bloqueio.
+      where: { alunoId, tipo: { in: [...TIPOS_QUE_CONTAM_COMO_DIVIDA] } },
+      include: { registadoPor: true },
+      orderBy: { mesReferencia: "asc" },
+    }),
+  ]);
+  const agora = await getAgora();
 
   const meses: PropinaMes[] = cobrancas
     .filter((c) => c.tipo === "PROPINA")
@@ -440,6 +452,7 @@ export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoF
       status: c.status,
       dataPagamento: c.dataPagamento,
       registadoPorNome: c.registadoPor?.name ?? null,
+      estadoVisual: estadoCobrancaVisual(c.status, c.dataVencimento, config.toleranciaDias, agora),
     }));
 
   const multas: CobrancaAvulsa[] = cobrancas
@@ -453,6 +466,7 @@ export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoF
       status: c.status,
       dataPagamento: c.dataPagamento,
       registadoPorNome: c.registadoPor?.name ?? null,
+      estadoVisual: estadoCobrancaVisual(c.status, c.dataVencimento, config.toleranciaDias, agora),
     }));
 
   const totalDevido = cobrancas.reduce((soma, c) => soma + Number(c.valorDevido), 0);

@@ -47,7 +47,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
 
   // Espelha o bloqueio do botão de imprimir em ScheduleGrid — a lista serve para conferir quem
   // entra na sala nesse dia, não é um registo histórico para reimprimir depois da prova.
-  if (avaliacao.data < getAgora()) {
+  if (avaliacao.data < (await getAgora())) {
     return new Response("Esta prova já foi dada — a lista de presença já não pode ser impressa.", { status: 403 });
   }
 

@@ -70,15 +70,17 @@ export async function createAlunoAction(
     return erroDeValidacao(parsed.error, formData, CAMPOS_ALUNO);
   }
 
-  // Mesma janela de matrícula que processarRematriculaAction já respeitava (§pedido do cliente
-  // 2026-08-18) — só faltava aqui, na primeira matrícula de um aluno novo.
+  // Mesma janela de matrícula que processarRematriculaAction respeita — mas fora da janela a
+  // matrícula nova é PODER da ADMIN (§regra confirmada 2026-08-23), igual à rematrícula tardia.
+  // A Secretaria continua limitada à janela.
   const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   if (!configAcademica?.matriculaInicio || !configAcademica.matriculaFim) {
     return { error: "Defina o período de matrícula em Admin > Configuração Académica antes de matricular alunos." };
   }
-  const agora = getAgora();
-  if (agora < configAcademica.matriculaInicio || agora > configAcademica.matriculaFim) {
-    return { error: "Fora do período de matrícula — novas matrículas só podem ser criadas dentro da janela configurada." };
+  const agora = await getAgora();
+  const dentroDaJanela = agora >= configAcademica.matriculaInicio && agora <= configAcademica.matriculaFim;
+  if (!dentroDaJanela && session.user.role !== "ADMIN") {
+    return { error: "Fora do período de matrícula — novas matrículas só podem ser criadas dentro da janela configurada (ou pela ADMIN, fora dela)." };
   }
 
   const turma = await prisma.turma.findUnique({
@@ -93,7 +95,8 @@ export async function createAlunoAction(
   }
 
   const totalAlunos = await prisma.aluno.count();
-  const numeroEstudante = `ISPC${getAgora().getFullYear()}-${String(totalAlunos + 1).padStart(4, "0")}`;
+  const agoraParaNumero = await getAgora();
+  const numeroEstudante = `ISPC${agoraParaNumero.getFullYear()}-${String(totalAlunos + 1).padStart(4, "0")}`;
   const senhaTemporaria = SENHA_INICIAL_PADRAO;
   const passwordHash = await bcrypt.hash(senhaTemporaria, 10);
 

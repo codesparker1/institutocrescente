@@ -23,7 +23,8 @@ export default async function ProfessorGradebookPage({ params }: ProfessorGradeb
   // começou — em ambos os casos só o DAAC (podeIgnorarPrazo, via /notas) edita; o professor pode
   // continuar a consultar, mas não a editar.
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
-  const editable = turmaDisciplina.turma.anoLetivo === getAgora().getFullYear() && turmaDisciplina.semestre === semestreAtual;
+  const agora = await getAgora();
+  const editable = turmaDisciplina.turma.anoLetivo === agora.getFullYear() && turmaDisciplina.semestre === semestreAtual;
 
   return <TurmaGradebook turmaDisciplinaId={turmaDisciplinaId} backHref="/professor" editable={editable} />;
 }

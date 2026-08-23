@@ -19,6 +19,8 @@ import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
 import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
+import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
+import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas } from "@/lib/permissions";
 import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
@@ -110,7 +112,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 
   // Rematrícula (§4.2/Fase 8b) — resumo do ano corrente e janela de matrícula.
   const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
-  const agora = getAgora();
+  const agora = await getAgora();
   const dentroDaJanela = Boolean(
     configAcademica?.matriculaInicio &&
       configAcademica.matriculaFim &&
@@ -136,11 +138,20 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 
   // Histórico de pagamentos — auditoria do percurso financeiro completo, não só o que está em
   // aberto agora (isso já é "Situação Financeira" acima). Inclui quem registou cada pagamento.
-  const cobrancas = await prisma.cobranca.findMany({
-    where: { alunoId: aluno.id },
-    include: { registadoPor: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const [configFin, cobrancas] = await Promise.all([
+    prisma.configuracaoFinanceira.findUnique({ where: { id: "config" }, select: { toleranciaDias: true } }),
+    prisma.cobranca.findMany({
+      where: { alunoId: aluno.id },
+      include: { registadoPor: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  const agoraHistorico = await getAgora();
+  const tolerancia = configFin?.toleranciaDias ?? 0;
+  const cobrancasComEstado = cobrancas.map((c) => ({
+    ...c,
+    estadoVisual: estadoCobrancaVisual(c.status as "PENDENTE" | "PAGO", c.dataVencimento, tolerancia, agoraHistorico),
+  }));
 
   // Aproveitamento de cadeiras de outra instituição (aluno transferido) — só cadeiras do curso do
   // aluno que ainda não têm nenhuma InscricaoCadeira (qualquer tentativa), para não duplicar.
@@ -253,7 +264,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             subtitle={`Ano corrente: ${reprovacoesAnoCorrente} reprovação(ões) nas cadeiras ativas`}
           />
           <CardBody>
-            <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} />
+            <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} podeForaDaJanela={session?.user?.role === "ADMIN"} />
           </CardBody>
         </Card>
       ) : null}
@@ -362,8 +373,8 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         </Disclosure>
       ) : null}
 
-      <Disclosure title="Histórico de Pagamentos" subtitle={`${cobrancas.length} registo(s)`}>
-        {cobrancas.length === 0 ? (
+      <Disclosure title="Histórico de Pagamentos" subtitle={`${cobrancasComEstado.length} registo(s)`}>
+        {cobrancasComEstado.length === 0 ? (
           <EmptyState message="Sem cobranças registadas." />
         ) : (
           <Table>
@@ -378,13 +389,13 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
               </tr>
             </Thead>
             <Tbody>
-              {cobrancas.map((cobranca) => (
+              {cobrancasComEstado.map((cobranca) => (
                 <Tr key={cobranca.id}>
                   <Td className="font-medium text-navy-900">{COBRANCA_TIPO_LABEL[cobranca.tipo]}</Td>
                   <Td>{cobranca.mesReferencia ? formatDate(cobranca.mesReferencia) : (cobranca.descricao ?? "—")}</Td>
                   <Td>{formatCurrency(Number(cobranca.valorPago) > 0 ? Number(cobranca.valorPago) : Number(cobranca.valorDevido))}</Td>
                   <Td>
-                    <Badge tone={cobranca.status === "PAGO" ? "success" : "warning"}>{cobranca.status === "PAGO" ? "Pago" : "Pendente"}</Badge>
+                    <Badge tone={ESTADO_COBRANCA_TONE[cobranca.estadoVisual]}>{ESTADO_COBRANCA_LABEL[cobranca.estadoVisual]}</Badge>
                   </Td>
                   <Td>{cobranca.dataPagamento ? formatDate(cobranca.dataPagamento) : "—"}</Td>
                   <Td>{cobranca.registadoPor?.name ?? "—"}</Td>

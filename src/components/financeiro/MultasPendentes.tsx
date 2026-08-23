@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/Badge";
 import { formatCurrency, formatDate, mesReferenciaLabel } from "@/lib/utils";
+import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import type { CobrancaAvulsa } from "@/lib/financeiro";
 import { MultaChip } from "./MultaChip";
 
@@ -45,9 +46,7 @@ export function MultasPendentes({ multas, editable, selecionados, onToggleSeleci
               ) : editable ? (
                 <MultaChip multaId={multa.id} pagoInicial={multa.status === "PAGO"} />
               ) : (
-                <Badge tone={multa.status === "PAGO" ? "success" : "danger"}>
-                  {multa.status === "PAGO" ? "Pago" : "Pendente"}
-                </Badge>
+                <Badge tone={ESTADO_COBRANCA_TONE[multa.estadoVisual]}>{ESTADO_COBRANCA_LABEL[multa.estadoVisual]}</Badge>
               )}
             </div>
           </div>

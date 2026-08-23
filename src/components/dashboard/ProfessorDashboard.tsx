@@ -25,7 +25,7 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
   // Sem isto, o resumo da página inicial (disciplinas, alunos, próximas aulas/provas) incluía anos
   // anteriores (histórico), turmas de 2027 pré-criadas para a rematrícula (ainda vazias), e
   // disciplinas do semestre que o DAAC ainda não abriu — inconsistente com o que a lista mostra.
-  const agora = getAgora();
+  const agora = await getAgora();
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   const anoAtual = agora.getFullYear();
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
@@ -70,6 +70,8 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
         campos={[
           { label: "Especialidade", value: professor.especialidade },
           { label: "Email", value: professor.email },
+          { label: "Ano Letivo", value: String(anoAtual) },
+          { label: "Semestre", value: `${semestreAtual}º Semestre` },
         ]}
       />
 

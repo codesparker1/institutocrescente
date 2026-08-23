@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       logoSrc={logoSrc}
       filtrosAplicados={filtrosAplicados}
       totalEmDivida={totalEmDivida}
-      dataEmissao={formatDateTime(getAgora())}
+      dataEmissao={formatDateTime(await getAgora())}
       devedores={devedores.map((d) => ({
         numeroEstudante: d.numeroEstudante,
         nome: d.nome,

@@ -9,18 +9,26 @@ const initialState: ProcessarRematriculaState = {};
 interface RematriculaFormProps {
   alunoId: string;
   dentroDaJanela: boolean;
+  /** ADMIN pode rematricular fora da janela (poder ADMIN confirmado §3.5); Secretaria não. */
+  podeForaDaJanela?: boolean;
 }
 
-export function RematriculaForm({ alunoId, dentroDaJanela }: RematriculaFormProps) {
+export function RematriculaForm({ alunoId, dentroDaJanela, podeForaDaJanela }: RematriculaFormProps) {
   const [state, formAction, isPending] = useActionState(processarRematriculaAction, initialState);
 
-  if (!dentroDaJanela) {
+  if (!dentroDaJanela && !podeForaDaJanela) {
     return <p className="text-xs text-navy-400">Fora do período de matrícula — sem ação disponível.</p>;
   }
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
       <input type="hidden" name="alunoId" value={alunoId} />
+      {!dentroDaJanela && podeForaDaJanela ? (
+        <p className="text-xs text-amber-700">
+          Fora do período de matrícula — a rematrícula tardia é um poder exclusivo da ADMIN e pode
+          gerar multa tardia se estiver configurada.
+        </p>
+      ) : null}
       <button
         type="submit"
         disabled={isPending}

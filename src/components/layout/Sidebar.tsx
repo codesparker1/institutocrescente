@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, GraduationCap, Layers, ScrollText, CalendarClock, ClipboardList, Wallet, AlertTriangle, MessageSquareWarning } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Layers, ScrollText, CalendarClock, ClipboardList, Wallet, AlertTriangle, MessageSquareWarning, Clock } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { NavItem } from "./NavItem";
 import { NavGroup } from "./NavGroup";
@@ -14,9 +14,10 @@ interface SidebarProps {
   role: Role;
   isOpen: boolean;
   onClose: () => void;
+  simulationMode: boolean;
 }
 
-export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
+export function Sidebar({ role, isOpen, onClose, simulationMode }: SidebarProps) {
   const pathname = usePathname();
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
           {role === "PROFESSOR" ? <ProfessorNav /> : null}
           {role === "ALUNO" ? <AlunoNav /> : null}
           {role === "DAAC" ? <DaacNav /> : null}
-          {role === "DEV" ? <DevNav /> : null}
+          {role === "DEV" ? <DevNav simulationMode={simulationMode} /> : null}
         </nav>
         {/* Só quem acede ao Registo de Pagamentos (a página pensada para acessibilidade) precisa disto. */}
         {role === "ADMIN" || role === "SECRETARIA" ? <AcessibilidadeSlider /> : null}
@@ -152,12 +153,15 @@ function DaacNav() {
   );
 }
 
-// Papel DEV (§pedido do cliente 2026-08-18): só recebe reclamações/sugestões de todos os outros
-// papéis, nenhuma outra capacidade no sistema — por isso a navegação tem um único item.
-function DevNav() {
+// Papel DEV (§pedido do cliente 2026-08-18): recebe reclamações/sugestões de todos os outros
+// papéis, e é também quem opera o relógio simulado (conta pessoal do responsável técnico) — as
+// duas únicas capacidades do papel, nenhuma outra no sistema.
+function DevNav({ simulationMode }: { simulationMode: boolean }) {
   return (
     <>
       <NavItem href="/admin/reclamacoes" label="Reclamações e Sugestões" icon={<MessageSquareWarning size={18} />} />
+      {/* Só existe com SIMULATION_MODE=true (teste de vários anos com tempo acelerado) — ver src/lib/tempo.ts. */}
+      {simulationMode ? <NavItem href="/admin/relogio" label="Relógio Simulado" icon={<Clock size={18} />} /> : null}
     </>
   );
 }

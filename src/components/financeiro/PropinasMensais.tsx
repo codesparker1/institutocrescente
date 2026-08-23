@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/Badge";
 import { formatCurrency, formatDate, mesReferenciaLabel, chaveMes } from "@/lib/utils";
+import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import type { PropinaMes, CobrancaAvulsa } from "@/lib/financeiro";
 import { PropinaMesChip } from "./PropinaMesChip";
 
@@ -63,11 +64,9 @@ export function PropinasMensais({ meses, multas = [], editable, selecionados, on
                   Selecionar
                 </label>
               ) : editable ? (
-                <PropinaMesChip propinaId={mes.id} pagoInicial={mes.status === "PAGO"} />
+                <PropinaMesChip propinaId={mes.id} pagoInicial={mes.status === "PAGO"} estadoVisual={mes.estadoVisual} />
               ) : (
-                <Badge tone={mes.status === "PAGO" ? "success" : "danger"}>
-                  {mes.status === "PAGO" ? "Pago" : "Pendente"}
-                </Badge>
+                <Badge tone={ESTADO_COBRANCA_TONE[mes.estadoVisual]}>{ESTADO_COBRANCA_LABEL[mes.estadoVisual]}</Badge>
               )}
             </div>
           </div>

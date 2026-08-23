@@ -92,6 +92,15 @@ export function podeGerirReclamacoes(user: CapabilityUser): boolean {
   return user.role === "DEV";
 }
 
+/**
+ * Exclusivo do papel DEV — avançar/repor o relógio simulado (Admin > Relógio Simulado, só
+ * visível com SIMULATION_MODE=true). É a conta pessoal do responsável técnico quem corre os
+ * testes de vários anos com tempo acelerado, por isso não passa por podeGerirContas (ADMIN).
+ */
+export function podeGerirRelogioSimulado(user: CapabilityUser): boolean {
+  return user.role === "DEV";
+}
+
 export type SessionComUser = Session;
 
 /**
@@ -147,6 +156,10 @@ export function requireGerirFrequencia(): Promise<SessionComUser> {
 
 export function requireGerirContas(): Promise<SessionComUser> {
   return requireCapacidade(podeGerirContas);
+}
+
+export function requireGerirRelogioSimulado(): Promise<SessionComUser> {
+  return requireCapacidade(podeGerirRelogioSimulado);
 }
 
 export function requireGerirReclamacoes(): Promise<SessionComUser> {

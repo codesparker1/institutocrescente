@@ -115,7 +115,7 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   if (!config?.anoLetivoFim) return;
 
-  const agora = getAgora();
+  const agora = await getAgora();
   if (agora <= config.anoLetivoFim) return;
   if (config.ultimaSuspensaoEm && inicioDoDia(config.ultimaSuspensaoEm).getTime() === inicioDoDia(agora).getTime()) {
     return;

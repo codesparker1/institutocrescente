@@ -27,7 +27,7 @@ export async function garantirNotasAutomaticasPorFalta(): Promise<void> {
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   if (!config) return;
 
-  const agora = getAgora();
+  const agora = await getAgora();
   if (config.ultimaVerificacaoNotasEm && inicioDoDia(config.ultimaVerificacaoNotasEm).getTime() === inicioDoDia(agora).getTime()) {
     return;
   }

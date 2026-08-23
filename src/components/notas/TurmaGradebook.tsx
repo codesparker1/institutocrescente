@@ -56,7 +56,7 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
     notasPorInscricao.set(nota.inscricaoCadeiraId, lista);
   }
 
-  const agora = getAgora();
+  const agora = await getAgora();
   const inscricoes = turmaDisciplina.inscricoes;
   const diasLetivos = [...new Set(turmaDisciplina.horarioSlots.map((s) => s.diaSemana))];
   const datasValidas = proximasDatasValidas(diasLetivos, 8, agora);

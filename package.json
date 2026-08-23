@@ -12,10 +12,13 @@
     "test:workflow": "tsx scripts/e2e-workflow/run.ts",
     "diagnostico": "tsx scripts/diagnostico/run.ts",
     "seed:grande": "tsx scripts/seed-grande/run.ts",
+    "seed:teste-5-anos": "tsx scripts/seed-teste-5-anos.ts",
+    "teste:5-alunos": "tsx scripts/simulacao/teste-5-alunos.ts",
     "simular:grande": "tsx scripts/simulacao/run-grande.ts",
     "relatorio:grande": "tsx scripts/seed-grande/relatorio.ts",
     "simular:ano": "tsx scripts/simulacao/run-ano.ts",
     "relatorio:ano": "tsx scripts/seed-grande/relatorio-ano.ts",
+    "telemetria": "tsx scripts/telemetria/relatorio.ts",
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {

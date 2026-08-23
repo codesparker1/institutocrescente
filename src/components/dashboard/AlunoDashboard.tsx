@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, ClipboardCheck, GraduationCap, TrendingUp } from "lucide-react";
+import { CalendarClock, ClipboardCheck, GraduationCap, PauseCircle, TrendingUp } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
@@ -63,7 +63,9 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   const percentualPresenca = todasFrequencias.length > 0 ? Math.round((presencas / todasFrequencias.length) * 100) : null;
 
   const todasDisciplinas = inscricoes.map((i) => i.turmaDisciplina);
-  const agora = getAgora();
+  const agora = await getAgora();
+  const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
 
   const proximasAulas = todasDisciplinas
     .flatMap((td) => td.horarioSlots.map((slot) => ({ ...slot, disciplinaNome: td.disciplina.nome })))
@@ -84,12 +86,26 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     .sort((a, b) => a.data.getTime() - b.data.getTime())
     .slice(0, 5);
 
+  const trancado = aluno.status === "TRANCADO";
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-navy-900">Página Inicial</h1>
         <p className="text-sm text-navy-400">Olá, {aluno.nome.split(" ")[0]}. Aqui está o resumo do seu percurso académico.</p>
       </div>
+
+      {/* Bug 3 (sessão 2026-08-23): aluno TRANCADO precisa de saber QUE o problema é a matrícula,
+          não o pagamento. Banner âmbar específico, acima de qualquer aviso de dívida. */}
+      {trancado ? (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <PauseCircle size={18} className="mt-0.5 shrink-0" />
+          <p>
+            A sua matrícula ficou suspensa por não ter renovado dentro do prazo. Dirija-se à secretaria para tratar da
+            rematrícula.
+          </p>
+        </div>
+      ) : null}
 
       {bloqueio.bloqueado ? <AvisoNotasBloqueadas saldoEmDivida={bloqueio.saldoEmDivida} /> : null}
 
@@ -101,6 +117,12 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           { label: "Curso", value: aluno.curso },
           { label: "Ano", value: `${aluno.anoCurricular}º Ano` },
           { label: "Email", value: aluno.email ?? "—" },
+          // Aluno trancado não tem semestre ativo — mostrar "Sem matrícula ativa" em vez do
+          // ano letivo/semestre correntes, que sugeririam um estado enganador (regra confirmada).
+          trancado
+            ? { label: "Matrícula", value: "Sem matrícula ativa" }
+            : { label: "Ano Letivo", value: String(agora.getFullYear()) },
+          ...(trancado ? [] : [{ label: "Semestre", value: `${semestreAtual}º Semestre` }]),
         ]}
       />
 

@@ -71,7 +71,7 @@ export async function togglePropinaAction(formData: FormData): Promise<{ error?:
       where: { alunoId: propina.alunoId, tipo: "MULTA", mesReferencia, status: "PENDENTE" },
     });
 
-    const agora = getAgora();
+    const agora = await getAgora();
     await prisma.$transaction([
       prisma.cobranca.update({
         where: { id: propina.id },
@@ -165,7 +165,7 @@ export async function toggleMultaAction(formData: FormData): Promise<{ error?: s
   await prisma.cobranca.update({
     where: { id: multa.id },
     data: paga
-      ? { status: "PAGO", valorPago: multa.valorDevido, dataPagamento: getAgora(), registadoPorId: session.user.id }
+      ? { status: "PAGO", valorPago: multa.valorDevido, dataPagamento: await getAgora(), registadoPorId: session.user.id }
       : { status: "PENDENTE", valorPago: 0, dataPagamento: null, registadoPorId: null },
   });
 
@@ -257,7 +257,7 @@ export async function confirmarPagamentosEmLoteAction(
 
   const todasParaConfirmar = [...selecionadas, ...multasAIncluir];
 
-  const agora = getAgora();
+  const agora = await getAgora();
   await prisma.$transaction(
     todasParaConfirmar.map((c) =>
       prisma.cobranca.update({
@@ -313,7 +313,7 @@ export async function registarEmolumentosEmLoteAction(
   if (!aluno) return { error: "Aluno não encontrado." };
   if (emolumentos.length !== emolumentoIds.length) return { error: "Um ou mais emolumentos selecionados não foram encontrados." };
 
-  const agora = getAgora();
+  const agora = await getAgora();
   const cobrancas = await prisma.$transaction(
     emolumentos.map((emolumento) =>
       prisma.cobranca.create({
@@ -388,9 +388,13 @@ const ConfiguracaoFinanceiraSchema = z.object({
     .min(1, "Mínimo dia 1")
     .max(28, "Máximo dia 28 (para existir em todos os meses)"),
   valorMulta: z.coerce.number("Indique o valor da multa").min(0, "O valor não pode ser negativo"),
+  // Multa por rematrícula fora da janela — só a ADMIN rematricula tarde. 0 = desligada (default).
+  valorMultaRematriculaTardia: z.coerce
+    .number("Indique o valor da multa de rematrícula tardia")
+    .min(0, "O valor não pode ser negativo"),
 });
 
-const CAMPOS_CONFIG = ["toleranciaDias", "diaVencimento", "valorMulta"] as const;
+const CAMPOS_CONFIG = ["toleranciaDias", "diaVencimento", "valorMulta", "valorMultaRematriculaTardia"] as const;
 export type ConfiguracaoFinanceiraState = FormState<Record<(typeof CAMPOS_CONFIG)[number], string>> & {
   success?: boolean;
 };
@@ -405,6 +409,7 @@ export async function atualizarConfiguracaoFinanceiraAction(
     toleranciaDias: formData.get("toleranciaDias"),
     diaVencimento: formData.get("diaVencimento"),
     valorMulta: formData.get("valorMulta"),
+    valorMultaRematriculaTardia: formData.get("valorMultaRematriculaTardia"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CONFIG);
 
