@@ -42,17 +42,26 @@ export async function confirmarPropinaMaisAntiga(
     return false;
   }
   await linhaResultado.click();
-  await page.waitForTimeout(500);
+  // O painel de mensalidades é renderizado por um server action a seguir ao clique — contra a
+  // Vercel demora segundos. Espera ativa pelo painel: sem isto, checkboxes.count()===0 caía no
+  // ramo "já está tudo pago" e o sweep reportava sucesso SEM pagar nada (visto 2026-08-24: todos
+  // os alunos ficaram com 16 cobranças PENDENTE e as rematrículas bloqueadas por 119 000 Kz).
+  const secaoPropinas = page.locator('[data-secao="propinas-mensais"]');
+  try {
+    await secaoPropinas.waitFor({ state: "visible", timeout: 20000 });
+  } catch {
+    await registarAnomalia(page, outputDir, staffCredencial.papel, `painel de propinas de ${alunoNome} não apareceu em /financeiro/registo após 20s`);
+    return false;
+  }
 
   // PagamentosSecretariaPanel/PropinasMensais: cada mensalidade PENDENTE tem uma checkbox "Selecionar"
   // (estado só no cliente, sem name= — o POST real é montado em JS a partir do Set selecionado, ver
   // handleConfirmar em PagamentosSecretariaPanel.tsx). Marca TODAS as pendentes visíveis — replica
   // "incluir todos os meses pendentes até ao mais recente" exigido por confirmarPagamentosEmLoteAction.
-  const secaoPropinas = page.locator('[data-secao="propinas-mensais"]');
   const checkboxesPropina = secaoPropinas.locator('input[type="checkbox"]');
   const total = await checkboxesPropina.count();
   if (total === 0) {
-    // Sem nada pendente — já está tudo pago, não é uma falha do cenário.
+    // Painel visível e sem nada pendente — já está tudo pago, não é uma falha do cenário.
     return true;
   }
   for (let i = 0; i < total; i += 1) {
@@ -61,12 +70,15 @@ export async function confirmarPropinaMaisAntiga(
   }
 
   const botaoConfirmar = page.getByRole("button", { name: /Confirmar e emitir recibo/i });
-  if ((await botaoConfirmar.count()) === 0) {
-    await registarAnomalia(page, outputDir, staffCredencial.papel, `botão de confirmar pagamento não encontrado para ${alunoNome}`);
+  // O botão só renderiza DEPOIS de pelo menos uma checkbox estar marcada — espera ativa por ele.
+  try {
+    await botaoConfirmar.first().waitFor({ state: "visible", timeout: 10000 });
+  } catch {
+    await registarAnomalia(page, outputDir, staffCredencial.papel, `botão de confirmar pagamento não apareceu para ${alunoNome} mesmo com ${total} checkbox marcadas`);
     return false;
   }
   await botaoConfirmar.first().click();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(1500);
   return true;
 }
 

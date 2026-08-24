@@ -214,6 +214,9 @@ async function suspenderNaoRematriculados(agora: Date, semestreAtual: number): P
   }
 
   const anoLetivoCorrente = agora.getFullYear();
+  // §Opção A (2026-08-24): só ATIVO é suspendível. FORMADO fica de fora de propósito — quem
+  // terminou o curso (processarRematriculaAction marca FORMADO no fim-de-curso) não "trancou",
+  // terminou; TRANCADO/DESISTENTE já estão fora do ciclo de matrículas.
   const alunosAtivos = await prisma.aluno.findMany({
     where: { status: "ATIVO" },
     select: {

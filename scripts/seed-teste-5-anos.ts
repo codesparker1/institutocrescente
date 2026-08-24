@@ -164,7 +164,17 @@ async function main() {
   const fimAnoLetivo = new Date(ANO_LETIVO_INICIAL, 11, 15);
   await prisma.configuracaoAcademica.upsert({
     where: { id: "config" },
-    update: {},
+    // update também preenche as datas — a corrida de 2026-08-24 contra a Neon-teste falhou porque
+    // a linha "config" já lá existia (de um seed anterior) com anoLetivoInicio/Fim = null e o
+    // upsert com update:{} não as escreveu, deixando teste-5-alunos.ts a falhar em lerConfigAcademica.
+    update: {
+      limiteReprovacoes: 2,
+      regraRetencao: "SO_REPROVADAS",
+      anoLetivoInicio: inicioAnoLetivo,
+      anoLetivoFim: fimAnoLetivo,
+      matriculaInicio: new Date(ANO_LETIVO_INICIAL, 11, 1),
+      matriculaFim: new Date(ANO_LETIVO_INICIAL + 1, 0, 31),
+    },
     create: {
       id: "config",
       limiteReprovacoes: 2,

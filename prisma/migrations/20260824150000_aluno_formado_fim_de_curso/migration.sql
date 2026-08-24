@@ -1,0 +1,3 @@
+-- Opção A (§decisão do cliente 2026-08-24): o aluno que termina o curso fica FORMADO, não
+-- TRANCADO. Nenhuma coluna nova — o enum AlunoStatus já tinha FORMADO (nunca escrito por
+-- nenhum fluxo até agora). Migration vazia de propósito: serve de marcador da decisão.

@@ -64,8 +64,38 @@ export async function domingosAvaliacoesP2Ano1(ctx: CenarioCtx): Promise<void> {
  * 2º ano: Programação I (professor1) continua dispensado; Bases de Dados (professor2) reprova —
  * nota baixa em P1+P2 (sem dispensa) força a cascata a passar por Exame, onde recebe nota abaixo do
  * mínimo (5) e fecha REPROVADO. `professorLabel` distingue as duas disciplinas na chamada.
+ *
+ * §correção 2026-08-24: a Avaliacao de P2 desta TD é criada ANTES pelo cenário da Isabel
+ * (isabelCriarProvaP2EmFaltaBasesDados) com prazo JÁ EXPIRADO — é o setup do auto-zero dela. Sem
+ * normalização, o input do professor fica disabled (TurmaGradebook: prazoLancamento < agora) e as
+ * notas do Domingos nunca são gravadas (lancarNotaAluno devolve false em silêncio — visto na
+ * corrida v2: inscrição de 2027 ficou SEM notas, sem reprovação, sem repetição). Aqui repõe o
+ * prazo em aberto antes de o professor lançar; o auto-zero da Isabel já correu neste ponto
+ * (marco vencimento-propinas visita o dashboard depois do prazo dela expirar).
  */
+async function garantirPrazoAbertoBasesDados(ctx: CenarioCtx, epocas: ("P1" | "P2" | "EXAME")[], dataProva: Date): Promise<void> {
+  const config = await ctx.prisma.configuracaoAcademica.findUniqueOrThrow({ where: { id: "config" } });
+  const turmaDisciplina = await ctx.prisma.turmaDisciplina.findFirstOrThrow({
+    where: { disciplina: { nome: "Bases de Dados" }, turma: { anoCurricular: 2, anoLetivo: dataProva.getFullYear() } },
+  });
+  const prazoPorEpoca: Record<string, number> = {
+    P1: config.diasPrazoP1,
+    P2: config.diasPrazoP2,
+    EXAME: config.diasPrazoExame,
+  };
+  for (const epoca of epocas) {
+    const prazoLancamento = new Date(dataProva.getTime() + (prazoPorEpoca[epoca] ?? 5) * 24 * 60 * 60 * 1000);
+    await ctx.prisma.avaliacao.upsert({
+      where: { turmaDisciplinaId_epoca: { turmaDisciplinaId: turmaDisciplina.id, epoca } },
+      update: { prazoLancamento }, // repõe prazo em aberto (a P2 da Isabel nasceu expirada)
+      create: { turmaDisciplinaId: turmaDisciplina.id, epoca, data: dataProva, sala: "Lab 2", prazoLancamento },
+    });
+  }
+}
+
 export async function domingosAvaliacoesP1Ano2(ctx: CenarioCtx): Promise<void> {
+  // P1 de Bases de Dados ainda não existe (só a P2 da Isabel) — nasce aqui com prazo aberto.
+  await garantirPrazoAbertoBasesDados(ctx, ["P1"], new Date());
   await paraCadaDisciplinaDoProfessor(
     ctx.browser,
     ctx.baseUrl,
@@ -92,6 +122,8 @@ export async function domingosAvaliacoesP1Ano2(ctx: CenarioCtx): Promise<void> {
 }
 
 export async function domingosAvaliacoesP2Ano2(ctx: CenarioCtx): Promise<void> {
+  // P2 da Isabel nasceu com prazo expirado (auto-zero dela) — repõe em aberto; EXAME nasce aqui.
+  await garantirPrazoAbertoBasesDados(ctx, ["P2", "EXAME"], new Date());
   await paraCadaDisciplinaDoProfessor(
     ctx.browser,
     ctx.baseUrl,

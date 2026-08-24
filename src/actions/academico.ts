@@ -241,6 +241,31 @@ export async function processarRematriculaAction(
     },
   });
   if (!turmaAlvo) {
+    // §Opção A (confirmada 2026-08-24): a tentativa de rematrícula para um ano que o curso nem
+    // tem (ex.: 5º ano de um curso de 4) é FIM DE CURSO, não erro — o aluno fica FORMADO (o enum
+    // AlunoStatus já o tinha, nunca escrito até agora) e a Matricula corrente passa a CONCLUIDA.
+    // FORMADO é excluído da suspensão automática (suspenderNaoRematriculados só apanha ATIVO) —
+    // um formado não "trancou", terminou. A devolução distingue os dois casos para o chamador
+    // (o teste de simulação trata o fim de curso como resultado esperado).
+    const cursoTerminou = decisao.novoAnoCurricular > matriculaAtual.turma.curso.duracaoAnos;
+    if (cursoTerminou) {
+      await prisma.$transaction([
+        prisma.matricula.update({ where: { id: matriculaAtual.id }, data: { status: "CONCLUIDA" } }),
+        prisma.aluno.update({ where: { id: alunoId }, data: { status: "FORMADO" } }),
+      ]);
+      await registrarAuditoria({
+        userId: session.user.id,
+        userName: session.user.name ?? session.user.email ?? "Utilizador",
+        userRole: session.user.role,
+        action: `Concluiu o curso: ${aluno.nome} (${matriculaAtual.turma.curso.nome}) ficou FORMADO — sem turma de ${decisao.novoAnoCurricular}º Ano para ${anoLetivoAlvo}`,
+        entityType: "Aluno",
+        entityId: alunoId,
+      });
+      return {
+        error: `FIM_DE_CURSO: ${aluno.nome} concluiu o ${matriculaAtual.turma.curso.nome} (${matriculaAtual.turma.curso.duracaoAnos} anos) — não há ${decisao.novoAnoCurricular}º Ano. Estado final: FORMADO.`,
+        resultado: `Concluiu o curso — estado FORMADO.`,
+      };
+    }
     return {
       error: `Não existe turma de ${decisao.novoAnoCurricular}º Ano para ${anoLetivoAlvo} neste curso/período — crie-a primeiro em Admin > Turmas.`,
     };
