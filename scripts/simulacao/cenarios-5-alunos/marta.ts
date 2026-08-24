@@ -19,15 +19,29 @@ export async function martaVencimentoPropinas(ctx: CenarioCtx): Promise<void> {
 }
 
 async function lancarNotaMartaEmAmbasCadeiras(ctx: CenarioCtx, colunaIndex: number): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Marta Kiala", colunaIndex, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Marta Kiala", colunaIndex, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
   // Bases de Dados é lecionada por professor2 — professor1 só cobre Programação I.
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Marta Kiala", colunaIndex, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Marta Kiala", colunaIndex, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
 }
 
 export async function martaAvaliacoesP1(ctx: CenarioCtx): Promise<void> {

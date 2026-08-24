@@ -20,14 +20,28 @@ export async function beatrizVencimentoPropinas(ctx: CenarioCtx): Promise<void> 
 }
 
 async function lancarNotaBeatrizEmAmbasCadeiras(ctx: CenarioCtx, colunaIndex: number): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Beatriz Sacatucua", colunaIndex, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Beatriz Sacatucua", colunaIndex, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Beatriz Sacatucua", colunaIndex, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Beatriz Sacatucua", colunaIndex, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
 }
 
 export async function beatrizAvaliacoesP1(ctx: CenarioCtx): Promise<void> {

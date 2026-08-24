@@ -246,7 +246,13 @@ model TurmaDisciplina {
   horarioSlots HorarioSlot[]
   inscricoes   InscricaoCadeira[]
 
-  @@unique([turmaId, disciplinaId])
+  // (turmaId, disciplinaId) permitiria só UMA oferta por disciplina por turma — mas
+  // processarRematriculaAction procura a oferta de repetição por (cadeiraCurricularId,
+  // turma.anoLetivo), não por disciplina: um aluno que avança de ano repetindo só uma cadeira
+  // precisa de uma 2ª TurmaDisciplina na turma do ano seguinte, para a MESMA disciplina mas
+  // ligada à CadeiraCurricular do ano anterior (a que está a repetir), coexistindo com a oferta
+  // normal dessa disciplina no ano corrente.
+  @@unique([turmaId, cadeiraCurricularId])
 }
 
 model HorarioSlot {

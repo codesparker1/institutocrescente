@@ -70,6 +70,17 @@ export function construirMarcos(config: ConfigAcademicaParaMarcos): Marco[] {
       pico: false,
     },
     {
+      id: "vencimento-propinas-2",
+      // garantirCobrancasGeradas cria a propina do mês corrente à medida que o relógio avança
+      // (não o ano letivo inteiro de uma vez) — um único marco de pagamento em vencimento-propinas
+      // (dia 30) deixa vários meses por confirmar até à janela de rematrícula, que só bloqueia
+      // corretamente quem tem mesmo mensalidade VENCIDA (ver academico.ts, saldoPropinas). Este 2º
+      // marco replica o que uma secretária real faria — confirmar o saldo antes de rematricular.
+      label: "Vencimento mensal de propinas (2ª ronda, antes da rematrícula)",
+      data: maisDias(config.anoLetivoInicio, 180),
+      pico: false,
+    },
+    {
       id: "janela-rematricula",
       label: "Janela de rematrícula",
       data: meio,

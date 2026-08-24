@@ -7,6 +7,7 @@ import type { Browser, Page } from "playwright";
 import { login } from "../agentes/comum";
 import { instrumentarPagina, registarAnomalia } from "../anomalias";
 import type { CredencialAgente } from "../db-helpers";
+import type { PrismaClient } from "../../../src/generated/prisma/client";
 
 /**
  * Confirma a propina PENDENTE mais antiga do aluno via /financeiro/registo. Reproduz a regra de
@@ -95,6 +96,13 @@ export async function guardarNotasPauta(page: Page): Promise<void> {
  * uma, chama `porDisciplina` com a Page já posicionada na pauta — usado para lançar a mesma época
  * de nota num aluno em ambas as cadeiras seedadas (Programação I, Bases de Dados) sem repetir o
  * padrão de navegação em cada ficheiro de cenário.
+ *
+ * `semestreParaVisita`: /professor só lista TurmaDisciplina onde `semestre === semestreAtual`
+ * (src/app/(dashboard)/professor/page.tsx) — Programação I é semestre 1, Bases de Dados é
+ * semestre 2, e nada no relógio simulado avança semestreAtual sozinho a meio do ano (só o reset
+ * para 1 no fim do ano letivo, via suspenderNaoRematriculados). Sem forçar aqui, professor2 nunca
+ * vê Bases de Dados na sua pauta e a nota nunca chega a ser gravada, com o script a "reportar"
+ * sucesso na mesma (o botão simplesmente não existe / a disciplina não aparece na tabela).
  */
 export async function paraCadaDisciplinaDoProfessor(
   browser: Browser,
@@ -102,7 +110,10 @@ export async function paraCadaDisciplinaDoProfessor(
   professorCredencial: CredencialAgente,
   outputDir: string,
   porDisciplina: (page: Page) => Promise<void>,
+  opts: { prisma: PrismaClient; semestreParaVisita: number },
 ): Promise<void> {
+  await opts.prisma.configuracaoAcademica.update({ where: { id: "config" }, data: { semestreAtual: opts.semestreParaVisita } });
+
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   instrumentarPagina(page, outputDir, professorCredencial.papel);

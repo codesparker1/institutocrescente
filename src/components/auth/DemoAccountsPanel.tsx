@@ -6,12 +6,23 @@ import { cn } from "@/lib/utils";
 
 export const DEMO_PASSWORD = "Ispc@2026";
 
+// A lista completa (dev/professores nomeados/5 alunos) só existe quando a BD foi semeada por
+// scripts/seed-teste-5-anos.ts — as contas ADMIN/SECRETARIA/DAAC/professor@/aluno@ existem em
+// ambos os seeds (prisma/seed.ts e o de teste), por isso continuam sempre no topo da lista.
 const DEMO_ACCOUNTS = [
+  { role: "Dev (Responsável Técnico)", email: "dev@ispc.ao", tone: "bg-rose-500" },
   { role: "Administrador", email: "admin@ispc.ao", tone: "bg-navy-700" },
   { role: "Secretaria", email: "secretaria@ispc.ao", tone: "bg-emerald-600" },
   { role: "DAAC", email: "daac@ispc.ao", tone: "bg-purple-600" },
-  { role: "Professor", email: "professor@ispc.ao", tone: "bg-gold-600" },
-  { role: "Aluno", email: "aluno@ispc.ao", tone: "bg-navy-500" },
+  { role: "Professor (atalho genérico)", email: "professor@ispc.ao", tone: "bg-gold-600" },
+  { role: "Eng. António Sousa (Prog. I)", email: "antonio.sousa@ispc.ao", tone: "bg-gold-600" },
+  { role: "Eng. Rui Manuel Ferreira (Bases de Dados)", email: "rui.ferreira@ispc.ao", tone: "bg-gold-600" },
+  { role: "Aluno (atalho genérico)", email: "aluno@ispc.ao", tone: "bg-navy-500" },
+  { role: "Marta Kiala", email: "marta.kiala@aluno.ispc.ao", tone: "bg-navy-500" },
+  { role: "João Manuel", email: "joao.manuel@aluno.ispc.ao", tone: "bg-navy-500" },
+  { role: "Beatriz Sacatucua", email: "beatriz.sacatucua@aluno.ispc.ao", tone: "bg-navy-500" },
+  { role: "Domingos Cavaco", email: "domingos.cavaco@aluno.ispc.ao", tone: "bg-navy-500" },
+  { role: "Isabel Neto", email: "isabel.neto@aluno.ispc.ao", tone: "bg-navy-500" },
 ] as const;
 
 interface DemoAccountsPanelProps {
@@ -42,16 +53,16 @@ export function DemoAccountsPanel({ onSelect }: DemoAccountsPanelProps) {
           open ? "w-72 opacity-100" : "w-0 border-l-0 opacity-0",
         )}
       >
-        <div className="w-72 p-4">
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-navy-300">
+        <div className="flex w-72 flex-col p-4" style={{ maxHeight: "min(80vh, 640px)" }}>
+          <div className="mb-3 flex shrink-0 items-center gap-2 text-xs font-semibold uppercase tracking-wide text-navy-300">
             <KeyRound size={14} />
             Contas de demonstração
           </div>
-          <p className="mb-3 text-xs text-navy-400">
+          <p className="mb-3 shrink-0 text-xs text-navy-400">
             Para testar, clique numa conta para preencher o formulário automaticamente. Senha igual para todas:{" "}
             <span className="font-mono text-gold-300">{DEMO_PASSWORD}</span>
           </p>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-2 overflow-y-auto pr-1">
             {DEMO_ACCOUNTS.map((account) => (
               <li key={account.email}>
                 <button

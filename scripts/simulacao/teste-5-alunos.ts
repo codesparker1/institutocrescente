@@ -303,12 +303,6 @@ async function main(): Promise<void> {
     for (const marco of marcos) {
       console.log(`\n--- Marco: ${marco.label} (${marco.data.toISOString().slice(0, 10)}) ---`);
 
-      // Isabel: cria a Avaliacao de P2 em falta de Bases de Dados ANTES de avançar para o marco
-      // avaliacoes-p2-exame, para o prazo já estar expirado quando o dashboard for visitado.
-      if (marco.id === "avaliacoes-p2-exame" && !concluiuCurso.isabel) {
-        await isabel.isabelCriarProvaP2EmFaltaBasesDados(ctx, marcos.find((m) => m.id === "avaliacoes-p1")!.data);
-      }
-
       avancarRelogio(marco.data);
       await visitarDashboardParaDisparaJobs(browser, args.url, staff.admin);
 
@@ -347,24 +341,58 @@ async function main(): Promise<void> {
           if (iteracao === 2) await domingos.domingosAvaliacoesP2Ano2(ctx);
           else await domingos.domingosAvaliacoesP2Ano1(ctx);
         }
-        if (!concluiuCurso.isabel) await isabel.isabelAvaliacoesP2EExame(ctx);
+        if (!concluiuCurso.isabel) {
+          // Cria a Avaliacao de P2 em falta de Bases de Dados SÓ AGORA — depois de Marta/João/
+          // Beatriz/Domingos já terem lançado a sua própria nota real de P2 na MESMA Avaliacao
+          // partilhada (uma TurmaDisciplina = uma prova por turma, não por aluno). Criá-la ANTES
+          // do resto da turma escrever a nota bloqueava a coluna P2 de todos (prazo já expirado
+          // = input disabled em TurmaGradebook), zerando silenciosamente o P2 de Bases de Dados
+          // da turma inteira todos os anos — só o de Isabel devia ficar em falta.
+          await isabel.isabelCriarProvaP2EmFaltaBasesDados(ctx, marcos.find((m) => m.id === "avaliacoes-p1")!.data);
+          await isabel.isabelAvaliacoesP2EExame(ctx);
+        }
       } else if (marco.id === "janela-rematricula") {
+        // Sweep imediatamente antes de cada rematrícula, não num marco anterior — qualquer gap
+        // temporal entre um pagamento antecipado e este marco deixa garantirCobrancasGeradas gerar
+        // mais um mês PENDENTE (vencido) entretanto, e processarRematriculaAction bloqueia por
+        // qualquer saldo DEVENDO. Zero gap = sweep aqui, mesmo passo, mesmo instante simulado.
+        const { confirmarPropinaMaisAntiga: pagarSaldoPropinas } = await import("./cenarios-5-alunos/acoes-comuns");
+        const fecharSaldo = async (nome: string) => {
+          const ctxPag = await browser.newContext();
+          const page = await ctxPag.newPage();
+          const ok = await pagarSaldoPropinas(page, args.url, staff.secretaria, nome, outputDir);
+          await ctxPag.close();
+          log(`${nome}: sweep de propinas antes da rematrícula = ${ok}`);
+          return ok;
+        };
+        // processarRematriculaAction chama gerarPropinasAnoLetivo PARA O ANO ALVO como parte da
+        // própria rematrícula — esses 12 meses só passam a existir DEPOIS de rematricular, nunca
+        // antes. Sem um 2º sweep aqui, ficam todos por confirmar até ao próximo ciclo, altura em
+        // que a maioria já venceu (DEVENDO) e bloqueia a rematrícula seguinte (mesmo saldo residual
+        // visto em corridas anteriores, sempre um múltiplo exato de 12 meses). Paga-os assim que
+        // nascem, não um ano depois.
         if (!concluiuCurso.marta) {
+          await fecharSaldo("Marta Kiala");
           const r = await marta.martaJanelaRematricula(ctx);
           alunoIdPorChave.marta = r.alunoId;
+          if (r.sucesso) await fecharSaldo("Marta Kiala");
           if (!r.sucesso) log(`AVISO: rematrícula da Marta falhou dentro da janela: ${r.erro}`);
         }
         if (!concluiuCurso.joao) {
+          await fecharSaldo("João Manuel");
           const r = await joao.joaoJanelaRematricula(ctx);
           alunoIdPorChave.joao = r.alunoId;
+          if (r.sucesso) await fecharSaldo("João Manuel");
           if (!r.sucesso) log(`AVISO: rematrícula do João falhou dentro da janela: ${r.erro}`);
         }
         if (!concluiuCurso.beatriz) {
           if (iteracao === 1) {
             log("Beatriz: NÃO rematricula dentro da janela de propósito (cenário de trancamento).");
           } else {
+            await fecharSaldo("Beatriz Sacatucua");
             const r = await beatriz.beatrizJanelaRematricula(ctx);
             alunoIdPorChave.beatriz = r.alunoId;
+            if (r.sucesso) await fecharSaldo("Beatriz Sacatucua");
             if (!r.sucesso) log(`AVISO: rematrícula da Beatriz falhou dentro da janela: ${r.erro}`);
           }
         }
@@ -372,6 +400,7 @@ async function main(): Promise<void> {
           if (iteracao === 1) {
             log("Domingos: NÃO rematricula dentro da janela de propósito (dívida + trancamento).");
           } else {
+            await fecharSaldo("Domingos Cavaco");
             if (iteracao === 2) {
               // Reprovou Bases de Dados no 2º ano curricular — garante que a Turma do 3º ano
               // (alvo desta rematrícula) tem uma oferta que a repetição possa apanhar, senão cai
@@ -383,12 +412,15 @@ async function main(): Promise<void> {
             }
             const r = await domingos.domingosJanelaRematricula(ctx);
             alunoIdPorChave.domingos = r.alunoId;
+            if (r.sucesso) await fecharSaldo("Domingos Cavaco");
             if (!r.sucesso) log(`AVISO: rematrícula do Domingos falhou dentro da janela: ${r.erro}`);
           }
         }
         if (!concluiuCurso.isabel) {
+          await fecharSaldo("Isabel Neto");
           const r = await isabel.isabelJanelaRematricula(ctx);
           alunoIdPorChave.isabel = r.alunoId;
+          if (r.sucesso) await fecharSaldo("Isabel Neto");
           if (!r.sucesso) log(`AVISO: rematrícula da Isabel falhou dentro da janela: ${r.erro}`);
         }
       }
@@ -409,6 +441,11 @@ async function main(): Promise<void> {
     log("Relógio avançado para além de anoLetivoFim — garantirSuspensaoAutomatica/rolloverTurmas disparados.");
 
     if (iteracao === 1 && !concluiuCurso.beatriz) {
+      const { confirmarPropinaMaisAntiga: pagarSaldoBeatriz } = await import("./cenarios-5-alunos/acoes-comuns");
+      const ctxPagBeatriz = await browser.newContext();
+      const pageBeatriz = await ctxPagBeatriz.newPage();
+      await pagarSaldoBeatriz(pageBeatriz, args.url, staff.secretaria, "Beatriz Sacatucua", outputDir);
+      await ctxPagBeatriz.close();
       const r = await beatriz.beatrizRematriculaTardiaPosRollover(ctx);
       alunoIdPorChave.beatriz = r.alunoId;
       if (!r.sucesso) log(`FALHA: rematrícula tardia da Beatriz (pós-rollover) devia ter sucedido: ${r.erro}`);

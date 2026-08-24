@@ -182,10 +182,12 @@ export async function processarRematriculaAction(
 
   // §regra confirmada 2026-08: só a PROPINA em dívida trava a rematrícula — a multa (mesmo
   // órfã, pendente) nunca bloqueia o regresso do aluno; continua a dever-se, e só a ADMIN a
-  // confirma (toggleMultaAction). O saldo aqui é calculado sobre as mensalidades pendentes.
+  // confirma (toggleMultaAction). "Em dívida" é DEVENDO (vencida além da tolerância), a mesma
+  // regra de verificarBloqueioAluno/estadoCobrancaVisual — não qualquer mês PENDENTE, já que
+  // gerarPropinasAnoLetivo pré-gera o ano letivo inteiro e a maioria dos meses ainda nem venceu.
   const estadoFinanceiro = await getEstadoFinanceiroAluno(alunoId);
   const saldoPropinas = estadoFinanceiro.meses
-    .filter((m) => m.status === "PENDENTE")
+    .filter((m) => m.estadoVisual === "DEVENDO")
     .reduce((soma, m) => soma + (m.valorDevido - m.valorPago), 0);
   if (saldoPropinas > 0) {
     return {

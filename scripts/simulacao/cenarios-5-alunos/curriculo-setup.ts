@@ -89,8 +89,20 @@ export async function garantirOfertaRepeticaoBasesDados(prisma: PrismaClient, an
   const cadeiraOrigem = await prisma.cadeiraCurricular.findFirstOrThrow({ where: { cursoId: curso.id, anoCurricular: anoCurricularOrigem, semestre: 2 } });
   const professor2 = await prisma.professor.findFirstOrThrow({ where: { especialidade: "Bases de Dados" } });
 
-  const existente = await prisma.turmaDisciplina.findFirst({ where: { turmaId: turmaAlvoId, cadeiraCurricularId: cadeiraOrigem.id } });
-  if (existente) return;
+  // A unicidade real na BD é (turmaId, disciplinaId) — a turma alvo (3º ano) já tem uma
+  // TurmaDisciplina de Bases de Dados da sua própria grade curricular (cadeiraCurricularId do
+  // 3º ano, criada por garantirTurmaAnoCurricular), por isso um create() aqui colide sempre
+  // (P2002). O que queremos é apontar essa oferta já existente para a cadeira de origem (2º
+  // ano) que está a ser repetida — não criar uma segunda linha para a mesma disciplina.
+  const existente = await prisma.turmaDisciplina.findFirst({ where: { turmaId: turmaAlvoId, disciplinaId: cadeiraOrigem.disciplinaId } });
+  if (existente) {
+    if (existente.cadeiraCurricularId === cadeiraOrigem.id) return;
+    await prisma.turmaDisciplina.update({
+      where: { id: existente.id },
+      data: { cadeiraCurricularId: cadeiraOrigem.id, professorId: professor2.id, sala: "Lab 2 (repetição)" },
+    });
+    return;
+  }
 
   await prisma.turmaDisciplina.create({
     data: {

@@ -15,17 +15,21 @@
  *   mais tardios desta simulação — a Avaliacao criada aqui é estruturalmente idêntica à que essa
  *   UI produziria (mesmos campos, mesmo prazoLancamento calculado com diasPrazoP2).
  *   Com o prazo expirado e a visita a /dashboard do marco seguinte, garantirNotasAutomaticasPorFalta
- *   atribui 0 automático (Nota.automatica=true) — a cascata cai em ADMITIDO_A_EXAME (frequência
- *   (14+0)/2=7 < notaMinimaDispensa 14). O professor lança então o Exame (12) na mesma visita do
- *   marco avaliacoes-p2-exame — fecha APROVADO por Exame (média=(7+12)/2=9.5... na verdade a
- *   fórmula usa notaFrequencia, não a nota de dispensa — ver cálculo exato no cascata de avaliacao.ts).
+ *   atribui 0 automático (Nota.automatica=true) — a cascata cai em ADMITIDO_A_EXAME (notaFrequencia
+ *   (14+0)/2=7 < notaMinimaDispensa 14). O professor lança então o Exame (14) na mesma visita do
+ *   marco avaliacoes-p2-exame — fecha APROVADO por Exame (notaComExame=(7+14)/2=10.5 >=
+ *   NOTA_MINIMA_POSITIVA=10, ver calcularNotaFinal em avaliacao.ts).
  */
 import type { CenarioCtx } from "./tipos";
 import { lancarNotaAluno, guardarNotasPauta, confirmarPropinaMaisAntiga, processarRematricula, paraCadaDisciplinaDoProfessor } from "./acoes-comuns";
 
 const NOTA_DISPENSA = 16;
 const NOTA_P1_BASES_DADOS = 14;
-const NOTA_EXAME_BASES_DADOS = 12;
+// notaFrequencia = (P1+P2)/2 = (14+0)/2 = 7 (P2 fica 0 automático, de propósito); para APROVADO,
+// notaComExame = (notaFrequencia+exame)/2 >= NOTA_MINIMA_POSITIVA(10) exige exame >= 13 — 12 dava
+// 9.5, ficava presa em EM_RECURSO para sempre (a cadeira nunca resolvia, bloqueando toda
+// rematrícula futura com "cadeiras por avaliar").
+const NOTA_EXAME_BASES_DADOS = 14;
 
 export async function isabelVencimentoPropinas(ctx: CenarioCtx): Promise<void> {
   const ctxBrowser = await ctx.browser.newContext();
@@ -40,14 +44,28 @@ export async function isabelVencimentoPropinas(ctx: CenarioCtx): Promise<void> {
  * se P2 também for alta (deliberadamente deixada pendente nesta cadeira).
  */
 export async function isabelAvaliacoesP1(ctx: CenarioCtx): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Isabel Neto", 0, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Isabel Neto", 0, NOTA_P1_BASES_DADOS);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Isabel Neto", 0, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Isabel Neto", 0, NOTA_P1_BASES_DADOS);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
   ctx.log("Isabel: P1 lançado — 16 em Prog. I, 14 em Bases de Dados (P2 fica pendente de propósito nesta última).");
 }
 
@@ -76,20 +94,34 @@ export async function isabelCriarProvaP2EmFaltaBasesDados(ctx: CenarioCtx, dataP
  * No marco avaliacoes-p2-exame: lança P2 (16) em Programação I normalmente. Em Bases de Dados NÃO
  * lança P2 (propositadamente ausente) — nessa altura, se o prazo já passou e o dashboard já foi
  * visitado, garantirNotasAutomaticasPorFalta já deve ter atribuído o 0 automático; lança-se então
- * o Exame (12) na mesma passagem pela pauta dessa cadeira.
+ * o Exame (14) na mesma passagem pela pauta dessa cadeira.
  */
 export async function isabelAvaliacoesP2EExame(ctx: CenarioCtx): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Isabel Neto", 1, NOTA_DISPENSA); // P2 Programação I
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    // Coluna 2 = EXAME (0=P1, 1=P2, 2=EXAME) — só editável depois do 0 automático em P2 ter
-    // desbloqueado ADMITIDO_A_EXAME na cascata (ver calcularNotaFinal).
-    await lancarNotaAluno(page, "Isabel Neto", 2, NOTA_EXAME_BASES_DADOS);
-    await guardarNotasPauta(page);
-  });
-  ctx.log("Isabel: P2 (16) lançado em Prog. I; Bases de Dados — Exame (12) lançado sobre o 0 automático de P2.");
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Isabel Neto", 1, NOTA_DISPENSA); // P2 Programação I
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      // Coluna 2 = EXAME (0=P1, 1=P2, 2=EXAME) — só editável depois do 0 automático em P2 ter
+      // desbloqueado ADMITIDO_A_EXAME na cascata (ver calcularNotaFinal).
+      await lancarNotaAluno(page, "Isabel Neto", 2, NOTA_EXAME_BASES_DADOS);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
+  ctx.log("Isabel: P2 (16) lançado em Prog. I; Bases de Dados — Exame (14) lançado sobre o 0 automático de P2.");
 }
 
 export async function isabelJanelaRematricula(ctx: CenarioCtx): Promise<{ alunoId: string; sucesso: boolean; erro: string | null }> {

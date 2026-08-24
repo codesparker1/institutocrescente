@@ -25,14 +25,28 @@ export async function domingosVencimentoPropinas(ctx: CenarioCtx): Promise<void>
 }
 
 async function lancarNotaDomingosEmAmbasCadeiras(ctx: CenarioCtx, colunaIndex: number, valor: number): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Domingos Cavaco", colunaIndex, valor);
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Domingos Cavaco", colunaIndex, valor);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Domingos Cavaco", colunaIndex, valor);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Domingos Cavaco", colunaIndex, valor);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
 }
 
 /** 1º ano: aprovação normal nas duas cadeiras (o cenário dele neste ano é só financeiro/rematrícula). */
@@ -52,31 +66,59 @@ export async function domingosAvaliacoesP2Ano1(ctx: CenarioCtx): Promise<void> {
  * mínimo (5) e fecha REPROVADO. `professorLabel` distingue as duas disciplinas na chamada.
  */
 export async function domingosAvaliacoesP1Ano2(ctx: CenarioCtx): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Domingos Cavaco", 0, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Domingos Cavaco", 0, NOTA_REPROVACAO); // P1 baixo — evita dispensa
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Domingos Cavaco", 0, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Domingos Cavaco", 0, NOTA_REPROVACAO); // P1 baixo — evita dispensa
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
   ctx.log("Domingos (2º ano): P1 — 16 em Prog. I, 5 em Bases de Dados (a caminho da reprovação).");
 }
 
 export async function domingosAvaliacoesP2Ano2(ctx: CenarioCtx): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "Domingos Cavaco", 1, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    // P2 também baixo: (5+5)/2=5 < notaMinimaDispensa(14) — cai em ADMITIDO_A_EXAME, exige Exame.
-    await lancarNotaAluno(page, "Domingos Cavaco", 1, NOTA_REPROVACAO);
-    await guardarNotasPauta(page);
-    // Mesma passagem pela pauta: já lança o Exame também baixo, para fechar REPROVADO sem precisar
-    // de outro marco — (média=5+exame=5)/2=5 < 10, cascata fecha REPROVADO nesta mesma visita.
-    await lancarNotaAluno(page, "Domingos Cavaco", 2, NOTA_REPROVACAO);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "Domingos Cavaco", 1, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      // P2 também baixo: (5+5)/2=5 < notaMinimaDispensa(14) — cai em ADMITIDO_A_EXAME, exige Exame.
+      await lancarNotaAluno(page, "Domingos Cavaco", 1, NOTA_REPROVACAO);
+      await guardarNotasPauta(page);
+      // Mesma passagem pela pauta: já lança o Exame também baixo, para fechar REPROVADO sem precisar
+      // de outro marco — (média=5+exame=5)/2=5 < 10, cascata fecha REPROVADO nesta mesma visita.
+      await lancarNotaAluno(page, "Domingos Cavaco", 2, NOTA_REPROVACAO);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
   ctx.log("Domingos (2º ano): P2+Exame baixos em Bases de Dados — cadeira deve fechar REPROVADO.");
 }
 

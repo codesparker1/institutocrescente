@@ -23,26 +23,54 @@ export async function joaoAvaliacoesP1(ctx: CenarioCtx): Promise<void> {
   ctx.log(`João: propina+multa em atraso confirmadas em conjunto = ${ok}`);
   await ctxBrowser.close();
 
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "João Manuel", 0, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "João Manuel", 0, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "João Manuel", 0, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "João Manuel", 0, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
   ctx.log("João: P1 lançado (16) nas duas cadeiras.");
 }
 
 export async function joaoAvaliacoesP2(ctx: CenarioCtx): Promise<void> {
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor1, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "João Manuel", 1, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
-  await paraCadaDisciplinaDoProfessor(ctx.browser, ctx.baseUrl, ctx.staff.professor2, ctx.outputDir, async (page) => {
-    await lancarNotaAluno(page, "João Manuel", 1, NOTA_DISPENSA);
-    await guardarNotasPauta(page);
-  });
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor1,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "João Manuel", 1, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 1 },
+  );
+  await paraCadaDisciplinaDoProfessor(
+    ctx.browser,
+    ctx.baseUrl,
+    ctx.staff.professor2,
+    ctx.outputDir,
+    async (page) => {
+      await lancarNotaAluno(page, "João Manuel", 1, NOTA_DISPENSA);
+      await guardarNotasPauta(page);
+    },
+    { prisma: ctx.prisma, semestreParaVisita: 2 },
+  );
   ctx.log("João: P2 lançado (16) nas duas cadeiras — dispensado em ambas.");
 }
 

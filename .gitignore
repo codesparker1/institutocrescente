@@ -20,6 +20,15 @@
 /scripts/simulacao/.relogio
 /scripts/simulacao/output
 
+# dev server / simulação locais (logs e pids)
+/next-dev-local.log
+/next-dev-local.pid
+/simulacao-local.log
+/simulacao-local.pid
+
+# scripts temporários de teste (padrão tmp-*) + screenshots de passes visuais
+/scripts/tmp-*
+
 # graphify knowledge-graph analysis output (generated, not source)
 /graphify-out
 
