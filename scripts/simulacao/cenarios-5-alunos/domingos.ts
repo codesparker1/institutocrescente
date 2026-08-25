@@ -75,9 +75,19 @@ export async function domingosAvaliacoesP2Ano1(ctx: CenarioCtx): Promise<void> {
  */
 async function garantirPrazoAbertoBasesDados(ctx: CenarioCtx, epocas: ("P1" | "P2" | "EXAME")[], dataProva: Date): Promise<void> {
   const config = await ctx.prisma.configuracaoAcademica.findUniqueOrThrow({ where: { id: "config" } });
-  const turmaDisciplina = await ctx.prisma.turmaDisciplina.findFirstOrThrow({
-    where: { disciplina: { nome: "Bases de Dados" }, turma: { anoCurricular: 2, anoLetivo: dataProva.getFullYear() } },
+  // Localiza a TD pela INSCRIÇÃO ATIVA do Domingos em Bases de Dados — é exatamente a TD onde as
+  // notas dele têm de aterrar, à prova de ano letivo (usar o ano REAL aqui era um bug: a TD vive
+  // no ano SIMULADO, visto P2025 na corrida de 2026-08-24). Aluno tem email próprio (desnormalizado
+  // no modelo Aluno) — não há relação reversa User→Aluno navegável a partir de InscricaoCadeira.
+  const inscricao = await ctx.prisma.inscricaoCadeira.findFirstOrThrow({
+    where: {
+      ativa: true,
+      aluno: { email: ctx.alunos.domingos.email },
+      turmaDisciplina: { disciplina: { nome: "Bases de Dados" } },
+    },
+    include: { turmaDisciplina: { select: { id: true } } },
   });
+  const turmaDisciplinaId = inscricao.turmaDisciplina.id;
   const prazoPorEpoca: Record<string, number> = {
     P1: config.diasPrazoP1,
     P2: config.diasPrazoP2,
@@ -86,9 +96,9 @@ async function garantirPrazoAbertoBasesDados(ctx: CenarioCtx, epocas: ("P1" | "P
   for (const epoca of epocas) {
     const prazoLancamento = new Date(dataProva.getTime() + (prazoPorEpoca[epoca] ?? 5) * 24 * 60 * 60 * 1000);
     await ctx.prisma.avaliacao.upsert({
-      where: { turmaDisciplinaId_epoca: { turmaDisciplinaId: turmaDisciplina.id, epoca } },
+      where: { turmaDisciplinaId_epoca: { turmaDisciplinaId, epoca } },
       update: { prazoLancamento }, // repõe prazo em aberto (a P2 da Isabel nasceu expirada)
-      create: { turmaDisciplinaId: turmaDisciplina.id, epoca, data: dataProva, sala: "Lab 2", prazoLancamento },
+      create: { turmaDisciplinaId, epoca, data: dataProva, sala: "Lab 2", prazoLancamento },
     });
   }
 }

@@ -170,6 +170,8 @@ async function main() {
     update: {
       limiteReprovacoes: 2,
       regraRetencao: "SO_REPROVADAS",
+      semestreAtual: 1,
+      ultimaSuspensaoEm: null,
       anoLetivoInicio: inicioAnoLetivo,
       anoLetivoFim: fimAnoLetivo,
       matriculaInicio: new Date(ANO_LETIVO_INICIAL, 11, 1),
