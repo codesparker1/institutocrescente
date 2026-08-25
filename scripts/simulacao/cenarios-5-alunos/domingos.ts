@@ -83,7 +83,7 @@ async function garantirPrazoAbertoBasesDados(ctx: CenarioCtx, epocas: ("P1" | "P
     where: {
       ativa: true,
       aluno: { email: ctx.alunos.domingos.email },
-      turmaDisciplina: { disciplina: { nome: "Bases de Dados" } },
+      turmaDisciplina: { disciplina: { nome: "Redes de Computadores" } },
     },
     include: { turmaDisciplina: { select: { id: true } } },
   });

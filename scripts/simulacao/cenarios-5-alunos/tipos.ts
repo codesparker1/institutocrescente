@@ -34,6 +34,9 @@ export interface CenarioCtx {
   /** Ano curricular corrente do ciclo (1..4) — não confundir com Aluno.anoCurricular na BD, que
    * só muda depois da rematrícula processar. */
   anoCurricularCiclo: number;
+  /** Nome da disciplina do 2º semestre do ano do ciclo — muda por ano (§faculdade-de-verdade):
+   * 1º Bases de Dados, 2º Redes de Computadores, 3º Inteligência Artificial, 4º Computação Gráfica. */
+  disciplinaSemestre2: string;
   log: (mensagem: string) => void;
 }
 

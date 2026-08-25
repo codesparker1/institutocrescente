@@ -30,6 +30,7 @@ import { decidirRematricula } from "../../src/lib/academico";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { garantirCurriculoAnos2a4, garantirTurmaAnoCurricular } from "./cenarios-5-alunos/curriculo-setup";
+import { CURRICULO } from "../curriculo-faculdade";
 import type { Alunos, Staff, CenarioCtx } from "./cenarios-5-alunos/tipos";
 import { shot } from "./cenarios-5-alunos/extras-v2";
 import {
@@ -213,17 +214,18 @@ async function main(): Promise<void> {
     if (!encontrado?.email) throw new Error(`Utilizador ${role} não encontrado — corre o seed primeiro.`);
     return { papel: role.toLowerCase(), email: encontrado.email };
   }
-  const professorEngSoftware = staffUsers.find((u) => u.role === "PROFESSOR" && u.professor?.especialidade === "Engenharia de Software");
-  const professorBasesDados = staffUsers.find((u) => u.role === "PROFESSOR" && u.professor?.especialidade === "Bases de Dados");
-  if (!professorEngSoftware?.email || !professorBasesDados?.email) {
-    throw new Error("Professores seedados não encontrados — corre scripts/seed-teste-5-anos.ts primeiro.");
-  }
-  const staff: Staff = {
+  // §faculdade-de-verdade: professores resolvidos pelo EMAIL do currículo canónico — cada ano
+  // tem o seu par de professores; os cenários usam o par do ANO DO CICLO (staff do ctx é
+  // atualizado a cada iteração no loop principal).
+  const professorPorEmailDef = (email: string) => {
+    const encontrado = staffUsers.find((u) => u.role === "PROFESSOR" && u.professor?.email === email);
+    if (!encontrado?.email) throw new Error(`Professor ${email} não encontrado — corre scripts/seed-teste-5-anos.ts primeiro.`);
+    return { papel: `professor-${encontrado.professor!.especialidade.toLowerCase().replace(/\s+/g, "-")}`, email: encontrado.email };
+  };
+  const staffBase = {
     admin: credencialStaffRole("ADMIN"),
     secretaria: credencialStaffRole("SECRETARIA"),
     daac: credencialStaffRole("DAAC"),
-    professor1: { papel: "professor-eng-software", email: professorEngSoftware.email },
-    professor2: { papel: "professor-bases-dados", email: professorBasesDados.email },
   };
   // /admin/reclamacoes é DEV-only (session.user.role !== "DEV" → redirect) — quem resolve
   // reclamações no v2 é o dev@ispc.ao, não o ADMIN.
@@ -276,7 +278,14 @@ async function main(): Promise<void> {
     }
 
     const marcos = construirMarcos(configAcademica);
-    const ctxBase: Omit<CenarioCtx, "log"> = { browser, baseUrl: args.url, outputDir, prisma, alunos, staff, anoCurricularCiclo: iteracao };
+    // Professores do ANO DO CICLO — cada ano curricular tem o seu par (§faculdade-de-verdade).
+    const parDoAno = CURRICULO.find((a) => a.anoCurricular === iteracao)!;
+    const staff: Staff = {
+      ...staffBase,
+      professor1: professorPorEmailDef(parDoAno.disciplinas[0].professorEmail), // 1º semestre
+      professor2: professorPorEmailDef(parDoAno.disciplinas[1].professorEmail), // 2º semestre
+    };
+    const ctxBase: Omit<CenarioCtx, "log"> = { browser, baseUrl: args.url, outputDir, prisma, alunos, staff, anoCurricularCiclo: iteracao, disciplinaSemestre2: parDoAno.disciplinas[1].nome };
     const log = (msg: string) => {
       console.log(`  ${msg}`);
       eventos.push(msg);
@@ -402,7 +411,7 @@ async function main(): Promise<void> {
               const turmaAlvo = await ctx.prisma.turma.findFirstOrThrow({
                 where: { anoCurricular: 3, anoLetivo: configAcademica.anoLetivoInicio.getFullYear() + 1 },
               });
-              await import("./cenarios-5-alunos/curriculo-setup").then((m) => m.garantirOfertaRepeticaoBasesDados(ctx.prisma, 2, turmaAlvo.id));
+              await import("./cenarios-5-alunos/curriculo-setup").then((m) => m.garantirOfertaRepeticao(ctx.prisma, "Redes de Computadores", 2, turmaAlvo.id));
             }
             const r = await domingos.domingosJanelaRematricula(ctx);
             alunoIdPorChave.domingos = r.alunoId;

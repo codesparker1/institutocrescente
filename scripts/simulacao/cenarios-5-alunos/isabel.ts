@@ -78,7 +78,7 @@ export async function isabelAvaliacoesP1(ctx: CenarioCtx): Promise<void> {
 export async function isabelCriarProvaP2EmFaltaBasesDados(ctx: CenarioCtx, dataProva: Date): Promise<void> {
   const config = await ctx.prisma.configuracaoAcademica.findUniqueOrThrow({ where: { id: "config" } });
   const turmaDisciplina = await ctx.prisma.turmaDisciplina.findFirstOrThrow({
-    where: { disciplina: { nome: "Bases de Dados" }, turma: { anoCurricular: ctx.anoCurricularCiclo } },
+    where: { disciplina: { nome: ctx.disciplinaSemestre2 }, turma: { anoCurricular: ctx.anoCurricularCiclo } },
     orderBy: { turma: { anoLetivo: "desc" } },
   });
   const prazoLancamento = new Date(dataProva.getTime() + config.diasPrazoP2 * 24 * 60 * 60 * 1000);
