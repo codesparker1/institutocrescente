@@ -199,7 +199,7 @@ async function main(): Promise<void> {
   console.log("A ler contexto seedado (5 alunos, staff, configuração académica)...");
   const [alunosUser, staffUsers] = await Promise.all([
     prisma.user.findMany({ where: { role: "ALUNO" }, select: { email: true, aluno: { select: { nome: true } } } }),
-    prisma.user.findMany({ where: { role: { in: ["ADMIN", "SECRETARIA", "DAAC", "PROFESSOR"] } }, select: { email: true, role: true, professor: { select: { especialidade: true } } } }),
+    prisma.user.findMany({ where: { role: { in: ["ADMIN", "SECRETARIA", "DAAC", "PROFESSOR"] } }, select: { email: true, role: true, professor: { select: { especialidade: true, email: true } } } }),
   ]);
 
   function credencialAluno(nomeParcial: string) {

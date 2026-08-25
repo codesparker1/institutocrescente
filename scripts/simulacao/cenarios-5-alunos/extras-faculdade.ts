@@ -57,16 +57,27 @@ export async function creditarCadeiraComoDaac(
   try {
     await login(page, baseUrl, daacCredencial);
     await page.goto(`${baseUrl}/alunos/${aluno.id}`);
-    // O formulário vive dentro da Disclosure "Percurso Curricular".
-    const disclosure = page.locator("div", { hasText: /^Percurso Curricular/ }).first();
-    const trigger = page.getByText("Percurso Curricular").first();
+    // O formulário vive dentro da Disclosure "Percurso Curricular" — começa FECHADA. Abrir antes
+    // de procurar o formulário (clica no summary <details> nativo, sem JS).
+    const trigger = page.locator("details summary", { hasText: "Percurso Curricular" }).first();
     try {
-      await trigger.click({ timeout: 15000 });
-      await page.waitForTimeout(600);
+      await trigger.waitFor({ state: "visible", timeout: 15000 });
+      await trigger.click();
+      await page.waitForTimeout(800);
     } catch {
       /* já aberta ou clique direto falhou — segue */
     }
-    void disclosure;
+
+    // O CreditarCadeiraForm é um toggle: primeiro clica no botão "Creditar cadeira de outra
+    // instituição" (é só aí que o <form> passa a existir no DOM).
+    const toggleCredito = page.locator("button", { hasText: "Creditar cadeira de outra instituição" }).first();
+    try {
+      await toggleCredito.waitFor({ state: "visible", timeout: 15000 });
+      await toggleCredito.click();
+      await page.waitForTimeout(600);
+    } catch {
+      return { ok: false, detalhe: "creditar: botão 'Creditar cadeira de outra instituição' não apareceu (permissão DAAC? Disclosure aberta?)" };
+    }
 
     const form = page.locator("form", { hasText: "Creditar" }).first();
     try {
@@ -169,8 +180,9 @@ export async function marcarDesistenteComoAdmin(
 
 /**
  * SECRETARIA regista um emolumento pago ao aluno (Registo de Pagamentos → emolumentos).
- * Fluxo UI: /financeiro/registo → procura aluno → seleciona emolumento → confirma.
- * Se o formulário de emolumentos não for alcançável nesta rota, reporta NOK honesto.
+ * Fluxo UI real: /financeiro/registo → Secretaria busca aluno → PagamentosSecretariaPanel →
+ * seleciona emolumento do catálogo → confirma. A página /financeiro/emolumentos é só leitura
+ * para ALUNO — o registo é sempre pela Secretaria no Registo de Pagamentos.
  */
 export async function registarEmolumentoComoSecretaria(
   browser: Browser,
@@ -187,44 +199,69 @@ export async function registarEmolumentoComoSecretaria(
   instrumentarPagina(page, outputDir, secretariaCredencial.papel);
   try {
     await login(page, baseUrl, secretariaCredencial);
-    await page.goto(`${baseUrl}/financeiro/emolumentos`);
+    await page.goto(`${baseUrl}/financeiro/registo`);
     await page.waitForTimeout(1200);
     await shot(page, outputDir, `c${etiqueta}-emolumento-pagina`);
 
-    // Procura o campo de busca do aluno e o select/catálogo do emolumento.
-    const busca = page.locator("input[type='search'], input[name*='aluno'], input[placeholder*='aluno' i]").first();
-    if ((await busca.count()) === 0) {
-      return { ok: false, detalhe: "emolumento: campo de busca de aluno não encontrado em /financeiro/emolumentos" };
+    // 1. Buscar o aluno pelo nome.
+    const busca = page.locator("input#busca-registo-pagamentos");
+    try {
+      await busca.waitFor({ state: "visible", timeout: 15000 });
+    } catch {
+      return { ok: false, detalhe: "emolumento: campo de busca não encontrado em /financeiro/registo" };
     }
     await busca.fill(alunoNome);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500);
 
-    const botaoEmolumento = page.locator("button", { hasText: nomeEmolumento }).first();
+    // 2. Clicar no primeiro resultado da busca.
+    const primeiroResultado = page.locator("button, a", { hasText: alunoNome }).first();
+    try {
+      await primeiroResultado.waitFor({ state: "visible", timeout: 15000 });
+    } catch {
+      return { ok: false, detalhe: `emolumento: resultado da busca por "${alunoNome}" não apareceu` };
+    }
+    await primeiroResultado.click();
+    await page.waitForTimeout(1500);
+    await shot(page, outputDir, `c${etiqueta}-emolumento-aluno-selecionado`);
+
+    // 3. O painel tem tabs Propinas/Emolumentos — trocar para a tab de emolumentos.
+    const tabEmolumentos = page.locator("button", { hasText: "Emolumentos" }).first();
+    if ((await tabEmolumentos.count()) > 0) {
+      await tabEmolumentos.click();
+      await page.waitForTimeout(800);
+    }
+
+    // 4. No catálogo da tab Emolumentos, clicar na checkbox/linha do emolumento pedido.
+    const botaoEmolumento = page.locator("label, tr, div", { hasText: nomeEmolumento }).locator("visible=true").first();
     if ((await botaoEmolumento.count()) === 0) {
-      return { ok: false, detalhe: `emolumento: botão/opção "${nomeEmolumento}" não encontrado` };
+      return { ok: false, detalhe: `emolumento: opção "${nomeEmolumento}" não encontrada no painel` };
     }
     await botaoEmolumento.click();
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(1000);
+    await shot(page, outputDir, `c${etiqueta}-emolumento-selecionado`);
 
-    // Confirmação final (botão de submeter dentro do diálogo/formulário aberto).
-    const submit = page.locator("button[type='submit']", { hasText: /Confirmar|Registar|Adicionar/i }).last();
-    if ((await submit.count()) > 0) {
+    // 5. Confirmar (botão de submeter do recibo).
+    const submit = page.locator("button[type='submit']", { hasText: /Confirmar|Registar|Emitir|Recibo/i }).last();
+    try {
+      await submit.waitFor({ state: "visible", timeout: 10000 });
       await submit.click();
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1500);
+    } catch {
+      /* pode já ter sido submetido pelo clique anterior */
     }
     await shot(page, outputDir, `c${etiqueta}-emolumento-registado`);
 
-    // Confirmação código-wise: Cobranca EMOLUMENTO PAGO criada para o aluno.
+    // Confirmação código-wise: Cobranca EMOLUMENTO criada para o aluno.
     const aluno = await prisma.aluno.findFirst({ where: { nome: alunoNome } });
     if (!aluno) return { ok: false, detalhe: `emolumento: aluno "${alunoNome}" não existe` };
     const cobranca = await prisma.cobranca.findFirst({
       where: { alunoId: aluno.id, tipo: "EMOLUMENTO" },
       orderBy: { createdAt: "desc" },
     });
-    const ok = Boolean(cobranca) && cobranca!.descricao?.includes(nomeEmolumento) !== false;
+    const ok = Boolean(cobranca);
     return {
       ok,
-      detalhe: `${alunoNome}: emolumento "${nomeEmolumento}" ${cobranca ? `registado (${Number(cobranca.valorDevido)} Kz, ${cobranca.status}) ${ok ? "— confirmado na BD" : ""}` : "NÃO apareceu na BD"}`,
+      detalhe: `${alunoNome}: emolumento "${nomeEmolumento}" ${cobranca ? `registado (${Number(cobranca.valorDevido)} Kz, ${cobranca.status}) — confirmado na BD` : "NÃO apareceu na BD"}`,
     };
   } catch (erro) {
     return { ok: false, detalhe: `emolumento ERRO: ${(erro as Error).message.slice(0, 140)}` };

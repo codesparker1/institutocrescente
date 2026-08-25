@@ -61,7 +61,9 @@ export async function domingosAvaliacoesP2Ano1(ctx: CenarioCtx): Promise<void> {
 }
 
 /**
- * 2º ano: Programação I (professor1) continua dispensado; Bases de Dados (professor2) reprova —
+ * 2º ano: Programação I (professor1) continua dispensado; a cadeira do 2º semestre (§faculdade-de-verdade:
+ * no 2º ano "Redes de Computadores") reprova — nota baixa em P1+P2 força Exame, onde recebe nota abaixo
+ * do mínimo (5) e fecha REPROVADO.
  * nota baixa em P1+P2 (sem dispensa) força a cascata a passar por Exame, onde recebe nota abaixo do
  * mínimo (5) e fecha REPROVADO. `professorLabel` distingue as duas disciplinas na chamada.
  *
@@ -73,17 +75,14 @@ export async function domingosAvaliacoesP2Ano1(ctx: CenarioCtx): Promise<void> {
  * prazo em aberto antes de o professor lançar; o auto-zero da Isabel já correu neste ponto
  * (marco vencimento-propinas visita o dashboard depois do prazo dela expirar).
  */
-async function garantirPrazoAbertoBasesDados(ctx: CenarioCtx, epocas: ("P1" | "P2" | "EXAME")[], dataProva: Date): Promise<void> {
+async function garantirPrazoAbertoDisciplinaSemestre2(ctx: CenarioCtx, epocas: ("P1" | "P2" | "EXAME")[], dataProva: Date): Promise<void> {
   const config = await ctx.prisma.configuracaoAcademica.findUniqueOrThrow({ where: { id: "config" } });
-  // Localiza a TD pela INSCRIÇÃO ATIVA do Domingos em Bases de Dados — é exatamente a TD onde as
-  // notas dele têm de aterrar, à prova de ano letivo (usar o ano REAL aqui era um bug: a TD vive
-  // no ano SIMULADO, visto P2025 na corrida de 2026-08-24). Aluno tem email próprio (desnormalizado
-  // no modelo Aluno) — não há relação reversa User→Aluno navegável a partir de InscricaoCadeira.
+  // §faculdade-de-verdade: a disciplina do 2º semestre muda por ano — no 2º ano é "Redes de Computadores".
   const inscricao = await ctx.prisma.inscricaoCadeira.findFirstOrThrow({
     where: {
       ativa: true,
       aluno: { email: ctx.alunos.domingos.email },
-      turmaDisciplina: { disciplina: { nome: "Redes de Computadores" } },
+      turmaDisciplina: { disciplina: { nome: ctx.disciplinaSemestre2 } },
     },
     include: { turmaDisciplina: { select: { id: true } } },
   });
@@ -97,7 +96,7 @@ async function garantirPrazoAbertoBasesDados(ctx: CenarioCtx, epocas: ("P1" | "P
     const prazoLancamento = new Date(dataProva.getTime() + (prazoPorEpoca[epoca] ?? 5) * 24 * 60 * 60 * 1000);
     await ctx.prisma.avaliacao.upsert({
       where: { turmaDisciplinaId_epoca: { turmaDisciplinaId, epoca } },
-      update: { prazoLancamento }, // repõe prazo em aberto (a P2 da Isabel nasceu expirada)
+      update: { prazoLancamento },
       create: { turmaDisciplinaId, epoca, data: dataProva, sala: "Lab 2", prazoLancamento },
     });
   }
@@ -105,7 +104,7 @@ async function garantirPrazoAbertoBasesDados(ctx: CenarioCtx, epocas: ("P1" | "P
 
 export async function domingosAvaliacoesP1Ano2(ctx: CenarioCtx): Promise<void> {
   // P1 de Bases de Dados ainda não existe (só a P2 da Isabel) — nasce aqui com prazo aberto.
-  await garantirPrazoAbertoBasesDados(ctx, ["P1"], new Date());
+  await garantirPrazoAbertoDisciplinaSemestre2(ctx, ["P1"], new Date());
   await paraCadaDisciplinaDoProfessor(
     ctx.browser,
     ctx.baseUrl,
@@ -133,7 +132,7 @@ export async function domingosAvaliacoesP1Ano2(ctx: CenarioCtx): Promise<void> {
 
 export async function domingosAvaliacoesP2Ano2(ctx: CenarioCtx): Promise<void> {
   // P2 da Isabel nasceu com prazo expirado (auto-zero dela) — repõe em aberto; EXAME nasce aqui.
-  await garantirPrazoAbertoBasesDados(ctx, ["P2", "EXAME"], new Date());
+  await garantirPrazoAbertoDisciplinaSemestre2(ctx, ["P2", "EXAME"], new Date());
   await paraCadaDisciplinaDoProfessor(
     ctx.browser,
     ctx.baseUrl,

@@ -168,8 +168,11 @@ async function main() {
     await prisma.user.create({ data: { name: aluno.nome, email: aluno.email, passwordHash, role: "ALUNO", alunoId: aluno.id } });
   }
 
-  // Matrícula + inscrições do 1º ano para TODOS (inclui Carlos — a simulação processa a
-  // transferência dele no arranque: credita as 2 cadeiras do 1º ano e rematrículao para o 2º).
+  // Matrícula + inscrições do 1º ano para todos EXCETO Carlos Muanza (§transferido): ele entra
+  // por transferência da Univ. Kimpa Vita — as 2 cadeiras do 1º ano vão ser CREDITADAS pela DAAC
+  // via creditarCadeiraAction durante a simulação, e essa action recusa cadeiras que o aluno já
+  // tem inscritas ("Aluno já tem uma inscrição nesta cadeira"). Sem inscrição prévia, o
+  // CreditarCadeiraForm lista-as como disponíveis.
   const cadeiraProgI = cadeiraPorChave.get("1:Programação I")!;
   const cadeiraBasesDados = cadeiraPorChave.get("1:Bases de Dados")!;
   const tdProgI = tdPorDisciplinaNome.get("Programação I")!;
@@ -177,6 +180,8 @@ async function main() {
 
   for (const aluno of alunosCriados) {
     await prisma.matricula.create({ data: { alunoId: aluno.id, turmaId: turma1.id, status: "ATIVA" } });
+    const ehTransferido = aluno.email.startsWith("carlos.muanza@");
+    if (ehTransferido) continue;
     await prisma.inscricaoCadeira.createMany({
       data: [
         { alunoId: aluno.id, cadeiraCurricularId: cadeiraProgI.cadeiraId, turmaDisciplinaId: tdProgI, tentativa: 1, ativa: true, permiteDispensaAplicada: true, notaMinimaDispensaAplicada: 14 },

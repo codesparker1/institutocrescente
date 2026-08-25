@@ -533,9 +533,11 @@ export async function marcarDesistenteAction(
 
   const aluno = await prisma.aluno.findUnique({ where: { id: alunoId } });
   if (!aluno) return { error: "Aluno não encontrado." };
-  // FORMADO já terminou; TRANCADO/DESISTENTE já estão fora; só ATIVO pode desistir.
-  if (aluno.status !== "ATIVO") {
-    return { error: `Só um aluno ATIVO pode ser marcado como desistente (estado atual: ${aluno.status}).` };
+  // FORMADO já terminou; DESISTENTE já está fora; ATIVO ou TRANCADO (suspenso por não rematricular)
+  // podem ser marcados como desistente — o TRANCADO é o estado natural de quem desiste: para de
+  // frequentar, é suspenso automaticamente, e a ADMIN/DAAC formaliza a desistência.
+  if (aluno.status === "FORMADO" || aluno.status === "DESISTENTE") {
+    return { error: `Só um aluno ATIVO ou TRANCADO pode ser marcado como desistente (estado atual: ${aluno.status}).` };
   }
 
   const matriculaAtiva = await prisma.matricula.findFirst({ where: { alunoId, status: "ATIVA" } });
