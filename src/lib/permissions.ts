@@ -78,6 +78,25 @@ export function podeGerirContas(user: CapabilityUser): boolean {
   return user.role === "ADMIN";
 }
 
+/**
+ * Marcar um aluno como DESISTENTE (§pedido do cliente 2026-08-25): decisão de gestão partilhada
+ * entre ADMIN e DAAC — o DAAC acompanha o percurso académico (vê que o aluno parou de aparecer),
+ * a ADMIN formaliza a saída. A SECRETARIA fica de fora de propósito: desistência não é um ato de
+ * secretaria (rematrícula/pagamentos), é uma decisão sobre a vida académica do aluno.
+ */
+export function podeMarcarDesistencia(user: CapabilityUser): boolean {
+  return user.role === "ADMIN" || user.role === "DAAC";
+}
+
+/**
+ * Reativação de um DESISTENTE (§decisão do cliente 2026-08-25): mais rigorosa que o regresso do
+ * TRANCADO (que a ADMIN resolve pela rematrícula tardia) — sair por desistência só se desfaz
+ * pela ADMIN, com uma ação própria, antes de qualquer fluxo de matrícula.
+ */
+export function podeReativarDesistente(user: CapabilityUser): boolean {
+  return user.role === "ADMIN";
+}
+
 /** ADMIN vê tudo — mas em modo leitura sobre dados académicos e financeiros. */
 export function podeVerTudo(user: CapabilityUser): boolean {
   return user.role === "ADMIN";
@@ -156,6 +175,14 @@ export function requireGerirFrequencia(): Promise<SessionComUser> {
 
 export function requireGerirContas(): Promise<SessionComUser> {
   return requireCapacidade(podeGerirContas);
+}
+
+export function requireMarcarDesistencia(): Promise<SessionComUser> {
+  return requireCapacidade(podeMarcarDesistencia);
+}
+
+export function requireReativarDesistente(): Promise<SessionComUser> {
+  return requireCapacidade(podeReativarDesistente);
 }
 
 export function requireGerirRelogioSimulado(): Promise<SessionComUser> {

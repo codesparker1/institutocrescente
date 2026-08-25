@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
-import { requireGerirCurriculo, requireRegistarPagamento } from "@/lib/permissions";
+import { requireGerirCurriculo, requireRegistarPagamento, requireMarcarDesistencia, requireReativarDesistente } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
 import { getEstadoFinanceiroAluno, gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
@@ -504,4 +504,108 @@ export async function iniciarNovoCursoAction(
   revalidatePath("/horario");
 
   return { resultado: `Iniciou ${novoCurso.nome} (1º Ano)${matriculaAtiva ? ` — ${cursoAntigo} encerrado` : ""}.` };
+}
+
+export interface MarcarDesistenteState {
+  error?: string;
+  resultado?: string;
+}
+
+const motivoDesistenciaSchema = z.string().trim().min(3, "Indique o motivo da desistência.").max(500);
+
+/**
+ * Desistência (§pedido do cliente 2026-08-25): o aluno sai do ciclo académico por decisão própria
+ * — formalizada pela ADMIN ou DAAC, sempre com motivo registado na auditoria. Espelha os efeitos
+ * da suspensão automática de suspenderNaoRematriculados (matrícula TRANCADA + inscrições
+ * desativadas), mas com status DESISTENTE: a diferença não é mecânica, é de saída — o TRANCADO
+ * regressa pela rematrícula tardia da ADMIN; o DESISTENTE só regressa pela ação própria de
+ * reativação. A dívida sobrevive intacta (regra geral: só PROPINA bloqueia, multas nunca).
+ */
+export async function marcarDesistenteAction(
+  _prevState: MarcarDesistenteState,
+  formData: FormData,
+): Promise<MarcarDesistenteState> {
+  const session = await requireMarcarDesistencia();
+  const alunoId = String(formData.get("alunoId") ?? "");
+  const parsedMotivo = motivoDesistenciaSchema.safeParse(String(formData.get("motivo") ?? ""));
+  if (!alunoId) return { error: "Aluno inválido." };
+  if (!parsedMotivo.success) return { error: "Indique o motivo da desistência." };
+
+  const aluno = await prisma.aluno.findUnique({ where: { id: alunoId } });
+  if (!aluno) return { error: "Aluno não encontrado." };
+  // FORMADO já terminou; TRANCADO/DESISTENTE já estão fora; só ATIVO pode desistir.
+  if (aluno.status !== "ATIVO") {
+    return { error: `Só um aluno ATIVO pode ser marcado como desistente (estado atual: ${aluno.status}).` };
+  }
+
+  const matriculaAtiva = await prisma.matricula.findFirst({ where: { alunoId, status: "ATIVA" } });
+
+  await prisma.$transaction(async (tx) => {
+    if (matriculaAtiva) {
+      await tx.matricula.update({ where: { id: matriculaAtiva.id }, data: { status: "TRANCADA" } });
+    }
+    // Mesmo cuidado da suspensão automática: sem isto as inscrições ficam ativas para sempre
+    // (diagnóstico: sem-inscricao-ativa-se-inativo).
+    await tx.inscricaoCadeira.updateMany({ where: { alunoId, ativa: true }, data: { ativa: false } });
+    await tx.aluno.update({ where: { id: alunoId }, data: { status: "DESISTENTE" } });
+  });
+
+  await registrarAuditoria({
+    userId: session.user.id,
+    userName: session.user.name ?? session.user.email ?? "Utilizador",
+    userRole: session.user.role,
+    action: `Marcou ${aluno.nome} como DESISTENTE — motivo: ${parsedMotivo.data}`,
+    entityType: "Aluno",
+    entityId: alunoId,
+    valorAnterior: "ATIVO",
+    valorNovo: "DESISTENTE",
+  });
+
+  revalidatePath(`/alunos/${alunoId}`);
+  revalidatePath("/alunos");
+
+  return { resultado: `${aluno.nome} marcado como DESISTENTE.` };
+}
+
+export interface ReativarDesistenteState {
+  error?: string;
+  resultado?: string;
+}
+
+/**
+ * Reativação de um desistente (§decisão do cliente 2026-08-25): exclusivo da ADMIN. Não matricula
+ * em nada — devolve o aluno a ATIVO (sem turma, sem inscrições); o regresso ao percurso faz-se
+ * pela rematrícula normal/tardia como qualquer outro aluno inativo que volta.
+ */
+export async function reativarDesistenteAction(
+  _prevState: ReativarDesistenteState,
+  formData: FormData,
+): Promise<ReativarDesistenteState> {
+  const session = await requireReativarDesistente();
+  const alunoId = String(formData.get("alunoId") ?? "");
+  if (!alunoId) return { error: "Aluno inválido." };
+
+  const aluno = await prisma.aluno.findUnique({ where: { id: alunoId } });
+  if (!aluno) return { error: "Aluno não encontrado." };
+  if (aluno.status !== "DESISTENTE") {
+    return { error: `Só um aluno DESISTENTE pode ser reativado (estado atual: ${aluno.status}).` };
+  }
+
+  await prisma.aluno.update({ where: { id: alunoId }, data: { status: "ATIVO" } });
+
+  await registrarAuditoria({
+    userId: session.user.id,
+    userName: session.user.name ?? session.user.email ?? "Utilizador",
+    userRole: session.user.role,
+    action: `Reativou ${aluno.nome} (DESISTENTE → ATIVO)`,
+    entityType: "Aluno",
+    entityId: alunoId,
+    valorAnterior: "DESISTENTE",
+    valorNovo: "ATIVO",
+  });
+
+  revalidatePath(`/alunos/${alunoId}`);
+  revalidatePath("/alunos");
+
+  return { resultado: `${aluno.nome} reativado — agora ATIVO, pronto para rematrícula.` };
 }

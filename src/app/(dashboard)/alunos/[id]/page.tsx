@@ -13,6 +13,7 @@ import { CategoriaEstudanteForm } from "@/components/alunos/CategoriaEstudanteFo
 import { RepeticaoForm } from "@/components/alunos/RepeticaoForm";
 import { RematriculaForm } from "@/components/alunos/RematriculaForm";
 import { MudarCursoForm } from "@/components/alunos/MudarCursoForm";
+import { DesistenciaForm } from "@/components/alunos/DesistenciaForm";
 import { EditarNotaHistoricaForm } from "@/components/alunos/EditarNotaHistoricaForm";
 import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
@@ -21,7 +22,7 @@ import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo } 
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
-import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas } from "@/lib/permissions";
+import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas, podeMarcarDesistencia, podeReativarDesistente } from "@/lib/permissions";
 import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 import type { AlunoStatus, CobrancaTipo } from "@/generated/prisma/client";
@@ -280,6 +281,25 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           </CardBody>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader
+          title="Desistência"
+          subtitle={
+            aluno.status === "DESISTENTE"
+              ? "Aluno desistente — reativação exclusiva da ADMIN."
+              : "Só para alunos ATIVOS (ADMIN/DAAC). A dívida mantém-se; o regresso exige reativação da ADMIN."
+          }
+        />
+        <CardBody>
+          <DesistenciaForm
+            alunoId={aluno.id}
+            status={aluno.status}
+            podeMarcar={session?.user ? podeMarcarDesistencia(session.user) : false}
+            podeReativar={session?.user ? podeReativarDesistente(session.user) : false}
+          />
+        </CardBody>
+      </Card>
 
       <Disclosure title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`}>
         <div className="flex flex-col gap-4">
