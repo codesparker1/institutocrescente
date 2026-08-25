@@ -111,3 +111,34 @@ que não nasceu: valor 0 no momento? role errada? janela aberta?).
   (`Get-CimInstance Win32_Process | ? CommandLine -match 'teste-5-alunos'` mas filtrar
   Name -match '^node' para não se apanhar a si próprio).
 - O seed NÃO pode usar `dotenv/config` simples enquanto o `.env` apontar à produção.
+
+## Sessão 2026-08-25 — Feature DESISTENTE + "Faculdade de Verdade"
+
+### Feature nova no sistema: desistência (commits até 3de8f35)
+- `podeMarcarDesistencia` (ADMIN+DAAC) / `podeReativarDesistente` (só ADMIN) em permissions.ts
+- `marcarDesistenteAction`: motivo obrigatório (zod, 3–500), transação fecha matrícula ATIVA→TRANCADA,
+  desativa inscrições ativas, status→DESISTENTE, auditoria com motivo. Guarda: só ATIVO pode desistir.
+- `reativarDesistenteAction`: só ADMIN; DESISTENTE→ATIVO sem turma/inscrições (rematrícula é fluxo separado).
+- `DesistenciaForm.tsx` na ficha do aluno com confirm() antes de submit.
+- Testado code-wise contra Neon-teste (transação espelhada): PASS.
+
+### Seed "faculdade de verdade" (scripts/curriculo-faculdade.ts + seed-teste-5-anos.ts reescrito)
+- CURRICULO canónico partilhado seed↔simulação: 8 disciplinas (2/ano × 4 anos, nenhuma repetida):
+  1º Prog I+Bases Dados; 2º Sist Op+Redes; 3º Eng Soft+IA; 4º Projeto Final+Comp Gráfica.
+- 8 professores (1/cadeira, emails @ispc.ao). 12 alunos (5 originais + Carlos transferido,
+  Ana bolseira INAGBE, Paulo desistente, Luísa recurso, Eduardo exame especial, Sandra dispensa+emolumento,
+  Tomás muda categoria). ConfigFinanceira: agravamento 10% LIGADO + multaTardia 15000.
+- Seed corrido e VERIFICADO na Neon-teste (8 disciplinas, 2 cadeiras/ano, 12 alunos c/User, categorias OK).
+- curriculo-setup.ts reescrito p/ ler o currículo canónico (professor certo por ano, horários criados);
+  garantirOfertaRepeticao genérica (Domingos agora reprova Redes de Computadores no 2º ano).
+- Orquestrador v2: staff.professor1/professor2 resolvidos POR CICLO (par do ano do currículo);
+  ctx.disciplinaSemestre2 novo (Isabel auto-zero funciona em qualquer ano).
+- extras-faculdade.ts: creditarCadeiraComoDaac, marcarDesistenteComoAdmin, registarEmolumentoComoSecretaria,
+  mudarCategoriaComoAdmin — integrados nos marcos (abertura-matricula ciclo 1 / pós-fim ciclo 2)
+  + verificações finais dos 4 novos perfis no relatório.
+
+### Pendente
+- Deploy Vercel em curso (push codesparker1 master 454fbcc..3de8f35) — confirmar build OK antes de correr.
+- Corrida completa v2 (agora com 9 verificações finais) contra Vercel+Neon-teste.
+- Perfis Luísa (RECURSO) e Eduardo (EXAME_ESPECIAL) definidos mas ainda SEM cenário dedicado —
+  próximos a acrescentar se o utilizador quiser (épocas RECURSO/EXAME_ESPECIAL nunca exercitadas).
