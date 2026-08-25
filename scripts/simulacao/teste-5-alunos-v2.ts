@@ -463,6 +463,32 @@ async function main(): Promise<void> {
       escreverRelatorio(outputDir, [...anosRelatorio, { anoCurricularCiclo: iteracao, eventos, violacoesDiagnostico: violacoesDoAno }], null, false);
     }
 
+    // §correção 2026-08-25: no ciclo 4, a rematrícula para o 5º ano (FIM_DE_CURSO → FORMADO) tem de
+    // correr ANTES do marco extra pós-fim-do-ano-letivo. Se avançarmos o relógio primeiro, a
+    // suspensão automática fecha a matrícula ATIVA do 4º ano como TRANCADA e desativa as inscrições
+    // — quando a rematrícula tenta processar, as inscrições já estão desativadas → "tem cadeiras por
+    // avaliar" e o aluno fica TRANCADO em vez de FORMADO.
+    if (iteracao === MAX_ITERACOES) {
+      const nomesPorChave: Record<keyof Alunos, string> = {
+        marta: "Marta Kiala",
+        joao: "João Manuel",
+        beatriz: "Beatriz Sacatucua",
+        domingos: "Domingos Cavaco",
+        isabel: "Isabel Neto",
+      };
+      for (const chave of ["marta", "joao", "beatriz", "domingos", "isabel"] as const) {
+        if (concluiuCurso[chave] || !alunoIdPorChave[chave]) continue;
+        const { processarRematricula } = await import("./cenarios-5-alunos/acoes-comuns");
+        const ctxFim = await browser.newContext();
+        const page = await ctxFim.newPage();
+        const r = await processarRematricula(page, args.url, staff.secretaria, alunoIdPorChave[chave]!, outputDir);
+        await ctxFim.close();
+        const ehFimDeCurso = r.erro?.includes("FIM_DE_CURSO") ?? false;
+        concluiuCurso[chave] = ehFimDeCurso;
+        log(`${nomesPorChave[chave]}: tentativa de rematrícula para o 5º Ano → ${ehFimDeCurso ? "PASS (fim de curso — aluno FORMADO)" : `INESPERADO: ${r.erro ?? r.resultado}`}`);
+      }
+    }
+
     // Marco extra pós-janela-de-matrícula — §correção 2026-08-24: era anoLetivoFim+30d (meados de
     // Janeiro), que ainda está DENTRO da janela de matrícula (1 Dez–31 Jan) — a "tardia" da
     // Beatriz/Domingos não era tardia a sério e a multa órfã nunca nascia. Agora corre a
@@ -504,28 +530,6 @@ async function main(): Promise<void> {
       const rDes = await marcarDesistenteComoAdmin(browser, args.url, staff.admin, prisma, "paulo.chissola@aluno.ispc.ao", "Deixou de comparecer às aulas e de responder aos contactos no 2º ano.", outputDir, `${tag}-paulo`);
       log(`[faculdade] Paulo Chissola: desistência — ${rDes.detalhe}.`);
       if (!rDes.ok) extrasPorEtiqueta.push(`ciclo ${tag}: desistência do Paulo NOK — ${rDes.detalhe}`);
-    }
-
-    if (iteracao === MAX_ITERACOES) {
-      const nomesPorChave: Record<keyof Alunos, string> = {
-        marta: "Marta Kiala",
-        joao: "João Manuel",
-        beatriz: "Beatriz Sacatucua",
-        domingos: "Domingos Cavaco",
-        isabel: "Isabel Neto",
-      };
-      for (const chave of ["marta", "joao", "beatriz", "domingos", "isabel"] as const) {
-        if (concluiuCurso[chave] || !alunoIdPorChave[chave]) continue;
-        const { processarRematricula } = await import("./cenarios-5-alunos/acoes-comuns");
-        const ctxFim = await browser.newContext();
-        const page = await ctxFim.newPage();
-        const r = await processarRematricula(page, args.url, staff.secretaria, alunoIdPorChave[chave]!, outputDir);
-        await ctxFim.close();
-        // §Opção A: a action devolve FIM_DE_CURSO e marca o aluno FORMADO — é isso o esperado.
-        const ehFimDeCurso = r.erro?.includes("FIM_DE_CURSO") ?? false;
-        concluiuCurso[chave] = ehFimDeCurso;
-        log(`${nomesPorChave[chave]}: tentativa de rematrícula para o 5º Ano → ${ehFimDeCurso ? "PASS (fim de curso — aluno FORMADO)" : `INESPERADO: ${r.erro ?? r.resultado}`}`);
-      }
     }
 
     anosRelatorio.push({ anoCurricularCiclo: iteracao, eventos, violacoesDiagnostico: violacoesDoAno });
@@ -646,6 +650,8 @@ async function main(): Promise<void> {
     const creditadas = carlos.inscricoes.filter((i) => i.creditada);
     const comOrigem = creditadas.filter((i) => i.instituicaoOrigemCreditado);
     const matsConcluidas = carlos.matriculas.filter((m) => m.status === "CONCLUIDA").length;
+    // §correção 2026-08-25: a verificação esperava >=3 notas mas o fluxo credita P1+P2 (2 notas) — o
+    // EXAME é calculado pela cascata quando P1+P2 ≥ nota mínima, não é gravado como nota creditada.
     const passou = creditadas.length >= 2 && comOrigem.length >= 2;
     verificacaoFinal.push({
       aluno: "Carlos Muanza (transferido)",

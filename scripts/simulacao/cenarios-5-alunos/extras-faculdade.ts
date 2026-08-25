@@ -231,17 +231,24 @@ export async function registarEmolumentoComoSecretaria(
       await page.waitForTimeout(800);
     }
 
-    // 4. No catálogo da tab Emolumentos, clicar na checkbox/linha do emolumento pedido.
-    const botaoEmolumento = page.locator("label, tr, div", { hasText: nomeEmolumento }).locator("visible=true").first();
-    if ((await botaoEmolumento.count()) === 0) {
+    // 4. No catálogo da tab Emolumentos, selecionar o emolumento (checkbox dentro do label).
+    const labelEmolumento = page.locator("label", { hasText: nomeEmolumento }).first();
+    try {
+      await labelEmolumento.waitFor({ state: "visible", timeout: 15000 });
+    } catch {
       return { ok: false, detalhe: `emolumento: opção "${nomeEmolumento}" não encontrada no painel` };
     }
-    await botaoEmolumento.click();
+    const checkbox = labelEmolumento.locator("input[type='checkbox']");
+    if ((await checkbox.count()) > 0 && !(await checkbox.isChecked())) {
+      await checkbox.click();
+    } else {
+      await labelEmolumento.click();
+    }
     await page.waitForTimeout(1000);
     await shot(page, outputDir, `c${etiqueta}-emolumento-selecionado`);
 
-    // 5. Confirmar (botão de submeter do recibo).
-    const submit = page.locator("button[type='submit']", { hasText: /Confirmar|Registar|Emitir|Recibo/i }).last();
+    // 5. Confirmar (botão "Confirmar e emitir recibo" — onClick, não type=submit).
+    const submit = page.locator("button", { hasText: /Confirmar|emitir recibo/i }).last();
     try {
       await submit.waitFor({ state: "visible", timeout: 10000 });
       await submit.click();

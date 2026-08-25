@@ -31,7 +31,10 @@ export function DesistenciaForm({ alunoId, status, podeMarcar, podeReativar }: D
   const [estadoDesistencia, actionDesistencia, pendenteDesistencia] = useActionState(marcarDesistenteAction, {});
   const [estadoReativacao, actionReativacao, pendenteReativacao] = useActionState(reativarDesistenteAction, {});
 
-  if (status === "ATIVO" && podeMarcar) {
+  // ATIVO ou TRANCADO (suspenso por não rematricular) podem ser marcados como desistente — o
+  // TRANCADO é o estado natural de quem desiste: para de frequentar, é suspenso automaticamente,
+  // e a ADMIN/DAAC formaliza a desistência.
+  if ((status === "ATIVO" || status === "TRANCADO") && podeMarcar) {
     return (
       <form
         action={actionDesistencia}
