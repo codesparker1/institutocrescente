@@ -39,6 +39,12 @@ import {
   submeterReclamacao,
   resolverReclamacaoComoAdmin,
 } from "./cenarios-5-alunos/extras-v2";
+import {
+  creditarCadeiraComoDaac,
+  marcarDesistenteComoAdmin,
+  registarEmolumentoComoSecretaria,
+  mudarCategoriaComoAdmin,
+} from "./cenarios-5-alunos/extras-faculdade";
 import * as marta from "./cenarios-5-alunos/marta";
 import * as joao from "./cenarios-5-alunos/joao";
 import * as beatriz from "./cenarios-5-alunos/beatriz";
@@ -315,6 +321,28 @@ async function main(): Promise<void> {
             await ctxA.close();
           }
         }
+
+        // [faculdade] Cenários dos novos perfis (§2026-08-25) — só no 1º ciclo:
+        if (iteracao === 1) {
+          // Carlos Muanza (transferido): DAAC credita as 2 cadeiras do 1º ano que ele já aprovou
+          // na Univ. Kimpa Vita — depois a rematrícula normal avança-o para o 2º ano na janela.
+          const rCred1 = await creditarCadeiraComoDaac(browser, args.url, staff.daac, prisma, "carlos.muanza@aluno.ispc.ao", "Programação I", 15, "Universidade Kimpa Vita", outputDir, `${tag}-carlos`);
+          log(`[faculdade] Carlos Muanza (transferido): crédito de Programação I — ${rCred1.detalhe}.`);
+          if (!rCred1.ok) extrasPorEtiqueta.push(`ciclo ${tag}: crédito Programação I do Carlos NOK — ${rCred1.detalhe}`);
+          const rCred2 = await creditarCadeiraComoDaac(browser, args.url, staff.daac, prisma, "carlos.muanza@aluno.ispc.ao", "Bases de Dados", 14, "Universidade Kimpa Vita", outputDir, `${tag}-carlos`);
+          log(`[faculdade] Carlos Muanza (transferido): crédito de Bases de Dados — ${rCred2.detalhe}.`);
+          if (!rCred2.ok) extrasPorEtiqueta.push(`ciclo ${tag}: crédito Bases de Dados do Carlos NOK — ${rCred2.detalhe}`);
+
+          // Sandra Kambunda: SECRETARIA regista declaração de matrícula (emolumento).
+          const rEmol = await registarEmolumentoComoSecretaria(browser, args.url, staff.secretaria, prisma, "Sandra Kambunda", "Declaração de matrícula", outputDir, `${tag}-sandra`);
+          log(`[faculdade] Sandra Kambunda: emolumento — ${rEmol.detalhe}.`);
+          if (!rEmol.ok) extrasPorEtiqueta.push(`ciclo ${tag}: emolumento da Sandra NOK — ${rEmol.detalhe}`);
+
+          // Tomás Kapata: ADMIN muda NORMAL → COMPARTICIPADA.
+          const rCat = await mudarCategoriaComoAdmin(browser, args.url, staff.admin, prisma, "tomas.kapata@aluno.ispc.ao", "COMPARTICIPADA", outputDir, `${tag}-tomas`);
+          log(`[faculdade] Tomás Kapata: categoria — ${rCat.detalhe}.`);
+          if (!rCat.ok) extrasPorEtiqueta.push(`ciclo ${tag}: mudança de categoria do Tomás NOK — ${rCat.detalhe}`);
+        }
       }
 
       if (marco.id === "vencimento-propinas") {
@@ -469,6 +497,15 @@ async function main(): Promise<void> {
       if (!rMulta.ok) extrasPorEtiqueta.push(`ciclo ${tag}: toggleMulta órfã NOK — ${rMulta.detalhe}`);
     }
 
+    // [faculdade] Paulo Chissola desiste no fim do 2º ano (§2026-08-25): não rematriculou, foi
+    // suspenso automaticamente (TRANCADO) e agora a ADMIN formaliza a DESISTÊNCIA com motivo.
+    // Fica fora do sistema para sempre — a verificação final confirma que nada dele cresce.
+    if (iteracao === 2) {
+      const rDes = await marcarDesistenteComoAdmin(browser, args.url, staff.admin, prisma, "paulo.chissola@aluno.ispc.ao", "Deixou de comparecer às aulas e de responder aos contactos no 2º ano.", outputDir, `${tag}-paulo`);
+      log(`[faculdade] Paulo Chissola: desistência — ${rDes.detalhe}.`);
+      if (!rDes.ok) extrasPorEtiqueta.push(`ciclo ${tag}: desistência do Paulo NOK — ${rDes.detalhe}`);
+    }
+
     if (iteracao === MAX_ITERACOES) {
       const nomesPorChave: Record<keyof Alunos, string> = {
         marta: "Marta Kiala",
@@ -596,6 +633,73 @@ async function main(): Promise<void> {
       aluno: "Domingos Cavaco (verificação cruzada com decidirRematricula)",
       passou: decisaoDomingos.resultado === "AVANCA" && decisaoDomingos.novoAnoCurricular === 3,
       detalhes: [`decidirRematricula({reprovacoes:1, limiteReprovacoes:2, anoCurricular:2}) = ${JSON.stringify(decisaoDomingos)} (esperado AVANCA, novoAnoCurricular=3)`],
+    });
+  }
+
+  // [faculdade] Verificações dos novos perfis (§2026-08-25).
+  {
+    // Carlos Muanza: transferido — 2 cadeiras creditadas + avançou de ano como os restantes.
+    const carlos = await prisma.aluno.findFirstOrThrow({
+      where: { user: { email: "carlos.muanza@aluno.ispc.ao" } },
+      include: { inscricoes: true, matriculas: { include: { turma: true }, orderBy: { turma: { anoLetivo: "asc" } } } },
+    });
+    const creditadas = carlos.inscricoes.filter((i) => i.creditada);
+    const comOrigem = creditadas.filter((i) => i.instituicaoOrigemCreditado);
+    const matsConcluidas = carlos.matriculas.filter((m) => m.status === "CONCLUIDA").length;
+    const passou = creditadas.length >= 2 && comOrigem.length >= 2;
+    verificacaoFinal.push({
+      aluno: "Carlos Muanza (transferido)",
+      passou,
+      detalhes: [
+        `Cadeiras creditadas: ${creditadas.length} (esperado >= 2 — Programação I e Bases de Dados via creditarCadeiraAction)`,
+        `Com instituição de origem registada: ${comOrigem.length} (esperado >= 2 — Universidade Kimpa Vita)`,
+        `Matrículas CONCLUIDA: ${matsConcluidas} (avançou no ciclo seguinte se >= 1)`,
+      ],
+    });
+  }
+  {
+    // Paulo Chissola: DESISTENTE no fim do 2º ano — fora do sistema para sempre.
+    const paulo = await prisma.aluno.findFirstOrThrow({
+      where: { user: { email: "paulo.chissola@aluno.ispc.ao" } },
+      include: { matriculas: true, inscricoes: true },
+    });
+    const inscAtivas = paulo.inscricoes.filter((i) => i.ativa).length;
+    const audit = await prisma.auditLog.findFirst({
+      where: { entityType: "Aluno", entityId: paulo.id, action: { contains: "DESISTENTE" } },
+    });
+    const passou = paulo.status === "DESISTENTE" && inscAtivas === 0 && Boolean(audit);
+    verificacaoFinal.push({
+      aluno: "Paulo Chissola (desistente)",
+      passou,
+      detalhes: [
+        `Aluno.status final: ${paulo.status} (esperado DESISTENTE desde o fim do 2º ano)`,
+        `Inscrições ativas: ${inscAtivas} (esperado 0)`,
+        `Auditoria da desistência c/motivo: ${audit ? "registada" : "AUSENTE"} (esperado registada)`,
+      ],
+    });
+  }
+  {
+    // Sandra Kambunda: emolumento registado pela SECRETARIA.
+    const sandra = await prisma.aluno.findFirstOrThrow({ where: { nome: "Sandra Kambunda" }, include: { cobrancas: true } });
+    const emol = sandra.cobrancas.filter((c) => c.tipo === "EMOLUMENTO");
+    const passou = emol.length >= 1;
+    verificacaoFinal.push({
+      aluno: "Sandra Kambunda (emolumentos)",
+      passou,
+      detalhes: [
+        `Cobranças EMOLUMENTO: ${emol.length} (esperado >= 1 — Declaração de matrícula)`,
+        ...(emol.length > 0 ? [`Último: "${emol[0].descricao}" (${Number(emol[0].valorDevido)} Kz, ${emol[0].status})`] : []),
+      ],
+    });
+  }
+  {
+    // Tomás Kapata: categoria mudada NORMAL → COMPARTICIPADA no ciclo 1.
+    const tomas = await prisma.aluno.findFirstOrThrow({ where: { user: { email: "tomas.kapata@aluno.ispc.ao" } } });
+    const passou = tomas.categoria === "COMPARTICIPADA";
+    verificacaoFinal.push({
+      aluno: "Tomás Kapata (categoria)",
+      passou,
+      detalhes: [`Categoria final: ${tomas.categoria} (esperado COMPARTICIPADA — mudada pelo ADMIN no ciclo 1)`],
     });
   }
 
