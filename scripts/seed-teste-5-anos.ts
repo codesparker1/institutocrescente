@@ -1,4 +1,8 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+// §2026-08-25: `import "dotenv/config"` NÃO tem precedence sobre um DATABASE_URL já definido
+// (ex. pelo .env → Neon de PRODUÇÃO). Este seed é da BD de TESTE — apontar sempre ao
+// .env.local com override, igual aos scripts de simulação.
+dotenv.config({ path: ".env.local", override: true });
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";

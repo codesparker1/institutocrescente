@@ -79,3 +79,35 @@
 1. Decidir/confirmar os achados 1-3 com o utilizador (walkthrough first).
 2. Corrigir o que for bug do sistema vs. do teste.
 3. Passe visual por papel (5 papéis paralelos, screenshots) sobre o estado final da BD.
+
+## Sessão 2026-08-25 (continuação) — causa raiz dos "achados" era outra: corridas zumbis + seed apontado à BD errada
+
+### O que se descobriu
+1. **Processos zumbis**: pelo menos 5 corridas de teste-5-alunos(.ts/v2.ts) de ontem e desta
+   manhã (03:21, 15:48 de ontem; 05:47, 06:08, 06:40 de hoje) continuavam vivas em paralelo,
+   TODAS contra a mesma Vercel+Neon-teste. Pisavam-se umas às outras no relógio simulado —
+   daí relatórios parciais com anos letivos inconsistentes (2031 vs 2034). Todos mortos
+   (Stop-Process); sem cron jobs. Os "novos processos" durante a limpeza eram os próprios
+   comandos de inspeção (o grep apanhava-se a si próprio).
+2. **Seed apontava à BD de PRODUÇÃO**: scripts/seed-teste-5-anos.ts usava
+   `import "dotenv/config"` (sem override) → leu `.env` (Neon ep-polished-dew) em vez do
+   `.env.local` (Neon-teste). O seed das ~06:41 limpou e re-semeou a BD de PRODUÇÃO
+   (elenco de teste: dev@/admin@/... + 5 alunos ATIVO). **FIX APLICADO**: o seed agora usa
+   dotenv.config({path:'.env.local', override:true}) como os scripts de simulação.
+3. BD de teste re-semeada e verificada: 5 alunos ATIVO, 1 matrícula cada, 0 cobranças,
+   relógio = agora, semestreAtual=1, ultimaSuspensaoEm=null. Pronta a correr.
+
+### Estado real dos 3 achados originais — REABRIR numa corrida limpa
+A corrida v2-1787585253835 (a que produziu os achados) correu SEM concorrência e os seus
+resultados são válidos. Mas a BD atual foi re-semeada por cima; para investigar os achados
+1-3 (multa órfã, repetição de cadeira, Beatriz TRANCADO) há duas opções:
+(a) correr a simulação de novo agora que não há zumbis e ver se reproduzem; ou
+(b) analisar o código diretamente (processarRematriculaAction cria a multa tardia quando
+rematriculaTardia && valorMultaRematriculaTardia>0 — código parece correto; investigar por
+que não nasceu: valor 0 no momento? role errada? janela aberta?).
+
+### Lições (para memória)
+- Antes de correr/interpretar qualquer simulação: verificar processos node/tsx zumbis
+  (`Get-CimInstance Win32_Process | ? CommandLine -match 'teste-5-alunos'` mas filtrar
+  Name -match '^node' para não se apanhar a si próprio).
+- O seed NÃO pode usar `dotenv/config` simples enquanto o `.env` apontar à produção.
