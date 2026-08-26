@@ -133,6 +133,26 @@ export function toIsoDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Inverso exato de `toIsoDate`: lê "aaaa-mm-dd" de um <input type="date"> como meia-noite LOCAL.
+ * `new Date("2026-09-01")` não serve — a spec manda interpretar a forma só-data como meia-noite
+ * UTC, enquanto toIsoDate lê de volta com getFullYear/getMonth/getDate, que são locais. Num
+ * servidor a oeste de Greenwich (Vercel us-east, por exemplo) o par grava/lê perdia um dia: o DAAC
+ * escolhia 01/09 e o formulário devolvia 31/08.
+ * Devolve null para entrada malformada, para o chamador poder rejeitar em vez de gravar Invalid Date.
+ */
+export function fromIsoDate(iso: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!match) return null;
+  const [, ano, mes, dia] = match;
+  const data = new Date(Number(ano), Number(mes) - 1, Number(dia));
+  // Rejeita datas que "transbordam" (ex.: 2026-02-31 viraria 3 de março).
+  if (data.getFullYear() !== Number(ano) || data.getMonth() !== Number(mes) - 1 || data.getDate() !== Number(dia)) {
+    return null;
+  }
+  return data;
+}
+
 export interface DataValida {
   iso: string;
   label: string;

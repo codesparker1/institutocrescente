@@ -9,7 +9,7 @@ import { requireGerirCurriculo, requireRegistarPagamento, requireMarcarDesistenc
 import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
 import { getEstadoFinanceiroAluno, gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, fromIsoDate } from "@/lib/utils";
 import { decidirRematricula, cadeirasARepetir } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
 
@@ -64,18 +64,21 @@ export async function atualizarConfiguracaoAcademicaAction(
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CONFIG_ACADEMICA);
 
-  const matriculaInicio = new Date(parsed.data.matriculaInicio);
-  const matriculaFim = new Date(parsed.data.matriculaFim);
-  if (Number.isNaN(matriculaInicio.getTime()) || Number.isNaN(matriculaFim.getTime()) || matriculaFim < matriculaInicio) {
+  // fromIsoDate, não new Date(): a forma só-data é interpretada como meia-noite UTC pelo
+  // construtor, mas relida por toIsoDate em hora local — num servidor a oeste de Greenwich o par
+  // perdia um dia (o DAAC escolhia 01/09 e o formulário devolvia 31/08).
+  const matriculaInicio = fromIsoDate(parsed.data.matriculaInicio);
+  const matriculaFim = fromIsoDate(parsed.data.matriculaFim);
+  if (!matriculaInicio || !matriculaFim || matriculaFim < matriculaInicio) {
     return {
       fieldErrors: { matriculaFim: "A data de fim tem de ser depois da data de início" },
       values: extrairValores(formData, CAMPOS_CONFIG_ACADEMICA),
     };
   }
 
-  const anoLetivoInicio = new Date(parsed.data.anoLetivoInicio);
-  const anoLetivoFim = new Date(parsed.data.anoLetivoFim);
-  if (Number.isNaN(anoLetivoInicio.getTime()) || Number.isNaN(anoLetivoFim.getTime()) || anoLetivoFim < anoLetivoInicio) {
+  const anoLetivoInicio = fromIsoDate(parsed.data.anoLetivoInicio);
+  const anoLetivoFim = fromIsoDate(parsed.data.anoLetivoFim);
+  if (!anoLetivoInicio || !anoLetivoFim || anoLetivoFim < anoLetivoInicio) {
     return {
       fieldErrors: { anoLetivoFim: "A data de fim tem de ser depois da data de início" },
       values: extrairValores(formData, CAMPOS_CONFIG_ACADEMICA),

@@ -9,6 +9,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { SENHA_INICIAL_PADRAO } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores } from "@/lib/forms";
+import { fromIsoDate } from "@/lib/utils";
 import { podeRegistarPagamento, requireGerirContas } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, anosAnterioresEmFalta, inscreverCadeirasAnosAnteriores } from "@/lib/curriculo";
 import { gerarPropinasAnoLetivo } from "@/lib/financeiro";
@@ -110,6 +111,16 @@ export async function createAlunoAction(
     };
   }
 
+  // fromIsoDate, não new Date(): a forma só-data é meia-noite UTC, mas a ficha do aluno relê a
+  // data em hora local — a oeste de Greenwich, quem nascesse a 01/09 aparecia como 31/08.
+  const dataNascimento = fromIsoDate(parsed.data.dataNascimento);
+  if (!dataNascimento) {
+    return {
+      fieldErrors: { dataNascimento: "Data de nascimento inválida" },
+      values: extrairValores(formData, CAMPOS_ALUNO),
+    };
+  }
+
   const totalAlunos = await prisma.aluno.count();
   const agoraParaNumero = await getAgora();
   const numeroEstudante = `ISPC${agoraParaNumero.getFullYear()}-${String(totalAlunos + 1).padStart(4, "0")}`;
@@ -126,7 +137,7 @@ export async function createAlunoAction(
           nome: parsed.data.nome,
           email: parsed.data.email,
           telefone: parsed.data.telefone,
-          dataNascimento: new Date(parsed.data.dataNascimento),
+          dataNascimento,
           genero: parsed.data.genero,
           curso: turma.curso.nome,
           anoIngresso: turma.anoLetivo,

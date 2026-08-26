@@ -9,6 +9,7 @@ import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, type SessionComUser } from "@/lib/permissions";
 import { EPOCA_LABEL, diasPrazoParaEpoca } from "@/lib/avaliacao";
 import { HORA_REGEX, encontrarConflito, type SlotExistente } from "@/lib/horario";
+import { fromIsoDate } from "@/lib/utils";
 
 async function audit(session: SessionComUser, action: string, entityType: string, entityId?: string) {
   await registrarAuditoria({
@@ -159,8 +160,10 @@ export async function createProvaAction(
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_PROVA);
 
-  const dataProva = new Date(parsed.data.data);
-  if (Number.isNaN(dataProva.getTime())) {
+  // fromIsoDate, não new Date(): ver nota em lib/utils — a forma só-data é meia-noite UTC, mas
+  // toIsoDate/getDate leem em hora local, e o par perdia um dia a oeste de Greenwich.
+  const dataProva = fromIsoDate(parsed.data.data);
+  if (!dataProva) {
     return {
       fieldErrors: { data: "Data inválida" },
       values: extrairValores(formData, CAMPOS_PROVA),

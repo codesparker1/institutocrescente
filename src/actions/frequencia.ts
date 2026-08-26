@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireGerirFrequencia } from "@/lib/permissions";
+import { fromIsoDate } from "@/lib/utils";
 
 const ToggleFrequenciaSchema = z.object({
   frequenciaId: z.string().min(1),
@@ -86,8 +87,16 @@ export async function createAulaAction(
     return { error: "Só pode criar aulas nas suas próprias disciplinas.", values: valores };
   }
 
+  // A MESMA data serve para validar o dia da semana e para gravar — antes, a validação usava
+  // "…T00:00:00" (hora local, certo) e a gravação `new Date(dados.data)` (meia-noite UTC), pelo
+  // que a oeste de Greenwich a aula era validada contra um dia e guardada noutro.
+  const dataAula = fromIsoDate(dados.data);
+  if (!dataAula) {
+    return { fieldErrors: { data: "Data inválida" }, values: valores };
+  }
+
   const JS_DAY_TO_DIA_SEMANA = ["DOMINGO", "SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"];
-  const diaEscolhido = JS_DAY_TO_DIA_SEMANA[new Date(`${dados.data}T00:00:00`).getDay()];
+  const diaEscolhido = JS_DAY_TO_DIA_SEMANA[dataAula.getDay()];
   const diasLetivos = new Set<string>(turmaDisciplina.horarioSlots.map((s) => s.diaSemana));
   if (!diasLetivos.has(diaEscolhido)) {
     return {
@@ -99,7 +108,7 @@ export async function createAulaAction(
   const aula = await prisma.aula.create({
     data: {
       turmaDisciplinaId: dados.turmaDisciplinaId,
-      data: new Date(dados.data),
+      data: dataAula,
       tema: dados.tema ?? null,
     },
   });
