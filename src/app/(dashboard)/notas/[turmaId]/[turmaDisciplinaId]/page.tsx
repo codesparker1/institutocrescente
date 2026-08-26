@@ -21,6 +21,7 @@ export default async function NotasGradebookPage({ params }: NotasGradebookPageP
       backHref={`/notas/${turmaId}`}
       editable={editable}
       podeIgnorarPrazo={editable}
+      restringirAoProfessorId={session.user.role === "PROFESSOR" ? session.user.professorId : null}
     />
   );
 }

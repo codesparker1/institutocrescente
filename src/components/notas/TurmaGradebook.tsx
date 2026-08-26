@@ -17,9 +17,21 @@ interface TurmaGradebookProps {
   editable: boolean;
   /** DAAC ignora sempre o prazo de lançamento (§4.3) — false para a página do professor. */
   podeIgnorarPrazo?: boolean;
+  /**
+   * Quando preenchido, a pauta só abre se esta TurmaDisciplina for mesmo deste professor — sem
+   * isto, qualquer professor via a pauta de qualquer colega escrevendo o id no URL (as Server
+   * Actions já recusavam a escrita, mas a leitura passava).
+   */
+  restringirAoProfessorId?: string | null;
 }
 
-export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, podeIgnorarPrazo = false }: TurmaGradebookProps) {
+export async function TurmaGradebook({
+  turmaDisciplinaId,
+  backHref,
+  editable,
+  podeIgnorarPrazo = false,
+  restringirAoProfessorId = null,
+}: TurmaGradebookProps) {
   const turmaDisciplina = await prisma.turmaDisciplina.findUnique({
     where: { id: turmaDisciplinaId },
     include: {
@@ -42,6 +54,8 @@ export async function TurmaGradebook({ turmaDisciplinaId, backHref, editable, po
   });
 
   if (!turmaDisciplina) notFound();
+  // 404, não "acesso negado": não confirma sequer que a disciplina existe a quem não é dela.
+  if (restringirAoProfessorId && turmaDisciplina.professorId !== restringirAoProfessorId) notFound();
 
   const avaliacaoPorEpoca = new Map(turmaDisciplina.avaliacoes.map((a) => [a.epoca, a]));
 

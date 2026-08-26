@@ -18,11 +18,16 @@ export default async function NotasTurmaPage({ params }: NotasTurmaPageProps) {
 
   const { turmaId } = await params;
 
+  // O professor só vê as suas próprias disciplinas dentro da turma — não a grelha inteira dos
+  // colegas. Admin/DAAC continuam a ver todas (gestão académica).
+  const professorId = session.user.role === "PROFESSOR" ? session.user.professorId : null;
+
   const turma = await prisma.turma.findUnique({
     where: { id: turmaId },
     include: {
       curso: true,
       turmaDisciplinas: {
+        where: professorId ? { professorId } : {},
         include: { disciplina: true, professor: true, _count: { select: { avaliacoes: true } } },
         orderBy: { disciplina: { nome: "asc" } },
       },
@@ -30,6 +35,9 @@ export default async function NotasTurmaPage({ params }: NotasTurmaPageProps) {
   });
 
   if (!turma) notFound();
+  // Turma sem nenhuma disciplina deste professor não é dele — 404 em vez de uma página vazia que
+  // confirmaria a existência da turma (mesma razão de não distinguir "não existe" de "não é seu").
+  if (professorId && turma.turmaDisciplinas.length === 0) notFound();
 
   return (
     <div className="flex flex-col gap-6">
