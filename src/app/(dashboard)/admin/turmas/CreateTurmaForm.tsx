@@ -16,9 +16,11 @@ interface CursoOption {
 
 interface CreateTurmaFormProps {
   cursos: CursoOption[];
+  /** Ano letivo corrente (getAgora no servidor) — não se criam turmas para anos já passados. */
+  anoLetivoMinimo: number;
 }
 
-export function CreateTurmaForm({ cursos }: CreateTurmaFormProps) {
+export function CreateTurmaForm({ cursos, anoLetivoMinimo }: CreateTurmaFormProps) {
   const [state, formAction, isPending] = useActionState(createTurmaAction, initialState);
   // O curso é escolhido dentro deste formulário, por isso os anos oferecidos têm de reagir à
   // seleção: um curso de 3 anos não oferece 4º ano.
@@ -80,7 +82,8 @@ export function CreateTurmaForm({ cursos }: CreateTurmaFormProps) {
           name="anoLetivo"
           type="number"
           required
-          defaultValue={state.values?.anoLetivo ?? 2026}
+          min={anoLetivoMinimo}
+          defaultValue={state.values?.anoLetivo ?? anoLetivoMinimo}
         />
       </Field>
       {state.error ? <p className="sm:col-span-5 text-sm text-red-600">{state.error}</p> : null}

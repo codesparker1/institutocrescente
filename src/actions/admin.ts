@@ -11,6 +11,7 @@ import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma } from "@/lib/curriculo";
+import { getAgora } from "@/lib/tempo";
 
 async function audit(
   session: SessionComUser,
@@ -505,6 +506,20 @@ export async function createTurmaAction(
     anoLetivo: formData.get("anoLetivo"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_TURMA);
+
+  // Não se cria uma turma para um ano letivo já passado: não haveria alunos a matricular nela, e o
+  // histórico entra na BD pelo rollover automático (rolloverTurmas, que chama prisma.turma.create
+  // diretamente e não passa por aqui), nunca por criação manual retroativa.
+  const agora = await getAgora();
+  const anoLetivoCorrente = agora.getFullYear();
+  if (parsed.data.anoLetivo < anoLetivoCorrente) {
+    return {
+      fieldErrors: {
+        anoLetivo: `O ano letivo ${parsed.data.anoLetivo} já passou — a turma mais antiga que pode criar é de ${anoLetivoCorrente}.`,
+      },
+      values: extrairValores(formData, CAMPOS_TURMA),
+    };
+  }
 
   // Mesmo limite do plano curricular: o ano da turma não pode passar a duração do curso. Sem isto,
   // uma turma de "5º ano" num curso de 3 anos passava, e anosAnterioresEmFalta (entrada direta)

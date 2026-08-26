@@ -8,6 +8,7 @@ import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteTurmaAction } from "@/actions/admin";
 import { CreateTurmaForm } from "./CreateTurmaForm";
 import { PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
+import { getAgora } from "@/lib/tempo";
 
 interface AdminTurmasPageProps {
   searchParams: Promise<{ anoLetivo?: string }>;
@@ -16,13 +17,19 @@ interface AdminTurmasPageProps {
 export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageProps) {
   const { anoLetivo } = await searchParams;
 
-  const [cursos, anosLetivos, maxAnoLetivo] = await Promise.all([
+  const [cursos, anosLetivos, maxAnoLetivo, agora] = await Promise.all([
     // select: CreateTurmaForm (Client Component) só precisa de id/nome — ver nota em admin/disciplinas/page.tsx.
     // duracaoAnos limita os anos curriculares oferecidos ao curso escolhido.
     prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true, duracaoAnos: true } }),
     prisma.turma.findMany({ distinct: ["anoLetivo"], select: { anoLetivo: true }, orderBy: { anoLetivo: "desc" } }),
     prisma.turma.aggregate({ _max: { anoLetivo: true } }),
+    getAgora(),
   ]);
+
+  // Ano letivo corrente pelo relógio do sistema (getAgora, não new Date — respeita a simulação):
+  // é o mínimo que se pode criar. Uma turma de um ano já passado não teria alunos a matricular —
+  // o histórico entra na BD pelo rollover, nunca por criação manual retroativa.
+  const anoLetivoMinimo = agora.getFullYear();
 
   // Por omissão só o ano letivo mais recente (o que acabou de nascer do rollover automático,
   // §pedido do cliente 2026-08-18) — as turmas de anos anteriores continuam na BD como histórico
@@ -50,7 +57,7 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
       <Card>
         <CardHeader title="Turmas" subtitle={`${turmas.length} turma(s)`} />
         <CardBody className="flex flex-col gap-4">
-          <CreateTurmaForm cursos={cursos} />
+          <CreateTurmaForm cursos={cursos} anoLetivoMinimo={anoLetivoMinimo} />
 
           <form className="flex items-end gap-3">
             <div className="flex flex-col gap-1">
