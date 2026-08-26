@@ -9,11 +9,13 @@ import type { Role } from "@/generated/prisma/client";
 interface DashboardShellProps {
   role: Role;
   name: string;
+  /** Data corrente do sistema (getAgora) — simulada sob SIMULATION_MODE, real fora dela. */
+  dataSistema: Date;
   simulationMode: boolean;
   children: ReactNode;
 }
 
-export function DashboardShell({ role, name, simulationMode, children }: DashboardShellProps) {
+export function DashboardShell({ role, name, dataSistema, simulationMode, children }: DashboardShellProps) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   const openMobileNav = useCallback(() => setIsMobileNavOpen(true), []);
@@ -24,7 +26,7 @@ export function DashboardShell({ role, name, simulationMode, children }: Dashboa
       <div className="flex min-h-screen bg-navy-50/40">
         <Sidebar role={role} isOpen={isMobileNavOpen} onClose={closeMobileNav} simulationMode={simulationMode} />
         <div className="flex min-w-0 flex-1 flex-col md:pl-64">
-          <Topbar name={name} role={role} onMenuClick={openMobileNav} />
+          <Topbar name={name} role={role} dataSistema={dataSistema} simulationMode={simulationMode} onMenuClick={openMobileNav} />
           <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6">{children}</main>
         </div>
       </div>

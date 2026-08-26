@@ -13,10 +13,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  // Data que o sistema considera corrente — a simulada sob SIMULATION_MODE, a real fora dela.
+  // Mostrada no Topbar para se poder confirmar de relance que o relógio simulado está a pegar.
+  const agora = await getAgora();
+
   // Telemetria da simulação: cada acesso ao dashboard é um ponto de dados (papel, rota de origem,
   // offset do relógio). Fire-and-forget — nunca atrasa o render.
   if (SIMULATION_MODE) {
-    const [agora, headerList] = await Promise.all([getAgora(), headers()]);
+    const headerList = await headers();
     registarSimEventoFogoEForge({
       tipo: "ACESSO_DASHBOARD",
       dataSimulada: agora,
@@ -41,6 +45,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <DashboardShell
       role={session.user.role}
       name={session.user.name ?? session.user.email ?? "Utilizador"}
+      dataSistema={agora}
       simulationMode={SIMULATION_MODE}
     >
       {children}
