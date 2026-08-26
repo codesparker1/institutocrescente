@@ -242,6 +242,28 @@ export async function createCadeiraCurricularAction(
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CADEIRA_CURRICULAR);
 
+  // O limite real é a duração do curso, não o 8 fixo do schema: um curso de 3 anos não pode ter
+  // uma cadeira no 4º ano. Validado aqui, e não só no `max` do input, porque o formulário é apenas
+  // a primeira barreira — a Server Action é a que conta.
+  const curso = await prisma.curso.findUnique({
+    where: { id: parsed.data.cursoId },
+    select: { duracaoAnos: true },
+  });
+  if (!curso) {
+    return {
+      fieldErrors: { cursoId: "Curso não encontrado." },
+      values: extrairValores(formData, CAMPOS_CADEIRA_CURRICULAR),
+    };
+  }
+  if (parsed.data.anoCurricular > curso.duracaoAnos) {
+    return {
+      fieldErrors: {
+        anoCurricular: `Este curso dura ${curso.duracaoAnos} ano(s) — não pode ter cadeiras no ${parsed.data.anoCurricular}º ano.`,
+      },
+      values: extrairValores(formData, CAMPOS_CADEIRA_CURRICULAR),
+    };
+  }
+
   try {
     const cadeira = await prisma.cadeiraCurricular.create({ data: parsed.data, include: { disciplina: true } });
     await audit(
@@ -483,6 +505,28 @@ export async function createTurmaAction(
     anoLetivo: formData.get("anoLetivo"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_TURMA);
+
+  // Mesmo limite do plano curricular: o ano da turma não pode passar a duração do curso. Sem isto,
+  // uma turma de "5º ano" num curso de 3 anos passava, e anosAnterioresEmFalta (entrada direta)
+  // passaria a exigir turmas de anos que nunca deviam existir.
+  const cursoDaTurma = await prisma.curso.findUnique({
+    where: { id: parsed.data.cursoId },
+    select: { duracaoAnos: true },
+  });
+  if (!cursoDaTurma) {
+    return {
+      fieldErrors: { cursoId: "Curso não encontrado." },
+      values: extrairValores(formData, CAMPOS_TURMA),
+    };
+  }
+  if (parsed.data.anoCurricular > cursoDaTurma.duracaoAnos) {
+    return {
+      fieldErrors: {
+        anoCurricular: `Este curso dura ${cursoDaTurma.duracaoAnos} ano(s) — não pode ter turmas no ${parsed.data.anoCurricular}º ano.`,
+      },
+      values: extrairValores(formData, CAMPOS_TURMA),
+    };
+  }
 
   try {
     const turma = await prisma.turma.create({ data: parsed.data, include: { curso: true } });

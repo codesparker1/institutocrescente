@@ -76,7 +76,7 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                 .
               </p>
             ) : (
-              <CreateCadeiraCurricularForm cursoId={curso.id} disciplinas={disciplinas} />
+              <CreateCadeiraCurricularForm cursoId={curso.id} disciplinas={disciplinas} duracaoAnos={curso.duracaoAnos} />
             )}
 
             {cadeiras.length === 0 ? (

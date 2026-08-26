@@ -18,7 +18,8 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
 
   const [cursos, anosLetivos, maxAnoLetivo] = await Promise.all([
     // select: CreateTurmaForm (Client Component) só precisa de id/nome — ver nota em admin/disciplinas/page.tsx.
-    prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    // duracaoAnos limita os anos curriculares oferecidos ao curso escolhido.
+    prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true, duracaoAnos: true } }),
     prisma.turma.findMany({ distinct: ["anoLetivo"], select: { anoLetivo: true }, orderBy: { anoLetivo: "desc" } }),
     prisma.turma.aggregate({ _max: { anoLetivo: true } }),
   ]);

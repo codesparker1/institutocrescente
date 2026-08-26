@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Field, Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +11,7 @@ const initialState: CreateTurmaState = {};
 interface CursoOption {
   id: string;
   nome: string;
+  duracaoAnos: number;
 }
 
 interface CreateTurmaFormProps {
@@ -19,6 +20,16 @@ interface CreateTurmaFormProps {
 
 export function CreateTurmaForm({ cursos }: CreateTurmaFormProps) {
   const [state, formAction, isPending] = useActionState(createTurmaAction, initialState);
+  // O curso é escolhido dentro deste formulário, por isso os anos oferecidos têm de reagir à
+  // seleção: um curso de 3 anos não oferece 4º ano.
+  const [cursoIdSelecionado, setCursoIdSelecionado] = useState(state.values?.cursoId ?? cursos[0]?.id ?? "");
+  const [anoCurricular, setAnoCurricular] = useState(state.values?.anoCurricular ?? "1");
+  const cursoSelecionado = cursos.find((c) => c.id === cursoIdSelecionado) ?? cursos[0];
+  const duracaoAnos = cursoSelecionado?.duracaoAnos ?? 1;
+  const anosDisponiveis = Array.from({ length: duracaoAnos }, (_, i) => i + 1);
+  // Trocar para um curso mais curto pode deixar o ano escolhido fora da lista (5º Ano num curso de
+  // 3 anos) — derivado durante o render, sem efeito: o valor exibido cai para o último ano válido.
+  const anoValido = anosDisponiveis.includes(Number(anoCurricular)) ? anoCurricular : String(duracaoAnos);
 
   return (
     <form
@@ -27,7 +38,13 @@ export function CreateTurmaForm({ cursos }: CreateTurmaFormProps) {
       className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end"
     >
       <Field label="Curso" htmlFor="turma-curso" error={state.fieldErrors?.cursoId}>
-        <Select id="turma-curso" name="cursoId" required defaultValue={state.values?.cursoId}>
+        <Select
+          id="turma-curso"
+          name="cursoId"
+          required
+          value={cursoIdSelecionado}
+          onChange={(e) => setCursoIdSelecionado(e.target.value)}
+        >
           {cursos.map((curso) => (
             <option key={curso.id} value={curso.id}>
               {curso.nome}
@@ -40,9 +57,10 @@ export function CreateTurmaForm({ cursos }: CreateTurmaFormProps) {
           id="turma-anocurricular"
           name="anoCurricular"
           required
-          defaultValue={state.values?.anoCurricular ?? "1"}
+          value={anoValido}
+          onChange={(e) => setAnoCurricular(e.target.value)}
         >
-          {[1, 2, 3, 4, 5, 6].map((ano) => (
+          {anosDisponiveis.map((ano) => (
             <option key={ano} value={ano}>
               {ano}º Ano
             </option>

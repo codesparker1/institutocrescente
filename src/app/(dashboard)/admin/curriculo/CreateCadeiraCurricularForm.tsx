@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Field, Input } from "@/components/ui/Input";
+import { Field } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { createCadeiraCurricularAction, type CreateCadeiraCurricularState } from "@/actions/admin";
@@ -16,10 +16,13 @@ interface Opcao {
 interface CreateCadeiraCurricularFormProps {
   cursoId: string;
   disciplinas: Opcao[];
+  /** Duração do curso — limita os anos oferecidos: um curso de 3 anos não tem 4º ano. */
+  duracaoAnos: number;
 }
 
-export function CreateCadeiraCurricularForm({ cursoId, disciplinas }: CreateCadeiraCurricularFormProps) {
+export function CreateCadeiraCurricularForm({ cursoId, disciplinas, duracaoAnos }: CreateCadeiraCurricularFormProps) {
   const [state, formAction, isPending] = useActionState(createCadeiraCurricularAction, initialState);
+  const anosDisponiveis = Array.from({ length: duracaoAnos }, (_, i) => i + 1);
 
   return (
     <form
@@ -38,15 +41,13 @@ export function CreateCadeiraCurricularForm({ cursoId, disciplinas }: CreateCade
         </Select>
       </Field>
       <Field label="Ano curricular" htmlFor="cc-ano" error={state.fieldErrors?.anoCurricular}>
-        <Input
-          id="cc-ano"
-          name="anoCurricular"
-          type="number"
-          min={1}
-          max={8}
-          required
-          defaultValue={state.values?.anoCurricular ?? 1}
-        />
+        <Select id="cc-ano" name="anoCurricular" required defaultValue={state.values?.anoCurricular ?? "1"}>
+          {anosDisponiveis.map((ano) => (
+            <option key={ano} value={ano}>
+              {ano}º Ano
+            </option>
+          ))}
+        </Select>
       </Field>
       <Field label="Semestre" htmlFor="cc-semestre" error={state.fieldErrors?.semestre}>
         <Select id="cc-semestre" name="semestre" required defaultValue={state.values?.semestre ?? "1"}>
