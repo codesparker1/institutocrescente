@@ -62,6 +62,13 @@ export function NovoAlunoForm({ turmas }: NovoAlunoFormProps) {
             </div>
           </div>
 
+          {state.success.anosAnterioresInscritos.length > 0 ? (
+            <div className="rounded-lg bg-navy-50 px-4 py-3 text-sm text-navy-700">
+              Entrada direta: o aluno foi também inscrito nas cadeiras do{" "}
+              {state.success.anosAnterioresInscritos.join("º, ")}º Ano, a par do ano de entrada.
+            </div>
+          ) : null}
+
           <div className="flex justify-end gap-3 pt-2">
             <Link href="/alunos/novo">
               <Button type="button" variant="ghost">

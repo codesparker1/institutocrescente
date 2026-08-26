@@ -142,18 +142,19 @@ export async function marcarDesistenteComoAdmin(
     await login(page, baseUrl, adminCredencial);
     await page.goto(`${baseUrl}/alunos/${aluno.id}`);
 
-    const card = page.locator("div", { has: page.getByRole("heading", { name: "Desistência" }) }).last();
+    // §correção 2026-08-25: o DesistenciaForm aparece para ATIVO e TRANCADO (a action aceita
+    // ambos). O card "Desistência" está sempre renderizado; o formulário interno é que depende
+    // do status. Procurar diretamente o textarea (é único na página).
+    const textarea = page.locator("textarea[name='motivo']").first();
     try {
-      await page.getByText("Motivo da desistência").waitFor({ state: "visible", timeout: 15000 });
+      await page.getByText("Desistência").last().scrollIntoViewIfNeeded();
+      await textarea.waitFor({ state: "visible", timeout: 15000 });
     } catch {
-      return { ok: false, detalhe: "desistencia: formulário de desistência não apareceu na ficha" };
+      return { ok: false, detalhe: "desistencia: formulário de desistência não apareceu na ficha (status inesperado?)" };
     }
-    void card;
     await shot(page, outputDir, `c${etiqueta}-desistencia-antes`);
 
-    const textarea = page.locator("textarea[name='motivo']");
     await textarea.fill(motivo);
-    // window.confirm é disparado no submit — aceitar automaticamente.
     page.once("dialog", (d) => d.accept());
     await page.locator("button", { hasText: "Marcar como Desistente" }).first().click();
     await page.waitForTimeout(1500);

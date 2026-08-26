@@ -10,7 +10,7 @@ import { SENHA_INICIAL_PADRAO } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores } from "@/lib/forms";
 import { podeRegistarPagamento, requireGerirContas } from "@/lib/permissions";
-import { sincronizarInscricoesTurma } from "@/lib/curriculo";
+import { sincronizarInscricoesTurma, anosAnterioresEmFalta, inscreverCadeirasAnosAnteriores } from "@/lib/curriculo";
 import { gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { getAgora } from "@/lib/tempo";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
@@ -44,6 +44,9 @@ export interface CreateAlunoState {
     nome: string;
     email: string | null;
     senhaTemporaria: string;
+    /** Preenchido só em entrada direta (ano > 1º) — anos curriculares cujas cadeiras foram
+     *  automaticamente inscritas a par do ano de entrada (ver inscreverCadeirasAnosAnteriores). */
+    anosAnterioresInscritos: number[];
   };
 }
 
@@ -90,6 +93,19 @@ export async function createAlunoAction(
   if (!turma) {
     return {
       fieldErrors: { turmaId: "Turma inválida. Crie a turma primeiro em Admin > Turmas." },
+      values: extrairValores(formData, CAMPOS_ALUNO),
+    };
+  }
+
+  // Entrada direta num ano > 1º (§pedido do cliente): o aluno tem de cursar aqui as cadeiras dos
+  // anos anteriores também — mas só se a oferta (Turma) desses anos já existir neste ano letivo.
+  // Bloqueia tudo antes de criar o aluno, em vez de o deixar por inscrever a meio.
+  const anosEmFalta = await anosAnterioresEmFalta(turma.cursoId, turma.periodo, turma.anoLetivo, turma.anoCurricular);
+  if (anosEmFalta.length > 0) {
+    return {
+      fieldErrors: {
+        turmaId: `Entrada direta no ${turma.anoCurricular}º Ano exige turma já criada para o ${anosEmFalta.join("º, ")}º Ano (${turma.anoLetivo}) — crie primeiro em Admin > Turmas.`,
+      },
       values: extrairValores(formData, CAMPOS_ALUNO),
     };
   }
@@ -163,11 +179,20 @@ export async function createAlunoAction(
   // Inscreve o aluno em todas as cadeiras curriculares já oferecidas pela turma (§4.2).
   await sincronizarInscricoesTurma(turma.id);
 
+  // Entrada direta num ano > 1º: inscreve também nas cadeiras dos anos anteriores (já confirmado
+  // acima que todos têm turma criada) — o aluno fica a cursá-las em paralelo com o ano de entrada.
+  if (turma.anoCurricular > 1) {
+    await inscreverCadeirasAnosAnteriores(alunoId, turma.cursoId, turma.periodo, turma.anoLetivo, turma.anoCurricular);
+  }
+
   await registrarAuditoria({
     userId: session.user.id,
     userName: session.user.name ?? session.user.email ?? "Utilizador",
     userRole: session.user.role,
-    action: `Registou e matriculou o aluno ${parsed.data.nome} em ${turma.curso.nome} · ${turma.anoCurricular}º Ano`,
+    action:
+      turma.anoCurricular > 1
+        ? `Registou e matriculou o aluno ${parsed.data.nome} em ${turma.curso.nome} · ${turma.anoCurricular}º Ano (entrada direta — inscrito também nas cadeiras do 1º ao ${turma.anoCurricular - 1}º Ano)`
+        : `Registou e matriculou o aluno ${parsed.data.nome} em ${turma.curso.nome} · ${turma.anoCurricular}º Ano`,
     entityType: "Aluno",
     entityId: alunoId,
   });
@@ -182,6 +207,7 @@ export async function createAlunoAction(
       nome: parsed.data.nome,
       email: parsed.data.email ?? null,
       senhaTemporaria,
+      anosAnterioresInscritos: turma.anoCurricular > 1 ? Array.from({ length: turma.anoCurricular - 1 }, (_, i) => i + 1) : [],
     },
   };
 }

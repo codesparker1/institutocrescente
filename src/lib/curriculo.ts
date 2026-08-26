@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAgora } from "@/lib/tempo";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
+import type { Periodo } from "@/generated/prisma/client";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -95,6 +96,83 @@ export async function backfillFrequenciasParaInscricoes(inscricoes: { id: string
   if (novasFrequencias.length > 0) {
     await prisma.frequencia.createMany({ data: novasFrequencias, skipDuplicates: true });
   }
+}
+
+/**
+ * Anos curriculares anteriores a `anoCurricularEntrada` que ainda não têm Turma criada para este
+ * curso×período×anoLetivo — usado para bloquear a matrícula direta num ano > 1º (§pedido do
+ * cliente: entrada direta tem de trazer as cadeiras anteriores em falta) antes de criar o aluno.
+ * Devolve [] se não houver nenhum em falta (inclui o caso anoCurricularEntrada <= 1, que não
+ * precisa de nenhum ano anterior).
+ */
+export async function anosAnterioresEmFalta(
+  cursoId: string,
+  periodo: Periodo,
+  anoLetivo: number,
+  anoCurricularEntrada: number,
+): Promise<number[]> {
+  if (anoCurricularEntrada <= 1) return [];
+  const anosNecessarios = Array.from({ length: anoCurricularEntrada - 1 }, (_, i) => i + 1);
+
+  const turmasExistentes = await prisma.turma.findMany({
+    where: { cursoId, periodo, anoLetivo, anoCurricular: { in: anosNecessarios } },
+    select: { anoCurricular: true },
+  });
+  const anosComTurma = new Set(turmasExistentes.map((t) => t.anoCurricular));
+  return anosNecessarios.filter((ano) => !anosComTurma.has(ano));
+}
+
+/**
+ * Entrada direta num ano > 1º (§pedido do cliente): inscreve o aluno em todas as cadeiras dos
+ * anos curriculares anteriores, na oferta corrente (mesmo anoLetivo/período) desses anos — o
+ * aluno ainda tem de as cursar aqui, ao mesmo tempo que as do ano de entrada. Chamar só depois de
+ * confirmar, com `anosAnterioresEmFalta`, que todas as turmas anteriores já existem (esta função
+ * não valida nem cria turmas em falta — silenciosamente ignora anos sem oferta).
+ *
+ * Sem Matricula nova para os anos anteriores: o aluno só fica formalmente matriculado na turma de
+ * entrada, tal como uma repetição manual (criarTentativaRepeticaoAction) também não cria
+ * Matricula — só a InscricaoCadeira representa "está a cursar esta cadeira".
+ */
+export async function inscreverCadeirasAnosAnteriores(
+  alunoId: string,
+  cursoId: string,
+  periodo: Periodo,
+  anoLetivo: number,
+  anoCurricularEntrada: number,
+): Promise<void> {
+  if (anoCurricularEntrada <= 1) return;
+  const anosNecessarios = Array.from({ length: anoCurricularEntrada - 1 }, (_, i) => i + 1);
+
+  const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
+    where: { turma: { cursoId, periodo, anoLetivo, anoCurricular: { in: anosNecessarios } } },
+    select: {
+      id: true,
+      cadeiraCurricularId: true,
+      cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true } },
+    },
+  });
+  if (turmaDisciplinas.length === 0) return;
+
+  // Congelamento de regras (§4.1.1) — mesmo raciocínio de sincronizarInscricoesTurma.
+  const novasInscricoes = turmaDisciplinas.map((td) => ({
+    alunoId,
+    cadeiraCurricularId: td.cadeiraCurricularId,
+    turmaDisciplinaId: td.id,
+    tentativa: 1,
+    ativa: true,
+    permiteDispensaAplicada: td.cadeiraCurricular.permiteDispensa,
+    notaMinimaDispensaAplicada: td.cadeiraCurricular.notaMinimaDispensa,
+  }));
+  await prisma.inscricaoCadeira.createMany({ data: novasInscricoes, skipDuplicates: true });
+
+  // Mesma lógica de sincronizarInscricoesTurma: sem isto, o aluno fica invisível na marcação de
+  // presença de aulas de anos anteriores já dadas antes da sua entrada (não deveria haver
+  // nenhuma no mesmo dia da criação, mas a entrada pode acontecer a meio do ano letivo).
+  const criadas = await prisma.inscricaoCadeira.findMany({
+    where: { alunoId, tentativa: 1, cadeiraCurricularId: { in: turmaDisciplinas.map((td) => td.cadeiraCurricularId) } },
+    select: { id: true, turmaDisciplinaId: true },
+  });
+  await backfillFrequenciasParaInscricoes(criadas);
 }
 
 function inicioDoDia(data: Date): Date {

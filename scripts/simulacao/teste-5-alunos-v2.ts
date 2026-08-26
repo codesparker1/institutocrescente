@@ -489,17 +489,11 @@ async function main(): Promise<void> {
       }
     }
 
-    // Marco extra pós-janela-de-matrícula — §correção 2026-08-24: era anoLetivoFim+30d (meados de
-    // Janeiro), que ainda está DENTRO da janela de matrícula (1 Dez–31 Jan) — a "tardia" da
-    // Beatriz/Domingos não era tardia a sério e a multa órfã nunca nascia. Agora corre a
-    // matriculaFim+7d: dispara igualmente rollover+suspensão (já passámos anoLetivoFim, 15 Dez)
-    // e a rematrícula ADMIN é genuinamente fora-da-janela.
-    const dataPosFimAno = new Date(configAcademica.matriculaFim.getTime() + 7 * 24 * 60 * 60 * 1000);
-    console.log(`\n--- Marco extra: pós-fim-do-ano-letivo (${dataPosFimAno.toISOString().slice(0, 10)}) ---`);
-    avancarRelogio(dataPosFimAno);
-    await visitarDashboardParaDisparaJobs(browser, args.url, staff.admin, outputDir, `${tag}-pos-fim`);
-    log("Relógio avançado para além de anoLetivoFim — garantirSuspensaoAutomatica/rolloverTurmas disparados.");
-
+    // §correção 2026-08-25: a rematrícula tardia Beatriz/Domingos tem de correr ANTES do marco
+    // extra pós-fim-do-ano-letivo. Se avançarmos o relógio primeiro, a suspensão automática fecha
+    // as inscrições ativas (ativa=false) e a processarRematriculaAction deixa de ver as reprovações
+    // — o Domingos avança sem repetir a cadeira. A rematrícula tardia depende das inscrições ainda
+    // estarem ativas.
     if (iteracao === 1 && !concluiuCurso.beatriz) {
       const { confirmarPropinaMaisAntiga: pagarSaldoBeatriz } = await import("./cenarios-5-alunos/acoes-comuns");
       const ctxPagBeatriz = await browser.newContext();
@@ -514,10 +508,23 @@ async function main(): Promise<void> {
       const r = await domingos.domingosPagarDividaERematriculaTardia(ctx);
       alunoIdPorChave.domingos = r.alunoId;
       if (!r.sucesso) log(`FALHA: rematrícula tardia do Domingos (pós-rollover, após pagar dívida) devia ter sucedido: ${r.erro}`);
+    }
 
-      // [v2] ToggleMulta como ADMIN sobre a multa ÓRFÃ do Domingos — acaba de nascer na rematrícula
-      // tardia dele (rematrícula tardia com dívida paga → multa órfã PENDENTE fica no aluno). A
-      // secção "Multas por atraso" da ficha só lista órfãs; as multas mensais não têm chip.
+    // Marco extra pós-janela-de-matrícula — §correção 2026-08-24: era anoLetivoFim+30d (meados de
+    // Janeiro), que ainda está DENTRO da janela de matrícula (1 Dez–31 Jan) — a "tardia" da
+    // Beatriz/Domingos não era tardia a sério e a multa órfã nunca nascia. Agora corre a
+    // matriculaFim+7d: dispara igualmente rollover+suspensão (já passámos anoLetivoFim, 15 Dez)
+    // e a rematrícula ADMIN é genuinamente fora-da-janela.
+    const dataPosFimAno = new Date(configAcademica.matriculaFim.getTime() + 7 * 24 * 60 * 60 * 1000);
+    console.log(`\n--- Marco extra: pós-fim-do-ano-letivo (${dataPosFimAno.toISOString().slice(0, 10)}) ---`);
+    avancarRelogio(dataPosFimAno);
+    await visitarDashboardParaDisparaJobs(browser, args.url, staff.admin, outputDir, `${tag}-pos-fim`);
+    log("Relógio avançado para além de anoLetivoFim — garantirSuspensaoAutomatica/rolloverTurmas disparados.");
+
+    // [v2] ToggleMulta como ADMIN sobre a multa ÓRFÃ do Domingos — acaba de nascer na rematrícula
+    // tardia dele (rematrícula tardia com dívida paga → multa órfã PENDENTE fica no aluno). A
+    // secção "Multas por atraso" da ficha só lista órfãs; as multas mensais não têm chip.
+    if (iteracao === 1 && !concluiuCurso.domingos) {
       const rMulta = await alternarMultaComoAdmin(browser, args.url, staff.admin, prisma, alunos.domingos.email, "Domingos", outputDir, `${tag}-multa-orfa`);
       log(`[v2] ToggleMulta órfã (ADMIN): ${rMulta.detalhe}.`);
       if (!rMulta.ok) extrasPorEtiqueta.push(`ciclo ${tag}: toggleMulta órfã NOK — ${rMulta.detalhe}`);
