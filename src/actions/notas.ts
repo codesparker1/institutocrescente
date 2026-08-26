@@ -72,7 +72,16 @@ async function gravarNotasEAtualizarOrfas(resolvidas: { avaliacaoId: string; ins
 
   await prisma.$transaction([
     ...(aCriar.length > 0
-      ? [prisma.nota.createMany({ data: aCriar.map((e) => ({ avaliacaoId: e.avaliacaoId, inscricaoCadeiraId: e.inscricaoCadeiraId, valor: e.valor })) })]
+      ? [
+          prisma.nota.createMany({
+            data: aCriar.map((e) => ({ avaliacaoId: e.avaliacaoId, inscricaoCadeiraId: e.inscricaoCadeiraId, valor: e.valor })),
+            // Double-submit do mesmo formulário (pauta, correção histórica ou creditação) pode
+            // fazer dois requests lerem a mesma Nota como "ainda não existe" e tentarem criá-la em
+            // paralelo — sem isto, o segundo request rebenta com violação de
+            // @@unique([avaliacaoId, inscricaoCadeiraId]) em vez de simplesmente não fazer nada.
+            skipDuplicates: true,
+          }),
+        ]
       : []),
     ...aAtualizar.map((e) =>
       prisma.nota.update({
@@ -282,9 +291,16 @@ export interface CreditarCadeiraState {
 
 /**
  * Aproveitamento de uma cadeira já aprovada noutra instituição (aluno transferido, §pergunta do
- * cliente 2026-08-18) — cria uma InscricaoCadeira nunca frequentada aqui. Sem estado novo no
- * motor de avaliação: grava a mesma nota em P1, P2 e Exame, e a cascata já existente de
- * calcularNotaFinal resolve sozinha para APROVADO/REPROVADO, com a mesma regra de qualquer aluno.
+ * cliente 2026-08-18). Sem estado novo no motor de avaliação: grava a mesma nota (nota final única,
+ * a mesma que a UI mostra) em P1, P2 e Exame, e a cascata já existente de calcularNotaFinal resolve
+ * sozinha para APROVADO/REPROVADO, com a mesma regra de qualquer aluno.
+ *
+ * Dois pontos de entrada convergem aqui (§pedido do cliente 2026-08-26 — entrada direta com
+ * equivalência parcial): a maioria dos alunos creditados não tem nenhuma InscricaoCadeira ainda —
+ * cria-se uma nova. Mas um aluno com entrada direta num ano > 1º (inscreverCadeirasAnosAnteriores)
+ * já fica inscrito em TODAS as cadeiras dos anos anteriores, incluindo as que afinal tinha
+ * aprovadas noutra instituição — para essas, converte-se a inscrição existente em vez de recusar,
+ * desde que ainda não tenha nenhuma Nota lançada (nunca sobrescreve um histórico real).
  */
 export async function creditarCadeiraAction(_prevState: CreditarCadeiraState, formData: FormData): Promise<CreditarCadeiraState> {
   const session = await requireGerirCurriculo();
@@ -313,43 +329,65 @@ export async function creditarCadeiraAction(_prevState: CreditarCadeiraState, fo
     return { error: "Esta cadeira não pertence ao curso do aluno." };
   }
 
-  const jaInscrito = await prisma.inscricaoCadeira.findFirst({
+  const inscricaoExistente = await prisma.inscricaoCadeira.findFirst({
     where: { alunoId, cadeiraCurricularId },
-    select: { id: true },
+    include: { notas: { select: { id: true }, take: 1 } },
   });
-  if (jaInscrito) {
-    return { error: "Aluno já tem uma inscrição nesta cadeira — corrija a nota existente em vez de creditar de novo." };
+  if (inscricaoExistente && inscricaoExistente.notas.length > 0) {
+    return { error: "Aluno já tem notas lançadas nesta cadeira — corrija a nota existente em vez de creditar de novo." };
   }
 
-  const turmaDisciplina = await prisma.turmaDisciplina.findFirst({
-    where: { cadeiraCurricularId },
-    orderBy: { turma: { anoLetivo: "desc" } },
-  });
-  if (!turmaDisciplina) {
-    return { error: "Esta cadeira ainda não tem nenhuma turma associada — não é possível creditar até existir pelo menos uma oferta desta disciplina." };
+  let turmaDisciplinaId: string;
+  if (inscricaoExistente) {
+    turmaDisciplinaId = inscricaoExistente.turmaDisciplinaId;
+  } else {
+    const turmaDisciplina = await prisma.turmaDisciplina.findFirst({
+      where: { cadeiraCurricularId },
+      orderBy: { turma: { anoLetivo: "desc" } },
+    });
+    if (!turmaDisciplina) {
+      return { error: "Esta cadeira ainda não tem nenhuma turma associada — não é possível creditar até existir pelo menos uma oferta desta disciplina." };
+    }
+    turmaDisciplinaId = turmaDisciplina.id;
   }
 
-  const inscricao = await prisma.inscricaoCadeira.create({
-    data: {
-      alunoId,
-      cadeiraCurricularId,
-      turmaDisciplinaId: turmaDisciplina.id,
-      tentativa: 1,
-      ativa: false,
-      creditada: true,
-      instituicaoOrigemCreditado: instituicaoOrigem,
-      permiteDispensaAplicada: cadeiraCurricular.permiteDispensa,
-      notaMinimaDispensaAplicada: cadeiraCurricular.notaMinimaDispensa,
-    },
-  });
+  const inscricao = inscricaoExistente
+    ? await prisma.inscricaoCadeira.update({
+        where: { id: inscricaoExistente.id },
+        data: {
+          ativa: false,
+          creditada: true,
+          instituicaoOrigemCreditado: instituicaoOrigem,
+        },
+      })
+    : await prisma.inscricaoCadeira.create({
+        data: {
+          alunoId,
+          cadeiraCurricularId,
+          turmaDisciplinaId,
+          tentativa: 1,
+          ativa: false,
+          creditada: true,
+          instituicaoOrigemCreditado: instituicaoOrigem,
+          permiteDispensaAplicada: cadeiraCurricular.permiteDispensa,
+          notaMinimaDispensaAplicada: cadeiraCurricular.notaMinimaDispensa,
+        },
+      });
 
-  const avaliacoesExistentes = await prisma.avaliacao.findMany({ where: { turmaDisciplinaId: turmaDisciplina.id } });
+  // Inscrição convertida de "a cursar" para creditada: já não frequenta aulas aqui — sem isto, a
+  // marcação de presença continuaria a mostrar o aluno como pendente em aulas passadas/futuras
+  // desta turma-disciplina.
+  if (inscricaoExistente) {
+    await prisma.frequencia.deleteMany({ where: { inscricaoCadeiraId: inscricaoExistente.id } });
+  }
+
+  const avaliacoesExistentes = await prisma.avaliacao.findMany({ where: { turmaDisciplinaId } });
   const avaliacaoPorEpoca = new Map(avaliacoesExistentes.map((a) => [a.epoca, a]));
   const salaHerdada = avaliacoesExistentes[0]?.sala ?? "A confirmar";
   const epocasCreditadas: Epoca[] = ["P1", "P2", "EXAME"];
   for (const epoca of epocasCreditadas) {
     if (!avaliacaoPorEpoca.has(epoca)) {
-      avaliacaoPorEpoca.set(epoca, await criarAvaliacaoEmFalta(turmaDisciplina.id, epoca, salaHerdada));
+      avaliacaoPorEpoca.set(epoca, await criarAvaliacaoEmFalta(turmaDisciplinaId, epoca, salaHerdada));
     }
   }
 

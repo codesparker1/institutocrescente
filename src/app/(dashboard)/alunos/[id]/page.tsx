@@ -154,9 +154,14 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
     estadoVisual: estadoCobrancaVisual(c.status as "PENDENTE" | "PAGO", c.dataVencimento, tolerancia, agoraHistorico),
   }));
 
-  // Aproveitamento de cadeiras de outra instituição (aluno transferido) — só cadeiras do curso do
-  // aluno que ainda não têm nenhuma InscricaoCadeira (qualquer tentativa), para não duplicar.
-  const cadeirasJaInscritas = new Set(inscricoes.map((i) => i.cadeiraCurricularId));
+  // Aproveitamento de cadeiras de outra instituição (aluno transferido) — cadeiras do curso do
+  // aluno sem nenhuma nota lançada ainda: tanto as nunca inscritas quanto as que a entrada direta
+  // (inscreverCadeirasAnosAnteriores) já inscreveu automaticamente para cursar aqui, mas que afinal
+  // o aluno já tinha aprovado noutra instituição — creditarCadeiraAction converte essa inscrição em
+  // vez de recusar. Uma cadeira com nota já lançada nunca aparece aqui (creditar apagaria histórico
+  // real).
+  const cadeirasSemNota = new Set(inscricoes.filter((i) => i.notas.length === 0).map((i) => i.cadeiraCurricularId));
+  const cadeirasComNota = new Set(inscricoes.filter((i) => i.notas.length > 0).map((i) => i.cadeiraCurricularId));
   const cadeirasDisponiveisParaCreditar = podeRepetir
     ? (
         await prisma.cadeiraCurricular.findMany({
@@ -165,8 +170,13 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           orderBy: [{ anoCurricular: "asc" }, { disciplina: { nome: "asc" } }],
         })
       )
-        .filter((c) => !cadeirasJaInscritas.has(c.id))
-        .map((c) => ({ id: c.id, disciplinaNome: c.disciplina.nome, anoCurricular: c.anoCurricular }))
+        .filter((c) => !cadeirasComNota.has(c.id))
+        .map((c) => ({
+          id: c.id,
+          disciplinaNome: c.disciplina.nome,
+          anoCurricular: c.anoCurricular,
+          jaInscrita: cadeirasSemNota.has(c.id),
+        }))
     : [];
 
   // Documentos administrativos (certificado de transferência, BI, etc.) — backlog simples,

@@ -12,6 +12,8 @@ interface CadeiraDisponivel {
   id: string;
   disciplinaNome: string;
   anoCurricular: number;
+  /** Já tem InscricaoCadeira aqui (ex: entrada direta) — creditar converte essa inscrição em vez de criar uma nova. */
+  jaInscrita: boolean;
 }
 
 interface CreditarCadeiraFormProps {
@@ -43,7 +45,7 @@ export function CreditarCadeiraForm({ alunoId, cadeirasDisponiveis }: CreditarCa
         <Select name="cadeiraCurricularId" required defaultValue={cadeirasDisponiveis[0]?.id}>
           {cadeirasDisponiveis.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.disciplinaNome} ({c.anoCurricular}º Ano)
+              {c.disciplinaNome} ({c.anoCurricular}º Ano){c.jaInscrita ? " — a cursar aqui" : ""}
             </option>
           ))}
         </Select>
