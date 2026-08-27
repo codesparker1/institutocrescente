@@ -10,7 +10,7 @@ import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
-import { sincronizarInscricoesTurma } from "@/lib/curriculo";
+import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from "@/lib/curriculo";
 import { getAgora } from "@/lib/tempo";
 import { nomeProfessor, SALA_A_CONFIRMAR } from "@/lib/utils";
 
@@ -269,40 +269,17 @@ export async function createCadeiraCurricularAction(
   try {
     const cadeira = await prisma.cadeiraCurricular.create({ data: parsed.data, include: { disciplina: true } });
 
-    // A turma nasce com as disciplinas do plano curricular, mas o plano também muda depois de a
-    // turma existir — sem isto, uma disciplina acrescentada a meio do ano nunca chegava às turmas
-    // já criadas. Só as do ano letivo corrente: as anteriores são histórico e não se reescrevem.
+    // A turma nasce com as disciplinas do plano, mas o plano também muda depois de a turma existir
+    // — sem isto, uma disciplina acrescentada a meio do ano nunca chegava às turmas já criadas.
+    // Mesma função da rede de segurança diária (garantirTurmasSincronizadasComPlano), aqui em
+    // caminho imediato: o DAAC vê o efeito sem esperar pelo dia seguinte.
     const agoraCadeira = await getAgora();
-    const turmasAAtualizar = await prisma.turma.findMany({
-      where: {
-        cursoId: cadeira.cursoId,
-        anoCurricular: cadeira.anoCurricular,
-        anoLetivo: { gte: agoraCadeira.getFullYear() },
-      },
-      select: { id: true },
-    });
-    if (turmasAAtualizar.length > 0) {
-      await prisma.turmaDisciplina.createMany({
-        data: turmasAAtualizar.map((turma) => ({
-          turmaId: turma.id,
-          disciplinaId: cadeira.disciplinaId,
-          cadeiraCurricularId: cadeira.id,
-          professorId: null,
-          semestre: cadeira.semestre,
-          sala: SALA_A_CONFIRMAR,
-        })),
-        skipDuplicates: true,
-      });
-      // Os alunos já matriculados nessas turmas têm de ficar inscritos na disciplina nova.
-      for (const turma of turmasAAtualizar) {
-        await sincronizarInscricoesTurma(turma.id);
-      }
-    }
+    const ofertasCriadas = await sincronizarTurmasComPlanoCurricular(agoraCadeira.getFullYear());
 
     await audit(
       session,
-      turmasAAtualizar.length > 0
-        ? `Adicionou ${cadeira.disciplina.nome} ao plano curricular (${cadeira.anoCurricular}º ano, ${cadeira.semestre}º semestre) — propagada a ${turmasAAtualizar.length} turma(s)`
+      ofertasCriadas > 0
+        ? `Adicionou ${cadeira.disciplina.nome} ao plano curricular (${cadeira.anoCurricular}º ano, ${cadeira.semestre}º semestre) — propagada a ${ofertasCriadas} turma(s)`
         : `Adicionou ${cadeira.disciplina.nome} ao plano curricular (${cadeira.anoCurricular}º ano, ${cadeira.semestre}º semestre)`,
       "CadeiraCurricular",
       cadeira.id,

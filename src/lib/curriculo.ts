@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAgora } from "@/lib/tempo";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import type { Periodo } from "@/generated/prisma/client";
+import { SALA_A_CONFIRMAR } from "@/lib/utils";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -173,6 +174,100 @@ export async function inscreverCadeirasAnosAnteriores(
     select: { id: true, turmaDisciplinaId: true },
   });
   await backfillFrequenciasParaInscricoes(criadas);
+}
+
+/**
+ * Alinha as turmas do ano letivo corrente com o plano curricular: cria a TurmaDisciplina em falta
+ * para cada CadeiraCurricular do curso×ano que a turma ainda não oferece, sem professor (o DAAC
+ * atribui-o depois) e com sala por confirmar.
+ *
+ * Só ACRESCENTA — nunca apaga. Uma disciplina já a decorrer pode ter notas, aulas e presenças, e o
+ * histórico do aluno tem de sobreviver a mudanças posteriores do plano (§pedido do cliente
+ * 2026-08-27): quem cursou uma cadeira em 2026 mantém a InscricaoCadeira e a nota mesmo que ela
+ * saia do plano em 2027. Remover uma cadeira do plano continua a ser um acto manual do DAAC, e a
+ * BD já o impede enquanto houver turmas ou inscrições a usá-la (deleteCadeiraCurricularAction).
+ *
+ * Anos letivos passados ficam intocados — são registo histórico, não se reescrevem.
+ * Devolve quantas ofertas criou, para a auditoria/telemetria poder dizer se fez alguma coisa.
+ */
+export async function sincronizarTurmasComPlanoCurricular(anoLetivo: number): Promise<number> {
+  const turmas = await prisma.turma.findMany({
+    where: { anoLetivo: { gte: anoLetivo } },
+    select: {
+      id: true,
+      cursoId: true,
+      anoCurricular: true,
+      turmaDisciplinas: { select: { cadeiraCurricularId: true } },
+    },
+  });
+  if (turmas.length === 0) return 0;
+
+  // Uma query só para todo o plano das combinações curso×ano envolvidas — evita N queries.
+  const cadeiras = await prisma.cadeiraCurricular.findMany({
+    where: { OR: turmas.map((t) => ({ cursoId: t.cursoId, anoCurricular: t.anoCurricular })) },
+    select: { id: true, cursoId: true, anoCurricular: true, disciplinaId: true, semestre: true },
+  });
+  const planoPorChave = new Map<string, typeof cadeiras>();
+  for (const cadeira of cadeiras) {
+    const chave = `${cadeira.cursoId}:${cadeira.anoCurricular}`;
+    planoPorChave.set(chave, [...(planoPorChave.get(chave) ?? []), cadeira]);
+  }
+
+  const novasOfertas = turmas.flatMap((turma) => {
+    const doPlano = planoPorChave.get(`${turma.cursoId}:${turma.anoCurricular}`) ?? [];
+    const jaOferecidas = new Set(turma.turmaDisciplinas.map((td) => td.cadeiraCurricularId));
+    return doPlano
+      .filter((cadeira) => !jaOferecidas.has(cadeira.id))
+      .map((cadeira) => ({
+        turmaId: turma.id,
+        disciplinaId: cadeira.disciplinaId,
+        cadeiraCurricularId: cadeira.id,
+        professorId: null,
+        semestre: cadeira.semestre,
+        sala: SALA_A_CONFIRMAR,
+      }));
+  });
+  if (novasOfertas.length === 0) return 0;
+
+  await prisma.turmaDisciplina.createMany({ data: novasOfertas, skipDuplicates: true });
+
+  // Os alunos já matriculados nessas turmas têm de ficar inscritos nas disciplinas novas.
+  const turmasTocadas = [...new Set(novasOfertas.map((o) => o.turmaId))];
+  for (const turmaId of turmasTocadas) {
+    await sincronizarInscricoesTurma(turmaId);
+  }
+
+  return novasOfertas.length;
+}
+
+/**
+ * Rede de segurança diária da sincronização acima. O caminho normal é imediato — adicionar uma
+ * cadeira ao plano propaga-a logo (createCadeiraCurricularAction) — mas isso não apanha turmas que
+ * ficaram desalinhadas por outra via: criadas antes de a oferta automática existir, ou o plano
+ * mudou quando ainda não havia turma desse ano. Mesmo padrão preguiçoso de
+ * garantirSuspensaoAutomatica: no máximo uma vez por dia civil, sem cron.
+ */
+export async function garantirTurmasSincronizadasComPlano(): Promise<void> {
+  const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const agora = await getAgora();
+  if (config?.ultimaSincronizacaoPlanoEm && inicioDoDia(config.ultimaSincronizacaoPlanoEm).getTime() === inicioDoDia(agora).getTime()) {
+    return;
+  }
+
+  // Reclama o "turno" do dia com um update condicional, como os outros jobs preguiçosos — dois
+  // pedidos em simultâneo no primeiro acesso do dia não fazem o trabalho duas vezes.
+  const reclamado = await prisma.configuracaoAcademica.updateMany({
+    where: {
+      id: "config",
+      OR: [{ ultimaSincronizacaoPlanoEm: null }, { ultimaSincronizacaoPlanoEm: { lt: inicioDoDia(agora) } }],
+    },
+    data: { ultimaSincronizacaoPlanoEm: agora },
+  });
+  if (reclamado.count === 0) return;
+
+  after(async () => {
+    await sincronizarTurmasComPlanoCurricular(agora.getFullYear());
+  });
 }
 
 function inicioDoDia(data: Date): Date {

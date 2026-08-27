@@ -567,6 +567,10 @@ model ConfiguracaoAcademica {
   diasPrazoExameEspecial   Int           @default(5)
   /// Marca a última corrida da atribuição automática de 0 por falta (§4.3) — evita repeti-la em cada request.
   ultimaVerificacaoNotasEm DateTime?
+  /// Marca a última corrida da sincronização das turmas com o plano curricular — rede de segurança
+  /// diária para turmas que ficaram desalinhadas fora do fluxo normal (criadas antes de a oferta
+  /// automática existir, plano alterado noutro ano letivo, importação manual).
+  ultimaSincronizacaoPlanoEm DateTime?
   updatedAt                DateTime      @updatedAt
   updatedPorId             String?
   updatedPor               User?         @relation("ConfigAcademicaAtualizadaPor", fields: [updatedPorId], references: [id])

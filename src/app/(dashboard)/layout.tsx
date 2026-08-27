@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { garantirCobrancasGeradas } from "@/lib/financeiro";
-import { garantirSuspensaoAutomatica } from "@/lib/curriculo";
+import { garantirSuspensaoAutomatica, garantirTurmasSincronizadasComPlano } from "@/lib/curriculo";
 import { garantirNotasAutomaticasPorFalta } from "@/lib/notas-automaticas";
 import { SIMULATION_MODE, getAgora } from "@/lib/tempo";
 import { registarSimEventoFogoEForge, medirJobGarantir } from "@/lib/telemetria";
@@ -40,6 +40,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   await medirJobGarantir("garantirCobrancasGeradas", () => garantirCobrancasGeradas());
   // Atribui 0 automático a quem devia ter feito uma época e o prazo passou sem nota (§4.3).
   await medirJobGarantir("garantirNotasAutomaticasPorFalta", () => garantirNotasAutomaticasPorFalta());
+  // Rede de segurança: alinha as turmas do ano corrente com o plano curricular. O caminho normal é
+  // imediato (createCadeiraCurricularAction propaga logo) — isto apanha o que ficou de fora.
+  // Depois do rollover, para as turmas que ele acabou de criar entrarem já sincronizadas.
+  await medirJobGarantir("garantirTurmasSincronizadasComPlano", () => garantirTurmasSincronizadasComPlano());
 
   return (
     <DashboardShell
