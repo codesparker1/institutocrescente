@@ -18,7 +18,7 @@ import { EditarNotaHistoricaForm } from "@/components/alunos/EditarNotaHistorica
 import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
-import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
+import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo, nomeProfessor } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
@@ -346,7 +346,9 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                       {inscricao.turmaDisciplina.turma.curso.nome} · {inscricao.turmaDisciplina.turma.anoCurricular}º Ano
                     </Td>
                     <Td>{formatAnoLetivo(inscricao.turmaDisciplina.turma.anoLetivo)}</Td>
-                    <Td>{inscricao.turmaDisciplina.professor.nome}</Td>
+                    <Td className={inscricao.turmaDisciplina.professor ? undefined : "text-navy-400 italic"}>
+                      {nomeProfessor(inscricao.turmaDisciplina.professor)}
+                    </Td>
                     <Td>{inscricao.tentativa}ª</Td>
                     <Td>
                       <Badge tone={inscricao.ativa ? "success" : "neutral"}>{inscricao.ativa ? "Ativa" : "Anterior"}</Badge>

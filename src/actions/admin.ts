@@ -12,6 +12,7 @@ import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma } from "@/lib/curriculo";
 import { getAgora } from "@/lib/tempo";
+import { nomeProfessor, SALA_A_CONFIRMAR } from "@/lib/utils";
 
 async function audit(
   session: SessionComUser,
@@ -267,9 +268,42 @@ export async function createCadeiraCurricularAction(
 
   try {
     const cadeira = await prisma.cadeiraCurricular.create({ data: parsed.data, include: { disciplina: true } });
+
+    // A turma nasce com as disciplinas do plano curricular, mas o plano também muda depois de a
+    // turma existir — sem isto, uma disciplina acrescentada a meio do ano nunca chegava às turmas
+    // já criadas. Só as do ano letivo corrente: as anteriores são histórico e não se reescrevem.
+    const agoraCadeira = await getAgora();
+    const turmasAAtualizar = await prisma.turma.findMany({
+      where: {
+        cursoId: cadeira.cursoId,
+        anoCurricular: cadeira.anoCurricular,
+        anoLetivo: { gte: agoraCadeira.getFullYear() },
+      },
+      select: { id: true },
+    });
+    if (turmasAAtualizar.length > 0) {
+      await prisma.turmaDisciplina.createMany({
+        data: turmasAAtualizar.map((turma) => ({
+          turmaId: turma.id,
+          disciplinaId: cadeira.disciplinaId,
+          cadeiraCurricularId: cadeira.id,
+          professorId: null,
+          semestre: cadeira.semestre,
+          sala: SALA_A_CONFIRMAR,
+        })),
+        skipDuplicates: true,
+      });
+      // Os alunos já matriculados nessas turmas têm de ficar inscritos na disciplina nova.
+      for (const turma of turmasAAtualizar) {
+        await sincronizarInscricoesTurma(turma.id);
+      }
+    }
+
     await audit(
       session,
-      `Adicionou ${cadeira.disciplina.nome} ao plano curricular (${cadeira.anoCurricular}º ano, ${cadeira.semestre}º semestre)`,
+      turmasAAtualizar.length > 0
+        ? `Adicionou ${cadeira.disciplina.nome} ao plano curricular (${cadeira.anoCurricular}º ano, ${cadeira.semestre}º semestre) — propagada a ${turmasAAtualizar.length} turma(s)`
+        : `Adicionou ${cadeira.disciplina.nome} ao plano curricular (${cadeira.anoCurricular}º ano, ${cadeira.semestre}º semestre)`,
       "CadeiraCurricular",
       cadeira.id,
     );
@@ -281,6 +315,7 @@ export async function createCadeiraCurricularAction(
   }
 
   revalidatePath("/admin/curriculo");
+  revalidatePath("/admin/turmas");
   return {};
 }
 
@@ -543,11 +578,34 @@ export async function createTurmaAction(
     };
   }
 
+  // O plano curricular já diz que disciplinas se leccionam neste curso×ano — a turma nasce com
+  // elas (§pedido do cliente 2026-08-27), em vez de alguém as adicionar uma a uma. Fica só o
+  // professor por atribuir; a disciplina já é visível ao aluno e pode entrar no horário.
+  const cadeirasDoPlano = await prisma.cadeiraCurricular.findMany({
+    where: { cursoId: parsed.data.cursoId, anoCurricular: parsed.data.anoCurricular },
+    select: { id: true, disciplinaId: true, semestre: true },
+  });
+
   try {
     const turma = await prisma.turma.create({ data: parsed.data, include: { curso: true } });
+    if (cadeirasDoPlano.length > 0) {
+      await prisma.turmaDisciplina.createMany({
+        data: cadeirasDoPlano.map((cadeira) => ({
+          turmaId: turma.id,
+          disciplinaId: cadeira.disciplinaId,
+          cadeiraCurricularId: cadeira.id,
+          professorId: null,
+          semestre: cadeira.semestre,
+          sala: SALA_A_CONFIRMAR,
+        })),
+        skipDuplicates: true,
+      });
+    }
     await audit(
       session,
-      `Criou a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`,
+      cadeirasDoPlano.length > 0
+        ? `Criou a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano (${cadeirasDoPlano.length} disciplina(s) do plano curricular, professor por atribuir)`
+        : `Criou a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano (plano curricular ainda sem disciplinas para este ano)`,
       "Turma",
       turma.id,
     );
@@ -653,10 +711,12 @@ export async function createTurmaDisciplinaAction(
 
 const ProfessorTurmaDisciplinaSchema = z.object({
   id: z.string().min(1),
-  professorId: z.string().min(1, "Professor é obrigatório"),
+  // Vazio = "Por atribuir": a disciplina nasce do plano curricular sem professor, e o DAAC tem de
+  // poder voltar a esse estado se atribuir o professor errado.
+  professorId: z.string().transform((v) => (v.trim() === "" ? null : v.trim())),
 });
 
-/** Troca o professor de uma disciplina já atribuída a uma turma, sem apagar a linha (e o histórico de horários/provas que ela arrasta). */
+/** Atribui, troca ou remove o professor de uma disciplina já numa turma, sem apagar a linha (e o histórico de horários/provas que ela arrasta). */
 export async function atualizarProfessorTurmaDisciplinaAction(
   _prevState: { error?: string },
   formData: FormData,
@@ -682,10 +742,14 @@ export async function atualizarProfessorTurmaDisciplinaAction(
 
   await audit(
     session,
-    `Trocou o professor de ${antes.disciplina.nome} na turma`,
+    // A disciplina nasce do plano curricular sem professor, por isso "atribuiu" (primeira vez) é
+    // agora tão comum como "trocou" — a auditoria tem de distinguir os dois casos.
+    antes.professor
+      ? `Trocou o professor de ${antes.disciplina.nome} na turma`
+      : `Atribuiu o professor de ${antes.disciplina.nome} na turma`,
     "TurmaDisciplina",
     antes.id,
-    { valorAnterior: antes.professor.nome, valorNovo: depois.professor.nome },
+    { valorAnterior: nomeProfessor(antes.professor), valorNovo: nomeProfessor(depois.professor) },
   );
 
   revalidatePath(`/admin/turmas/${antes.turmaId}`);

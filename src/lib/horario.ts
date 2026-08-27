@@ -23,7 +23,8 @@ export interface SlotExistente {
   horaInicio: string;
   horaFim: string;
   sala: string;
-  professorId: string;
+  /** null enquanto a disciplina não tiver professor atribuído — ver TurmaDisciplina.professorId. */
+  professorId: string | null;
   turmaId: string;
   disciplinaNome: string;
 }
@@ -33,7 +34,7 @@ export interface NovoSlot {
   horaInicio: string;
   horaFim: string;
   sala: string;
-  professorId: string;
+  professorId: string | null;
   turmaId: string;
 }
 
@@ -52,7 +53,9 @@ export function encontrarConflito(novo: NovoSlot, existentes: SlotExistente[]): 
   const noMesmoDia = existentes.filter((s) => s.diaSemana === novo.diaSemana);
   const sobrepostos = noMesmoDia.filter((s) => intervalosSobrepoem(novo.horaInicio, novo.horaFim, s.horaInicio, s.horaFim));
 
-  const conflitoProfessor = sobrepostos.find((s) => s.professorId === novo.professorId);
+  // Duas disciplinas ainda sem professor não são um conflito de professor — sem o guarda de null,
+  // `null === null` marcava-as como o mesmo docente em dois sítios ao mesmo tempo.
+  const conflitoProfessor = novo.professorId ? sobrepostos.find((s) => s.professorId === novo.professorId) : undefined;
   if (conflitoProfessor) return { tipo: "professor", slot: conflitoProfessor };
 
   const conflitoSala = sobrepostos.find((s) => s.sala.trim().toLowerCase() === novo.sala.trim().toLowerCase());

@@ -4,6 +4,7 @@ import { useMemo, useState, useActionState } from "react";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { criarTentativaRepeticaoAction, type CriarTentativaRepeticaoState } from "@/actions/curriculo";
+import { nomeProfessor } from "@/lib/utils";
 
 const initialState: CriarTentativaRepeticaoState = {};
 
@@ -16,7 +17,7 @@ interface Oferta {
   id: string;
   cadeiraCurricularId: string;
   disciplina: { nome: string };
-  professor: { nome: string };
+  professor: { nome: string } | null;
   turma: { anoCurricular: number; curso: { nome: string } };
 }
 
@@ -64,7 +65,7 @@ export function RepeticaoForm({ alunoId, cadeirasAtivas, ofertas }: RepeticaoFor
           ) : (
             ofertasDaCadeira.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.turma.curso.nome} · {o.turma.anoCurricular}º Ano · {o.professor.nome}
+                {o.turma.curso.nome} · {o.turma.anoCurricular}º Ano · {nomeProfessor(o.professor)}
               </option>
             ))
           )}

@@ -18,7 +18,8 @@ export interface CapabilityUser {
 }
 
 interface Cadeira {
-  professorId: string;
+  /** null enquanto a disciplina não tiver professor atribuído — ver TurmaDisciplina.professorId. */
+  professorId: string | null;
 }
 
 /**
@@ -31,6 +32,9 @@ interface Cadeira {
 export function podeLancarNota(user: CapabilityUser, cadeira: Cadeira, prazoAberto = true): boolean {
   if (user.role === "DAAC") return true;
   if (user.role !== "PROFESSOR") return false;
+  // Disciplina ainda sem professor: ninguém a lança a não ser o DAAC (já tratado acima). Sem este
+  // guarda, um PROFESSOR sem professorId na sessão passaria por `null === null`.
+  if (!cadeira.professorId || !user.professorId) return false;
   return cadeira.professorId === user.professorId && prazoAberto;
 }
 

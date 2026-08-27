@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
-import { PERIODO_LABEL } from "@/lib/utils";
+import { PERIODO_LABEL, nomeProfessor } from "@/lib/utils";
 
 interface NotasTurmaPageProps {
   params: Promise<{ turmaId: string }>;
@@ -73,7 +73,7 @@ export default async function NotasTurmaPage({ params }: NotasTurmaPageProps) {
                       {td.disciplina.nome}
                     </Link>
                   </Td>
-                  <Td>{td.professor.nome}</Td>
+                  <Td className={td.professor ? undefined : "text-navy-400 italic"}>{nomeProfessor(td.professor)}</Td>
                   <Td>{td._count.avaliacoes}</Td>
                 </Tr>
               ))}

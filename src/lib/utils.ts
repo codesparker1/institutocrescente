@@ -6,6 +6,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Uma TurmaDisciplina nasce do plano curricular sem professor (§pedido do cliente 2026-08-27) — o
+ * DAAC atribui-o depois. Texto único para esse estado, em vez de cada ecrã inventar o seu.
+ */
+export const PROFESSOR_POR_ATRIBUIR = "Por atribuir";
+
+/** Nome do professor de uma oferta, ou PROFESSOR_POR_ATRIBUIR enquanto não houver nenhum. */
+export function nomeProfessor(professor: { nome: string } | null | undefined): string {
+  return professor?.nome ?? PROFESSOR_POR_ATRIBUIR;
+}
+
+/**
+ * Sala por omissão de uma oferta criada automaticamente (turma nova a partir do plano curricular,
+ * avaliação criada no acto de lançar a nota) — `sala` é obrigatória mas nestes casos ninguém a
+ * escolheu ainda. Mesmo texto em todo o lado, para o DAAC poder procurar o que falta preencher.
+ */
+export const SALA_A_CONFIRMAR = "A confirmar";
+
+/**
  * Lê um inteiro de um searchParam sem confiar no valor — um URL editado à mão ou um bookmark
  * antigo (`?ano=abc`, `?ano=`) produz `NaN`, e passar `NaN` a um filtro Prisma rebenta com
  * PrismaClientValidationError em vez de simplesmente ignorar o filtro inválido.

@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { formatDate, PERIODO_LABEL } from "@/lib/utils";
+import { formatDate, nomeProfessor, PERIODO_LABEL } from "@/lib/utils";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { PautaDocument } from "@/components/pdf/PautaDocument";
 import { getAgora } from "@/lib/tempo";
@@ -75,7 +75,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       curso={turmaDisciplina.turma.curso.nome}
       disciplina={turmaDisciplina.disciplina.nome}
       anoTurma={`${turmaDisciplina.turma.anoCurricular}º Ano · ${PERIODO_LABEL[turmaDisciplina.turma.periodo]}`}
-      docente={turmaDisciplina.professor.nome}
+      docente={nomeProfessor(turmaDisciplina.professor)}
       dataEmissao={formatDate(await getAgora())}
       alunos={alunos}
     />,

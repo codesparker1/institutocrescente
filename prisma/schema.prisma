@@ -236,8 +236,13 @@ model TurmaDisciplina {
   disciplina          Disciplina        @relation(fields: [disciplinaId], references: [id])
   cadeiraCurricularId String
   cadeiraCurricular   CadeiraCurricular @relation(fields: [cadeiraCurricularId], references: [id])
-  professorId         String
-  professor           Professor         @relation(fields: [professorId], references: [id])
+  /// Opcional (§pedido do cliente 2026-08-27): ao criar uma Turma, as disciplinas nascem
+  /// automaticamente do plano curricular (CadeiraCurricular) e o DAAC só atribui o professor
+  /// depois. Até lá a disciplina já existe — o aluno vê-a na sua lista e no horário, se já estiver
+  /// programado. Sem professor, a pauta é só leitura: não há quem possa lançar notas ou marcar
+  /// presenças (ver podeLancarNota).
+  professorId         String?
+  professor           Professor?        @relation(fields: [professorId], references: [id])
   semestre            Int
   sala                String
 

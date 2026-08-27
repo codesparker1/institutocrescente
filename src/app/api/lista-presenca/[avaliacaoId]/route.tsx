@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { formatDate, nomeProfessor } from "@/lib/utils";
 import { getConjuntoAlunosEmDivida } from "@/lib/financeiro";
 import { ListaPresencaDocument } from "@/components/pdf/ListaPresencaDocument";
 import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca, proximaEpocaPendente } from "@/lib/avaliacao";
@@ -81,7 +81,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       disciplina={avaliacao.turmaDisciplina.disciplina.nome}
       anoTurma={`${avaliacao.turmaDisciplina.turma.anoCurricular}º Ano`}
       epocaProva={EPOCA_LABEL[avaliacao.epoca]}
-      docente={avaliacao.turmaDisciplina.professor.nome}
+      docente={nomeProfessor(avaliacao.turmaDisciplina.professor)}
       dataHora={formatDate(avaliacao.data)}
       alunos={alunosElegiveis.map((aluno, index) => ({
         numero: index + 1,

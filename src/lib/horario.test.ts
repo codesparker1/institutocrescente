@@ -50,6 +50,21 @@ test("encontrarConflito: mesmo professor em dois sítios ao mesmo tempo — bloq
   assert.equal(conflito?.tipo, "professor");
 });
 
+test("encontrarConflito: duas disciplinas sem professor não são conflito de professor", () => {
+  // null === null marcaria as duas como "o mesmo docente em dois sítios" — salas e turmas
+  // diferentes, portanto não deve haver conflito nenhum.
+  const conflito = encontrarConflito(novo({ professorId: null }), [slot({ professorId: null })]);
+  assert.equal(conflito, null);
+});
+
+test("encontrarConflito: sem professor não escapa aos conflitos de sala nem de turma", () => {
+  const porSala = encontrarConflito(novo({ professorId: null, sala: "Lab 1" }), [slot({ professorId: null })]);
+  assert.equal(porSala?.tipo, "sala");
+
+  const porTurma = encontrarConflito(novo({ professorId: null, turmaId: "turma-1" }), [slot({ professorId: null })]);
+  assert.equal(porTurma?.tipo, "turma");
+});
+
 test("encontrarConflito: mesma sala reservada duas vezes — bloqueia", () => {
   const conflito = encontrarConflito(novo({ sala: "lab 1" }), [slot()]); // capitalização diferente, mesma sala
   assert.equal(conflito?.tipo, "sala");

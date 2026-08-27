@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/Table";
 import { GradebookEditor } from "./GradebookEditor";
 import { AttendanceChip } from "./AttendanceChip";
 import { CreateAulaForm } from "./CreateAulaForm";
-import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
+import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, nomeProfessor, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
 import { EPOCA_ORDEM } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
@@ -110,7 +110,7 @@ export async function TurmaGradebook({
         <p className="text-sm text-navy-400">
           {turmaDisciplina.turma.curso.nome} · {turmaDisciplina.turma.anoCurricular}º Ano ·{" "}
           {PERIODO_LABEL[turmaDisciplina.turma.periodo]} · {turmaDisciplina.semestre}º Semestre ·{" "}
-          {turmaDisciplina.professor.nome}
+          {nomeProfessor(turmaDisciplina.professor)}
         </p>
       </div>
 

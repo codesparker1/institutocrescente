@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
-import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatDate } from "@/lib/utils";
+import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatDate, nomeProfessor } from "@/lib/utils";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
@@ -198,7 +198,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
                 <div>
                   <p className="font-medium text-navy-800">{inscricao.turmaDisciplina.disciplina.nome}</p>
                   <p className="text-xs text-navy-400">
-                    {inscricao.turmaDisciplina.professor.nome} · {PERIODO_LABEL[inscricao.turmaDisciplina.turma.periodo]}
+                    {nomeProfessor(inscricao.turmaDisciplina.professor)} · {PERIODO_LABEL[inscricao.turmaDisciplina.turma.periodo]}
                   </p>
                 </div>
                 <span className="text-xs text-navy-400">
