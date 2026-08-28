@@ -13,3 +13,26 @@ export function ehVencidoAlemDaTolerancia(dataVencimento: Date, toleranciaDias: 
   const limite = new Date(dataVencimento.getFullYear(), dataVencimento.getMonth(), dataVencimento.getDate() + toleranciaDias + 1);
   return agora >= limite;
 }
+
+/**
+ * O mês de `agora` faz parte do ano letivo configurado? Fora dele não há propina a cobrar — a
+ * geração diária (garantirCobrancasGeradas) olhava só ao mês do relógio e cobrava agosto com o ano
+ * letivo a começar em outubro (§bug encontrado 2026-08-28).
+ *
+ * Compara pelo MÊS, não pelo dia: quem se matricula a meio de outubro paga outubro inteiro, e o
+ * último mês do ciclo conta por inteiro também — é assim que gerarPropinasAnoLetivo monta o ciclo,
+ * e as duas têm de concordar, senão a geração diária cria meses que a do ano letivo não criaria.
+ *
+ * Sem ano letivo configurado devolve true: é o estado inicial do sistema, e aí a cobrança mensal é
+ * o único mecanismo que existe — bloqueá-la deixaria a instituição sem receita nenhuma.
+ */
+export function mesDentroDoAnoLetivo(
+  agora: Date,
+  config: { anoLetivoInicio: Date | null; anoLetivoFim: Date | null } | null,
+): boolean {
+  if (!config?.anoLetivoInicio || !config.anoLetivoFim) return true;
+  const mesAtual = new Date(agora.getFullYear(), agora.getMonth(), 1).getTime();
+  const primeiroMes = new Date(config.anoLetivoInicio.getFullYear(), config.anoLetivoInicio.getMonth(), 1).getTime();
+  const ultimoMes = new Date(config.anoLetivoFim.getFullYear(), config.anoLetivoFim.getMonth(), 1).getTime();
+  return mesAtual >= primeiroMes && mesAtual <= ultimoMes;
+}

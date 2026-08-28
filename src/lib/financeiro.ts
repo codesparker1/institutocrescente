@@ -2,7 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
-import { ehVencidoAlemDaTolerancia } from "@/lib/divida";
+import { ehVencidoAlemDaTolerancia, mesDentroDoAnoLetivo } from "@/lib/divida";
 import { estadoCobrancaVisual, type EstadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { getAgora } from "@/lib/tempo";
 import { TIPOS_QUE_BLOQUEIAM, TIPOS_QUE_CONTAM_COMO_DIVIDA } from "@/lib/financeiro-tipos";
@@ -144,6 +144,16 @@ export async function garantirCobrancasGeradas(): Promise<void> {
   });
   if (reclamado.count === 0) return;
 
+  // Fora do ano letivo não há propina a cobrar: o mês corrente pode ser anterior ao arranque das
+  // aulas (agosto, com o ano a começar em outubro) ou posterior ao fim — e cobrava na mesma, por
+  // esta geração só olhar ao mês do relógio (§bug encontrado 2026-08-28). As MULTAS continuam a
+  // correr sempre: uma propina de junho vencida gera multa em agosto, ciclo fechado ou não.
+  const configAcademica = await prisma.configuracaoAcademica.findUnique({
+    where: { id: "config" },
+    select: { anoLetivoInicio: true, anoLetivoFim: true },
+  });
+  const gerarPropinas = mesDentroDoAnoLetivo(agora, configAcademica);
+
   after(() =>
     gerarCobrancasDoDia(
       agora,
@@ -151,9 +161,11 @@ export async function garantirCobrancasGeradas(): Promise<void> {
       config.toleranciaDias,
       Number(config.valorMulta),
       Number(config.percentagemAgravamentoPorCadeira),
+      gerarPropinas,
     ),
   );
 }
+
 
 async function gerarCobrancasDoDia(
   agora: Date,
@@ -161,6 +173,8 @@ async function gerarCobrancasDoDia(
   toleranciaDias: number,
   valorMulta: number,
   percentagemAgravamentoPorCadeira: number,
+  /** false fora do ano letivo — só as multas correm (ver nota em garantirCobrancasGeradas). */
+  gerarPropinas: boolean,
 ): Promise<void> {
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
   const dataVencimentoMes = new Date(agora.getFullYear(), agora.getMonth(), diaVencimento);
@@ -175,7 +189,7 @@ async function gerarCobrancasDoDia(
   const precoPorChave = new Map(precos.map((p) => [`${p.categoria}:${p.anoCurricular}`, p.valor]));
 
   const semPreco = new Set<string>();
-  const propinasAGerar = matriculasAtivas.flatMap((m) => {
+  const propinasAGerar = !gerarPropinas ? [] : matriculasAtivas.flatMap((m) => {
     const valorBase = precoPorChave.get(`${m.aluno.categoria}:${m.turma.anoCurricular}`);
     if (valorBase === undefined) {
       semPreco.add(`${m.aluno.categoria} · ${m.turma.anoCurricular}º Ano`);

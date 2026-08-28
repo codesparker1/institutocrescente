@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ehVencidoAlemDaTolerancia } from "./divida";
+import { ehVencidoAlemDaTolerancia, mesDentroDoAnoLetivo } from "./divida";
 
 const VENCIMENTO = new Date("2026-08-10T00:00:00");
 
@@ -34,4 +34,30 @@ test("a função não recebe nem depende da categoria do estudante — mesma reg
   const resultado = ehVencidoAlemDaTolerancia(VENCIMENTO, 0, agora);
   assert.equal(ehVencidoAlemDaTolerancia(VENCIMENTO, 0, agora), resultado);
   assert.equal(resultado, true);
+});
+
+// Ciclo real do bug encontrado em 2026-08-28: aulas de 23/10/2026 a 14/06/2027.
+const CICLO = { anoLetivoInicio: new Date(2026, 9, 23), anoLetivoFim: new Date(2027, 5, 14) };
+
+test("mesDentroDoAnoLetivo: agosto não é cobrado quando o ano letivo só começa em outubro", () => {
+  // O bug: a geração diária olhava só ao mês do relógio e cobrava agosto na mesma.
+  assert.equal(mesDentroDoAnoLetivo(new Date(2026, 7, 28), CICLO), false, "agosto, antes do arranque");
+  assert.equal(mesDentroDoAnoLetivo(new Date(2026, 8, 30), CICLO), false, "setembro, ainda antes");
+  assert.equal(mesDentroDoAnoLetivo(new Date(2027, 6, 1), CICLO), false, "julho, depois do fim");
+});
+
+test("mesDentroDoAnoLetivo: os meses de fronteira contam por inteiro", () => {
+  // Dia 1 de outubro já conta, apesar de as aulas só começarem a 23 — quem se matricula a meio do
+  // mês paga o mês todo, tal como gerarPropinasAnoLetivo monta o ciclo.
+  assert.equal(mesDentroDoAnoLetivo(new Date(2026, 9, 1), CICLO), true, "1 de outubro");
+  assert.equal(mesDentroDoAnoLetivo(new Date(2026, 9, 31), CICLO), true, "31 de outubro");
+  assert.equal(mesDentroDoAnoLetivo(new Date(2027, 5, 30), CICLO), true, "30 de junho, depois do fim das aulas mas mês do fim");
+  assert.equal(mesDentroDoAnoLetivo(new Date(2027, 0, 15), CICLO), true, "janeiro, a meio do ciclo");
+});
+
+test("mesDentroDoAnoLetivo: sem ano letivo configurado, cobra na mesma", () => {
+  // Estado inicial do sistema — bloquear aqui deixaria a instituição sem receita nenhuma.
+  assert.equal(mesDentroDoAnoLetivo(new Date(2026, 7, 28), null), true);
+  assert.equal(mesDentroDoAnoLetivo(new Date(2026, 7, 28), { anoLetivoInicio: null, anoLetivoFim: null }), true);
+  assert.equal(mesDentroDoAnoLetivo(new Date(2026, 7, 28), { anoLetivoInicio: new Date(2026, 9, 23), anoLetivoFim: null }), true);
 });
