@@ -20,6 +20,14 @@ export interface TurmaDisciplinaComHorario {
   horarioSlots: HorarioSlot[];
   avaliacoes: Avaliacao[];
   cursoAnoLabel?: string;
+  /**
+   * Cadeira que o aluno está a repetir (tentativa > 1) — pertence a um ano curricular anterior ao
+   * seu, e por isso é lecionada com a turma desse ano. Sai numa grelha própria, acima da do ano
+   * corrente (§pedido do cliente 2026-08-28): pode colidir na hora com as aulas do ano corrente, e
+   * essa colisão não se resolve mexendo no horário — afetaria a turma inteira. O aluno vê os dois
+   * horários separados e escolhe a que assiste.
+   */
+  emRepeticao?: boolean;
 }
 
 interface ScheduleGridProps {
@@ -37,7 +45,9 @@ export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint 
   if (view === "provas") {
     const agora = await getAgora();
     const provas = turmaDisciplinas
-      .flatMap((td) => td.avaliacoes.map((av) => ({ ...av, disciplina: td.disciplina, turmaDisciplinaId: td.id, cursoAnoLabel: td.cursoAnoLabel })))
+      .flatMap((td) =>
+        td.avaliacoes.map((av) => ({ ...av, disciplina: td.disciplina, turmaDisciplinaId: td.id, cursoAnoLabel: td.cursoAnoLabel, emRepeticao: td.emRepeticao })),
+      )
       .sort((a, b) => a.data.getTime() - b.data.getTime());
 
     return (
@@ -62,6 +72,11 @@ export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint 
                     <div>
                       <p className={cn("font-medium", passada ? "text-navy-500" : "text-navy-800")}>
                         {EPOCA_LABEL[prova.epoca]} · {prova.disciplina.nome}
+                        {/* Aqui a lista fica cronológica (é o que interessa numa época de provas) —
+                            a repetição assinala-se com etiqueta, não separando em duas listas. */}
+                        {prova.emRepeticao ? (
+                          <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">repetição</span>
+                        ) : null}
                       </p>
                       <p className="text-xs text-navy-400">
                         {prova.cursoAnoLabel ? `${prova.cursoAnoLabel} · ` : ""}
@@ -119,42 +134,30 @@ export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint 
     );
   }
 
+  // Cadeiras em repetição saem numa grelha própria, acima da do ano corrente — ver nota em
+  // TurmaDisciplinaComHorario.emRepeticao. Sem nenhuma em repetição (o caso normal), só a grelha
+  // de sempre é renderizada.
+  const emRepeticao = turmaDisciplinas.filter((td) => td.emRepeticao);
+  const doAnoCorrente = turmaDisciplinas.filter((td) => !td.emRepeticao);
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        {DIAS.map((dia) => {
-          const slotsDoDia = turmaDisciplinas
-            .flatMap((td) => td.horarioSlots.filter((s) => s.diaSemana === dia).map((s) => ({ ...s, disciplina: td.disciplina, cursoAnoLabel: td.cursoAnoLabel })))
-            .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+      {emRepeticao.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-sm font-semibold text-gold-700">Cadeiras em repetição</h2>
+            <p className="text-xs text-navy-400">
+              De anos anteriores — as horas podem coincidir com as aulas do seu ano.
+            </p>
+          </div>
+          <GrelhaSemanal turmaDisciplinas={emRepeticao} editable={editable} destaque />
+        </div>
+      ) : null}
 
-          return (
-            <Card key={dia} className="flex flex-col">
-              <div className="border-b border-navy-50 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-navy-500">
-                {DIA_SEMANA_LABEL[dia]}
-              </div>
-              <CardBody className="flex flex-1 flex-col gap-2 px-2 py-2">
-                {slotsDoDia.length === 0 ? (
-                  <p className="px-2 py-3 text-center text-xs text-navy-300">—</p>
-                ) : (
-                  slotsDoDia.map((slot) => (
-                    <div key={slot.id} className="rounded-md bg-navy-50 px-2 py-1.5 text-xs">
-                      <p className="font-medium text-navy-800">{slot.disciplina.nome}</p>
-                      <p className="text-navy-500">
-                        {slot.horaInicio}–{slot.horaFim}
-                      </p>
-                      <p className="text-navy-400">{slot.sala}</p>
-                      {slot.cursoAnoLabel ? <p className="text-navy-300">{slot.cursoAnoLabel}</p> : null}
-                      {editable ? (
-                        <DeleteButtonForm action={deleteHorarioSlotAction} id={slot.id} variant="link" className="mt-1" />
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </CardBody>
-            </Card>
-          );
-        })}
-      </div>
+      {emRepeticao.length > 0 ? (
+        <h2 className="text-sm font-semibold text-navy-700">Ano corrente</h2>
+      ) : null}
+      <GrelhaSemanal turmaDisciplinas={doAnoCorrente} editable={editable} />
 
       {editable ? (
         <Card>
@@ -166,6 +169,59 @@ export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint 
           </CardBody>
         </Card>
       ) : null}
+    </div>
+  );
+}
+
+/** Uma semana de Segunda a Sábado. `destaque` marca a grelha das cadeiras em repetição. */
+function GrelhaSemanal({
+  turmaDisciplinas,
+  editable,
+  destaque = false,
+}: {
+  turmaDisciplinas: TurmaDisciplinaComHorario[];
+  editable: boolean;
+  destaque?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      {DIAS.map((dia) => {
+        const slotsDoDia = turmaDisciplinas
+          .flatMap((td) => td.horarioSlots.filter((s) => s.diaSemana === dia).map((s) => ({ ...s, disciplina: td.disciplina, cursoAnoLabel: td.cursoAnoLabel })))
+          .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+
+        return (
+          <Card key={dia} className={cn("flex flex-col", destaque && "border-gold-300")}>
+            <div
+              className={cn(
+                "border-b px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide",
+                destaque ? "border-gold-200 bg-gold-50 text-gold-700" : "border-navy-50 text-navy-500",
+              )}
+            >
+              {DIA_SEMANA_LABEL[dia]}
+            </div>
+            <CardBody className="flex flex-1 flex-col gap-2 px-2 py-2">
+              {slotsDoDia.length === 0 ? (
+                <p className="px-2 py-3 text-center text-xs text-navy-300">—</p>
+              ) : (
+                slotsDoDia.map((slot) => (
+                  <div key={slot.id} className={cn("rounded-md px-2 py-1.5 text-xs", destaque ? "bg-gold-50" : "bg-navy-50")}>
+                    <p className="font-medium text-navy-800">{slot.disciplina.nome}</p>
+                    <p className="text-navy-500">
+                      {slot.horaInicio}–{slot.horaFim}
+                    </p>
+                    <p className="text-navy-400">{slot.sala}</p>
+                    {slot.cursoAnoLabel ? <p className="text-navy-300">{slot.cursoAnoLabel}</p> : null}
+                    {editable ? (
+                      <DeleteButtonForm action={deleteHorarioSlotAction} id={slot.id} variant="link" className="mt-1" />
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </CardBody>
+          </Card>
+        );
+      })}
     </div>
   );
 }

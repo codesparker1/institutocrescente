@@ -67,9 +67,17 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
           ...i.turmaDisciplina,
           avaliacoes: i.turmaDisciplina.avaliacoes.filter((av) => visiveis.has(av.epoca)),
           cursoAnoLabel: `${i.turmaDisciplina.turma.curso.nome} · ${i.turmaDisciplina.turma.anoCurricular}º Ano`,
+          // tentativa > 1 é exatamente "está a repetir": a rematrícula cria a inscrição nova com a
+          // tentativa incrementada (processarRematriculaAction). Sai numa grelha própria — pode
+          // colidir na hora com o ano corrente, e o aluno escolhe a que assiste.
+          emRepeticao: i.tentativa > 1,
         };
       });
-      subtitle = "O seu horário de aulas e provas.";
+      const repetidas = turmaDisciplinas.filter((td) => td.emRepeticao).length;
+      subtitle =
+        repetidas > 0
+          ? `O seu horário de aulas e provas — ${repetidas} cadeira(s) em repetição, mostradas em separado.`
+          : "O seu horário de aulas e provas.";
     }
 
     return (
