@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
@@ -268,50 +268,58 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         </CardBody>
       </Card>
 
-      {podeEditarCategoria ? (
-        <Card>
-          <CardHeader
-            title="Rematrícula"
-            subtitle={`Ano corrente: ${reprovacoesAnoCorrente} reprovação(ões) nas cadeiras ativas`}
-          />
-          <CardBody>
-            <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} podeForaDaJanela={session?.user?.role === "ADMIN"} />
-          </CardBody>
-        </Card>
-      ) : null}
+      {/* Rematrícula, mudança de curso e desistência ocupavam três cartões grandes sempre abertos,
+          entre a Situação Financeira e o Percurso Curricular — empurravam para baixo o que se
+          consulta todos os dias, para dar destaque a ações usadas uma ou duas vezes por ano
+          (§pedido do cliente 2026-08-28: a página estava sobrecarregada). Recolhidas num bloco só,
+          continuam a um clique de distância. */}
+      <Disclosure
+        title="Ações de gestão"
+        subtitle={`Rematrícula${podeEditarCategoria ? " · Mudança de curso" : ""} · Desistência${
+          reprovacoesAnoCorrente > 0 ? ` — ${reprovacoesAnoCorrente} reprovação(ões) no ano corrente` : ""
+        }`}
+      >
+        <div className="flex flex-col gap-5">
+          {podeEditarCategoria ? (
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Rematrícula</p>
+              <p className="mb-2 text-xs text-navy-400">
+                Avança de ano (ou retém) a partir das notas — as cadeiras reprovadas são inscritas automaticamente.
+              </p>
+              <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} podeForaDaJanela={session?.user?.role === "ADMIN"} />
+            </div>
+          ) : null}
 
-      {podeEditarCategoria ? (
-        <Card>
-          <CardHeader
-            title="Segunda Licenciatura / Mudança de Curso"
-            subtitle="Sem aproveitamento de créditos — entra sempre no 1º ano do curso novo."
-          />
-          <CardBody>
-            <MudarCursoForm alunoId={aluno.id} cursos={outrosCursos} />
-          </CardBody>
-        </Card>
-      ) : null}
+          {podeEditarCategoria ? (
+            <div className="border-t border-navy-50 pt-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">
+                Segunda licenciatura / mudança de curso
+              </p>
+              <p className="mb-2 text-xs text-navy-400">Sem aproveitamento de créditos — entra sempre no 1º ano do curso novo.</p>
+              <MudarCursoForm alunoId={aluno.id} cursos={outrosCursos} />
+            </div>
+          ) : null}
 
-      <Card>
-        <CardHeader
-          title="Desistência"
-          subtitle={
-            aluno.status === "DESISTENTE"
-              ? "Aluno desistente — reativação exclusiva da ADMIN."
-              : "Só para alunos ATIVOS (ADMIN/DAAC). A dívida mantém-se; o regresso exige reativação da ADMIN."
-          }
-        />
-        <CardBody>
-          <DesistenciaForm
-            alunoId={aluno.id}
-            status={aluno.status}
-            podeMarcar={session?.user ? podeMarcarDesistencia(session.user) : false}
-            podeReativar={session?.user ? podeReativarDesistente(session.user) : false}
-          />
-        </CardBody>
-      </Card>
+          <div className="border-t border-navy-50 pt-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Desistência</p>
+            <p className="mb-2 text-xs text-navy-400">
+              {aluno.status === "DESISTENTE"
+                ? "Aluno desistente — reativação exclusiva da ADMIN."
+                : "Só para alunos ATIVOS (ADMIN/DAAC). A dívida mantém-se; o regresso exige reativação da ADMIN."}
+            </p>
+            <DesistenciaForm
+              alunoId={aluno.id}
+              status={aluno.status}
+              podeMarcar={session?.user ? podeMarcarDesistencia(session.user) : false}
+              podeReativar={session?.user ? podeReativarDesistente(session.user) : false}
+            />
+          </div>
+        </div>
+      </Disclosure>
 
-      <Disclosure title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`}>
+      {/* Aberto por omissão: é uma das três coisas que o Admin/DAAC consulta mais (§pedido do
+          cliente 2026-08-28) — as ações de gestão é que ficam recolhidas, não o percurso. */}
+      <Disclosure title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`} defaultOpen>
         <div className="flex flex-col gap-4">
           {inscricoes.length === 0 ? (
             <EmptyState message="Sem cadeiras inscritas." />
@@ -379,15 +387,6 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             </Table>
           )}
 
-          {podeRepetir && cadeirasAtivas.length > 0 ? (
-            <div className="border-t border-navy-50 pt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
-                Inscrever numa nova tentativa (repetição)
-              </p>
-              <RepeticaoForm alunoId={aluno.id} cadeirasAtivas={cadeirasAtivas} ofertas={ofertas} />
-            </div>
-          ) : null}
-
           {podeRepetir ? (
             <div className="border-t border-navy-50 pt-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
@@ -395,6 +394,24 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
               </p>
               <CreditarCadeiraForm alunoId={aluno.id} cadeirasDisponiveis={cadeirasDisponiveisParaCreditar} />
             </div>
+          ) : null}
+
+          {/* A repetição deixou de ser o caminho normal — a rematrícula inscreve sozinha as
+              cadeiras reprovadas, e desde 2026-08-28 cria até a oferta em falta. Isto fica como
+              válvula de escape manual (repetir a meio do ano, corrigir uma repetição falhada), por
+              isso passa a último e recolhido, em vez de parecer o fluxo principal. */}
+          {podeRepetir && cadeirasAtivas.length > 0 ? (
+            <details className="group border-t border-navy-50 pt-4">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-navy-400 hover:text-navy-600">
+                <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+                Inscrever numa repetição manualmente
+              </summary>
+              <p className="mb-2 mt-2 text-xs text-navy-400">
+                Normalmente não é preciso: a rematrícula inscreve sozinha as cadeiras reprovadas. Use isto só para corrigir
+                uma repetição que falhou, ou para inscrever fora da janela de matrículas.
+              </p>
+              <RepeticaoForm alunoId={aluno.id} cadeirasAtivas={cadeirasAtivas} ofertas={ofertas} />
+            </details>
           ) : null}
         </div>
       </Disclosure>
