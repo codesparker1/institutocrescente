@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeLancarNota, requireGerirCurriculo } from "@/lib/permissions";
-import { EPOCA_LABEL, diasPrazoParaEpoca, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
+import { EPOCA_LABEL, diasPrazoParaEpoca, calcularNotaFinal, extrairNotasPorEpoca, motivoLancamentoFechado } from "@/lib/avaliacao";
+import { formatDate } from "@/lib/utils";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import { getAgora } from "@/lib/tempo";
 import type { Epoca } from "@/generated/prisma/client";
@@ -163,10 +164,21 @@ export async function lancarNotasEmLoteAction(entradas: unknown): Promise<Lancar
 
   for (const epoca of epocasEnvolvidas) {
     const avaliacao = avaliacaoPorEpoca.get(epoca);
-    // Uma época ainda sem Avaliacao formal nunca está "fora de prazo" — está a nascer agora mesmo.
-    const prazoAberto = avaliacao ? avaliacao.prazoLancamento >= agora : true;
-    if (!podeLancarNota(session.user, turmaDisciplina, prazoAberto)) {
-      return { error: prazoAberto ? "Sem permissão para lançar notas nesta disciplina." : "Prazo de lançamento encerrado. Peça ao DAAC para lançar ou corrigir estas notas." };
+    // Uma época ainda sem Avaliacao formal nunca está fechada — está a nascer agora mesmo.
+    // Com Avaliacao, a janela vai do dia da prova ao fim do prazo: sem o limite de início, dava
+    // para lançar a nota de uma prova ainda por realizar (§pedido do cliente 2026-08-28).
+    // A UI já desativa o campo; isto é a barreira que conta — um POST direto ignoraria aquela.
+    const motivoFechado = avaliacao ? motivoLancamentoFechado(avaliacao, agora) : null;
+    if (!podeLancarNota(session.user, turmaDisciplina, motivoFechado === null)) {
+      if (motivoFechado === "PROVA_POR_REALIZAR") {
+        return {
+          error: `A prova de ${EPOCA_LABEL[epoca]} ainda não se realizou (${formatDate(avaliacao!.data)}) — só pode lançar a nota a partir desse dia.`,
+        };
+      }
+      if (motivoFechado === "PRAZO_EXPIRADO") {
+        return { error: "Prazo de lançamento encerrado. Peça ao DAAC para lançar ou corrigir estas notas." };
+      }
+      return { error: "Sem permissão para lançar notas nesta disciplina." };
     }
   }
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, epocasVisiveis, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, motivoLancamentoFechado, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
 const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
@@ -175,4 +175,26 @@ test("epocasOrfas: vazio quando a cascata usa realmente todas as notas presentes
 
   const reprovado = calcularNotaFinal({ p1: 5, p2: 5, exame: 5, recurso: 5, exameEspecial: 5 }, REGRAS_PADRAO);
   assert.deepEqual(reprovado.epocasOrfas, []);
+});
+
+// --- Janela de lancamento: do dia da prova ao fim do prazo ---
+// Prova a 15/11/2026 as 14h, prazo de lancamento ate 20/11.
+const PROVA = { data: new Date(2026, 10, 15, 14, 0), prazoLancamento: new Date(2026, 10, 20, 23, 59) };
+
+test("motivoLancamentoFechado: nao deixa lancar antes do dia da prova", () => {
+  // O bug: so o fim do prazo era verificado, e dava para lancar nota de prova futura.
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 14, 23, 59)), "PROVA_POR_REALIZAR", "vespera");
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 9, 1)), "PROVA_POR_REALIZAR", "mes e meio antes");
+});
+
+test("motivoLancamentoFechado: abre no DIA da prova, nao a hora", () => {
+  // De manha, antes das 14h da prova, ja abre — o professor corrige e lanca no proprio dia sem
+  // depender de a hora estar bem preenchida.
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 15, 8, 0)), null, "manha do dia da prova");
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 15, 18, 0)), null, "depois da prova");
+});
+
+test("motivoLancamentoFechado: continua a fechar no fim do prazo", () => {
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 18)), null, "dentro do prazo");
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 21)), "PRAZO_EXPIRADO", "depois do prazo");
 });

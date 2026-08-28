@@ -8,7 +8,7 @@ import { GradebookEditor } from "./GradebookEditor";
 import { AttendanceChip } from "./AttendanceChip";
 import { CreateAulaForm } from "./CreateAulaForm";
 import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, nomeProfessor, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
-import { EPOCA_ORDEM } from "@/lib/avaliacao";
+import { EPOCA_ORDEM, motivoLancamentoFechado } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
 interface TurmaGradebookProps {
@@ -85,9 +85,15 @@ export async function TurmaGradebook({
   // por prazo), a Avaliacao nasce sozinha na primeira nota lançada (lancarNotasEmLoteAction).
   const avaliacoesParaEditor = EPOCA_ORDEM.map((epoca) => {
     const avaliacao = avaliacaoPorEpoca.get(epoca);
+    // A janela vai do dia da prova ao fim do prazo — antes só o fim era aplicado, e dava para
+    // lançar a nota de uma prova ainda por realizar (§pedido do cliente 2026-08-28). O DAAC/ADMIN
+    // (podeIgnorarPrazo) continua sem limites: é o mecanismo de reabertura do §4.3.
+    const motivoFechado = avaliacao && !podeIgnorarPrazo ? motivoLancamentoFechado(avaliacao, agora) : null;
     return {
       epoca,
-      disabled: Boolean(avaliacao && !podeIgnorarPrazo && avaliacao.prazoLancamento < agora),
+      disabled: motivoFechado !== null,
+      motivoFechado,
+      dataProva: avaliacao?.data ?? null,
     };
   });
   const inscricoesParaEditor = inscricoes.map((inscricao) => ({

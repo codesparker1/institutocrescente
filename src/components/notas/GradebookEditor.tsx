@@ -5,7 +5,7 @@ import { Loader2, Save } from "lucide-react";
 import { lancarNotasEmLoteAction } from "@/actions/notas";
 import { Table, Thead, Th, Tbody, Tr, Td } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import {
   calcularNotaFinal,
   extrairNotasPorEpoca,
@@ -31,6 +31,13 @@ interface AvaliacaoResumo {
   epoca: Epoca;
   /** Sem efeito enquanto a Avaliacao ainda não existir (nasce na primeira nota lançada) — nunca desativada por prazo até lá. */
   disabled: boolean;
+  /**
+   * Porquê fechada — dá ao professor a razão em vez de um campo cinzento sem explicação.
+   * null quando está aberta (ou quando `disabled` vem de outra causa que não a janela).
+   */
+  motivoFechado?: "PROVA_POR_REALIZAR" | "PRAZO_EXPIRADO" | null;
+  /** Data da prova, para a mensagem dizer a partir de quando abre. */
+  dataProva?: Date | null;
 }
 
 interface InscricaoResumo {
@@ -201,9 +208,13 @@ export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, edi
                         ? "Já não é preciso — uma época anterior corrigida já resolve o resultado"
                         : foraDeAlcance
                           ? "Ainda não é preciso — depende do resultado das épocas anteriores"
-                          : ehAutomatica
-                            ? "0 automático — prazo de lançamento expirado sem nota"
-                            : undefined
+                          : avaliacao.motivoFechado === "PROVA_POR_REALIZAR"
+                            ? `A prova ainda não se realizou — abre a ${avaliacao.dataProva ? formatDate(avaliacao.dataProva) : "data da prova"}`
+                            : avaliacao.motivoFechado === "PRAZO_EXPIRADO"
+                              ? "Prazo de lançamento fechado — peça a reabertura ao DAAC"
+                              : ehAutomatica
+                                ? "0 automático — prazo de lançamento expirado sem nota"
+                                : undefined
                     }
                     onChange={(e) => handleChange(inscricao.id, avaliacao.epoca, e.target.value)}
                     className={cn(

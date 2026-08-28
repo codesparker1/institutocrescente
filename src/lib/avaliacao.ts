@@ -44,6 +44,33 @@ export function diasPrazoParaEpoca(config: DiasPrazoConfig, epoca: Epoca): numbe
   }
 }
 
+/** Porque é que o lançamento de nota está fechado — ou null se estiver aberto. */
+export type MotivoLancamentoFechado = "PROVA_POR_REALIZAR" | "PRAZO_EXPIRADO";
+
+/**
+ * A janela em que o PROFESSOR pode lançar a nota de uma avaliação: do dia da prova até ao fim do
+ * prazo. Antes, só o limite superior era aplicado — dava para lançar a nota de uma prova que ainda
+ * não tinha acontecido (§pedido do cliente 2026-08-28).
+ *
+ * Abre no DIA da prova, não à hora: a hora agendada serve para o aluno saber quando comparecer, e
+ * exigi-la aqui fechava o campo ao professor que corrige e lança logo a seguir, sempre que a hora
+ * estivesse mal preenchida. O dia é a fronteira que toda a gente entende.
+ *
+ * O DAAC/ADMIN não passa por aqui (ver podeIgnorarPrazo): já ignora o prazo de fim — que é o
+ * mecanismo de reabertura do §4.3 — e ignora também este limite de início, para poder registar uma
+ * prova feita fora do calendário sem ter de mexer na data da avaliação.
+ */
+export function motivoLancamentoFechado(
+  avaliacao: { data: Date; prazoLancamento: Date },
+  agora: Date,
+): MotivoLancamentoFechado | null {
+  const diaDaProva = new Date(avaliacao.data.getFullYear(), avaliacao.data.getMonth(), avaliacao.data.getDate());
+  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  if (hoje < diaDaProva) return "PROVA_POR_REALIZAR";
+  if (avaliacao.prazoLancamento < agora) return "PRAZO_EXPIRADO";
+  return null;
+}
+
 export type EstadoAvaliacao =
   | "EM_CURSO"
   | "DISPENSADO"
