@@ -4,7 +4,8 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { ProfileCard } from "./ProfileCard";
 import { SecretariaAlunoSearchPanel } from "@/components/financeiro/SecretariaAlunoSearchPanel";
-import { formatCurrency } from "@/lib/utils";
+import { formatAnoLetivo, formatCurrency } from "@/lib/utils";
+import { getAgora } from "@/lib/tempo";
 import { getListaDevedores } from "@/lib/financeiro";
 import { prisma } from "@/lib/prisma";
 
@@ -14,11 +15,14 @@ interface SecretariaDashboardProps {
 }
 
 export async function SecretariaDashboard({ nome, email }: SecretariaDashboardProps) {
-  const [devedores, cursos] = await Promise.all([
+  const [devedores, cursos, config, agora] = await Promise.all([
     getListaDevedores(),
     prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { nome: true } }),
+    prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { semestreAtual: true } }),
+    getAgora(),
   ]);
   const valorTotalEmDivida = devedores.reduce((soma, d) => soma + d.valorEmDivida, 0);
+  const semestreAtual = config?.semestreAtual ?? 1;
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,7 +31,15 @@ export async function SecretariaDashboard({ nome, email }: SecretariaDashboardPr
         <p className="text-sm text-navy-400">Resumo da situação financeira dos alunos.</p>
       </div>
 
-      <ProfileCard nome={nome} cargo="Secretaria" campos={[{ label: "Email", value: email }]} />
+      <ProfileCard
+        nome={nome}
+        cargo="Secretaria"
+        campos={[
+          { label: "Email", value: email },
+          { label: "Ano Letivo", value: formatAnoLetivo(agora.getFullYear()) },
+          { label: "Semestre", value: `${semestreAtual}º Semestre` },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard label="Alunos em dívida" value={devedores.length} icon={<AlertTriangle size={20} />} />

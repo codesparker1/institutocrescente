@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
-import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatDate, nomeProfessor } from "@/lib/utils";
+import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatDate, nomeProfessor } from "@/lib/utils";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
@@ -121,7 +121,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           // ano letivo/semestre correntes, que sugeririam um estado enganador (regra confirmada).
           trancado
             ? { label: "Matrícula", value: "Sem matrícula ativa" }
-            : { label: "Ano Letivo", value: String(agora.getFullYear()) },
+            : { label: "Ano Letivo", value: formatAnoLetivo(agora.getFullYear()) },
           ...(trancado ? [] : [{ label: "Semestre", value: `${semestreAtual}º Semestre` }]),
         ]}
       />

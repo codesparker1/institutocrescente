@@ -6,7 +6,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
-import { DIA_SEMANA_LABEL, diasAteProximo, formatDate } from "@/lib/utils";
+import { DIA_SEMANA_LABEL, diasAteProximo, formatAnoLetivo, formatDate } from "@/lib/utils";
 import { EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
@@ -70,7 +70,7 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
         campos={[
           { label: "Especialidade", value: professor.especialidade },
           { label: "Email", value: professor.email },
-          { label: "Ano Letivo", value: String(anoAtual) },
+          { label: "Ano Letivo", value: formatAnoLetivo(anoAtual) },
           { label: "Semestre", value: `${semestreAtual}º Semestre` },
         ]}
       />
