@@ -3,7 +3,8 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAgora } from "@/lib/tempo";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
-import type { Periodo } from "@/generated/prisma/client";
+import type { Periodo, Prisma } from "@/generated/prisma/client";
+type Decimal = Prisma.Decimal;
 import { SALA_A_CONFIRMAR } from "@/lib/utils";
 
 /**
@@ -238,6 +239,62 @@ export async function sincronizarTurmasComPlanoCurricular(anoLetivo: number): Pr
   }
 
   return novasOfertas.length;
+}
+
+/**
+ * Garante que existe uma TurmaDisciplina para esta CadeiraCurricular no ano letivo alvo, criando a
+ * Turma correspondente se ainda não houver — usada pela rematrícula quando um aluno tem de repetir
+ * uma cadeira de um ano curricular que ainda não abriu turma no ano novo (§pedido do cliente
+ * 2026-08-28). Sem isto a repetição não era criada: ficava um aviso e a cadeira por resolver à mão.
+ *
+ * A turma nasce no mesmo curso e período da matrícula de origem — é onde o aluno repetente vai
+ * assistir. Sem professor, como qualquer oferta criada automaticamente.
+ *
+ * Devolve null se a cadeira não pertencer ao curso indicado (não se inventa oferta fora do plano).
+ */
+export async function garantirOfertaParaRepeticao(params: {
+  cadeiraCurricularId: string;
+  cursoId: string;
+  periodo: Periodo;
+  anoLetivo: number;
+}): Promise<{ id: string; cadeiraCurricular: { permiteDispensa: boolean; notaMinimaDispensa: Decimal } } | null> {
+  const { cadeiraCurricularId, cursoId, periodo, anoLetivo } = params;
+
+  const cadeira = await prisma.cadeiraCurricular.findUnique({
+    where: { id: cadeiraCurricularId },
+    select: { id: true, cursoId: true, anoCurricular: true, disciplinaId: true, semestre: true, permiteDispensa: true, notaMinimaDispensa: true },
+  });
+  if (!cadeira || cadeira.cursoId !== cursoId) return null;
+
+  // A turma do ano curricular da CADEIRA (não a do aluno): quem avança para o 2º ano e repete uma
+  // cadeira do 1º assiste na turma de 1º ano.
+  const turma = await prisma.turma.upsert({
+    where: { cursoId_anoCurricular_periodo_anoLetivo: { cursoId, anoCurricular: cadeira.anoCurricular, periodo, anoLetivo } },
+    update: {},
+    create: { cursoId, anoCurricular: cadeira.anoCurricular, periodo, anoLetivo },
+    select: { id: true },
+  });
+
+  // upsert e não create: dois repetentes da mesma cadeira processados em paralelo entrariam os dois
+  // aqui, e o @@unique([turmaId, cadeiraCurricularId]) rejeitaria o segundo.
+  const oferta = await prisma.turmaDisciplina.upsert({
+    where: { turmaId_cadeiraCurricularId: { turmaId: turma.id, cadeiraCurricularId: cadeira.id } },
+    update: {},
+    create: {
+      turmaId: turma.id,
+      disciplinaId: cadeira.disciplinaId,
+      cadeiraCurricularId: cadeira.id,
+      professorId: null,
+      semestre: cadeira.semestre,
+      sala: SALA_A_CONFIRMAR,
+    },
+    select: { id: true },
+  });
+
+  return {
+    id: oferta.id,
+    cadeiraCurricular: { permiteDispensa: cadeira.permiteDispensa, notaMinimaDispensa: cadeira.notaMinimaDispensa },
+  };
 }
 
 /**

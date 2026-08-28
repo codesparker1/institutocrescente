@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireGerirCurriculo, requireRegistarPagamento, requireMarcarDesistencia, requireReativarDesistente } from "@/lib/permissions";
-import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
+import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes, garantirOfertaParaRepeticao } from "@/lib/curriculo";
 import { getEstadoFinanceiroAluno, gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { formatCurrency, fromIsoDate } from "@/lib/utils";
@@ -287,7 +287,25 @@ export async function processarRematriculaAction(
       return { item, novaOferta };
     }),
   );
-  const semOferta = repeticoes.filter((r) => !r.novaOferta);
+
+  // Sem oferta no ano alvo, a repetição não chegava a ser criada: ficava só um aviso e alguém
+  // tinha de resolver à mão (§pedido do cliente 2026-08-28). Acontece quando a cadeira é de um ano
+  // curricular que ainda não tem turma no ano letivo novo — o aluno avança para o 2º ano mas
+  // repete uma cadeira do 1º, e não há turma de 1º ano em 2027. Cria-se a oferta em falta (e a
+  // turma, se preciso), sem professor: o DAAC atribui-o depois, como em qualquer outra.
+  const repeticoesResolvidas = await Promise.all(
+    repeticoes.map(async ({ item, novaOferta }) => {
+      if (novaOferta) return { item, novaOferta };
+      const oferta = await garantirOfertaParaRepeticao({
+        cadeiraCurricularId: item.inscricao.cadeiraCurricularId,
+        cursoId: matriculaAtual.turma.cursoId,
+        periodo: matriculaAtual.turma.periodo,
+        anoLetivo: anoLetivoAlvo,
+      });
+      return { item, novaOferta: oferta };
+    }),
+  );
+  const semOferta = repeticoesResolvidas.filter((r) => !r.novaOferta);
 
   // Cadeiras aprovadas/dispensadas que NÃO entram no conjunto a repetir (aRepetir) ficam
   // definitivamente concluídas — têm de ser desativadas aqui, senão continuam `ativa=true`
@@ -320,7 +338,7 @@ export async function processarRematriculaAction(
     }
 
     const criadas: { id: string; turmaDisciplinaId: string }[] = [];
-    for (const { item, novaOferta } of repeticoes) {
+    for (const { item, novaOferta } of repeticoesResolvidas) {
       if (!novaOferta) continue;
       const tentativasAnteriores = await tx.inscricaoCadeira.findMany({
         where: { alunoId, cadeiraCurricularId: item.inscricao.cadeiraCurricularId },
@@ -410,9 +428,12 @@ export async function processarRematriculaAction(
   revalidatePath("/minhas-notas");
   revalidatePath("/horario");
 
+  // Depois de garantirOfertaParaRepeticao, só sobra aqui a cadeira que nem sequer pertence ao
+  // curso do aluno (mudança de curso mal resolvida, dados importados) — não se inventa oferta fora
+  // do plano curricular, por isso a tentativa anterior fica ativa e alguém tem de olhar para ela.
   const avisoOferta =
     semOferta.length > 0
-      ? ` Aviso: sem oferta atual para ${semOferta.map((r) => r.item.inscricao.turmaDisciplina.disciplina.nome).join(", ")} — tentativa anterior mantida ativa.`
+      ? ` Aviso: ${semOferta.map((r) => r.item.inscricao.turmaDisciplina.disciplina.nome).join(", ")} não pertence ao plano curricular de ${matriculaAtual.turma.curso.nome} — tentativa anterior mantida ativa, verifique o percurso do aluno.`
       : "";
 
   return { resultado: `${resultadoLabel}.${cadeirasRepetidasLabel}${avisoOferta}${avisoMultaTardia}` };
