@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { podeGerirCurriculo } from "@/lib/permissions";
 import { toIsoDate } from "@/lib/utils";
+import { anoLetivoCorrente } from "@/lib/academico";
+import { getAgora } from "@/lib/tempo";
 import { ConfiguracaoAcademicaForm } from "./ConfiguracaoAcademicaForm";
 import { SemestreAtualCard } from "./SemestreAtualCard";
 
@@ -13,6 +15,25 @@ export default async function ConfiguracaoAcademicaPage() {
   if (!podeGerirCurriculo(session.user)) redirect("/dashboard");
 
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
+  const proximoSemestre = semestreAtual === 1 ? 2 : 1;
+
+  // O que ficará por fazer NO OUTRO semestre, contado agora: o aviso da confirmação passa a dizer
+  // números concretos ("4 disciplinas sem professor") em vez de um "se calhar falta alguma coisa"
+  // genérico. Quem confirma vê o tamanho do trabalho antes de mudar, não depois.
+  const agora = await getAgora();
+  const anoLetivo = anoLetivoCorrente(agora, config);
+  const [semProfessor, semHorario] =
+    anoLetivo === null
+      ? [0, 0]
+      : await Promise.all([
+          prisma.turmaDisciplina.count({
+            where: { semestre: proximoSemestre, professorId: null, turma: { anoLetivo } },
+          }),
+          prisma.turmaDisciplina.count({
+            where: { semestre: proximoSemestre, horarioSlots: { none: {} }, turma: { anoLetivo } },
+          }),
+        ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -23,7 +44,11 @@ export default async function ConfiguracaoAcademicaPage() {
         </p>
       </div>
 
-      <SemestreAtualCard semestreAtual={config?.semestreAtual === 2 ? 2 : 1} />
+      <SemestreAtualCard
+        semestreAtual={semestreAtual}
+        disciplinasSemProfessor={semProfessor}
+        disciplinasSemHorario={semHorario}
+      />
 
       <Card>
         <CardHeader

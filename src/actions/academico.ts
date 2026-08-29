@@ -144,6 +144,11 @@ export async function alterarSemestreAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/academico/configuracao");
   revalidatePath("/professor");
   revalidatePath("/horario");
+  // O painel mostra as pendências do semestre corrente — mudar de semestre destapa outro conjunto
+  // delas, e sem isto o cartão "A precisar de atenção" só apareceria no próximo pedido não-cache.
+  revalidatePath("/dashboard");
+  revalidatePath("/notas");
+  revalidatePath("/admin/turmas");
 }
 
 export interface ProcessarRematriculaState {

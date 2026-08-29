@@ -23,14 +23,19 @@ interface Cadeira {
 }
 
 /**
- * DAAC lança qualquer nota, de qualquer cadeira, a qualquer momento — ignora `prazoAberto`,
- * o que é também o mecanismo de reabertura (§4.3): não há um fluxo separado de "reabrir prazo",
- * o DAAC simplesmente continua a poder agir depois do prazo fechar para o professor. PROFESSOR
- * só lança nas suas próprias disciplinas e só com o prazo aberto. ADMIN e SECRETARIA não lançam
- * notas — decisão deliberada do MD ("é a separação que dá integridade ao sistema").
+ * DAAC e ADMIN lançam qualquer nota, de qualquer cadeira, a qualquer momento — ignoram
+ * `prazoAberto`, o que é também o mecanismo de reabertura (§4.3): não há um fluxo separado de
+ * "reabrir prazo", quem gere continua a poder agir depois do prazo fechar para o professor.
+ * PROFESSOR só lança nas suas próprias disciplinas e só com o prazo aberto.
+ *
+ * O MD reservava isto ao DAAC ("é a separação que dá integridade ao sistema"), deixando o ADMIN em
+ * leitura sobre dados académicos. Revisto a 2026-08-29 por decisão do cliente: no Instituto é a
+ * mesma pessoa que acumula os dois papéis, e um ADMIN sem acesso à pauta bloqueava trabalho real.
+ * A integridade passa a assentar na auditoria (toda a alteração de nota fica registada com autor),
+ * não na separação de papéis. A SECRETARIA continua de fora.
  */
 export function podeLancarNota(user: CapabilityUser, cadeira: Cadeira, prazoAberto = true): boolean {
-  if (user.role === "DAAC") return true;
+  if (user.role === "DAAC" || user.role === "ADMIN") return true;
   if (user.role !== "PROFESSOR") return false;
   // Disciplina ainda sem professor: ninguém a lança a não ser o DAAC (já tratado acima). Sem este
   // guarda, um PROFESSOR sem professorId na sessão passaria por `null === null`.

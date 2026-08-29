@@ -12,8 +12,9 @@ export default async function NotasGradebookPage({ params }: NotasGradebookPageP
   if (session.user.role === "SECRETARIA") redirect("/dashboard");
 
   const { turmaId, turmaDisciplinaId } = await params;
-  // Só o DAAC lança notas sem restrições aqui — ADMIN é read-only sobre dados académicos (MD §3).
-  const editable = session.user.role === "DAAC";
+  // DAAC e ADMIN lançam notas sem restrições e ignoram prazos — ver podeLancarNota para a decisão
+  // do cliente (2026-08-29) que abriu isto ao ADMIN.
+  const editable = session.user.role === "DAAC" || session.user.role === "ADMIN";
 
   return (
     <TurmaGradebook
