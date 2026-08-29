@@ -229,6 +229,16 @@ export async function createProvaAction(
       values: extrairValores(formData, CAMPOS_PROVA),
     };
   }
+  // Uma prova agenda-se para o futuro. Comparado ao DIA (não à hora): uma prova marcada para hoje
+  // é legítima — é a de amanhã em diante que interessa não excluir, e a de ontem que não faz
+  // sentido nenhum.
+  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  if (dataProva < hoje) {
+    return {
+      fieldErrors: { data: "Não é possível agendar uma prova para uma data que já passou." },
+      values: extrairValores(formData, CAMPOS_PROVA),
+    };
+  }
 
   // A cascata P1 → P2 → Exame → Recurso → Especial tem de ser respeitada na marcação, não só no
   // cálculo: um Exame marcado para antes do P2 nunca chegaria a ter uma frequência para combinar.

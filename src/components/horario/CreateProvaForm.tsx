@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { DateSelect } from "@/components/ui/DateSelect";
+import { DateSelectIntervalo } from "@/components/ui/DateSelectIntervalo";
 import { Button } from "@/components/ui/Button";
 import { createProvaAction, type CreateProvaState } from "@/actions/horario";
 import { EPOCA_LABEL, EPOCA_ORDEM } from "@/lib/avaliacao";
@@ -20,6 +20,12 @@ interface DisciplinaOption {
 
 interface CreateProvaFormProps {
   disciplinas: DisciplinaOption[];
+  /** Primeiro dia agendável: hoje, ou o início do ano letivo se ainda não começou. */
+  minIso: string;
+  /** Último dia agendável: o fim do ano letivo. */
+  maxIso: string;
+  /** Ano letivo a decorrer, ex. "2026/2027" — mostrado em vez de um campo de ano. */
+  anoLetivoLabel: string;
 }
 
 /**
@@ -34,7 +40,7 @@ function proximaEpocaAgendavel(agendadas: Epoca[]): Epoca | null {
   return EPOCA_ORDEM.find((epoca) => !agendadas.includes(epoca)) ?? null;
 }
 
-export function CreateProvaForm({ disciplinas }: CreateProvaFormProps) {
+export function CreateProvaForm({ disciplinas, minIso, maxIso, anoLetivoLabel }: CreateProvaFormProps) {
   const [state, formAction, isPending] = useActionState(createProvaAction, initialState);
   const [disciplinaId, setDisciplinaId] = useState(state.values?.turmaDisciplinaId ?? disciplinas[0]?.id ?? "");
 
@@ -69,12 +75,12 @@ export function CreateProvaForm({ disciplinas }: CreateProvaFormProps) {
           {proxima ? EPOCA_LABEL[proxima] : "Todas as épocas agendadas"}
         </div>
         {proxima ? <input type="hidden" name="epoca" value={proxima} /> : null}
-        <DateSelect
-          name="data"
-          minYear={new Date().getFullYear() - 1}
-          maxYear={new Date().getFullYear() + 2}
-          defaultValue={state.values?.data}
-        />
+        {/* O ano não se escolhe — é o do ano letivo a decorrer, decidido pelo sistema. Mostrar como
+            texto tira uma decisão errada de cima do utilizador em vez de a validar depois. */}
+        <div className="flex h-9 items-center rounded-lg border border-navy-100 bg-navy-50 px-3 text-xs font-medium text-navy-500">
+          {anoLetivoLabel}
+        </div>
+        <DateSelectIntervalo name="data" minIso={minIso} maxIso={maxIso} defaultValue={state.values?.data} />
         <Input name="sala" placeholder="Sala" required className="w-24 text-xs" defaultValue={state.values?.sala} />
         <Button type="submit" variant="ghost" className="text-xs" disabled={isPending || !proxima}>
           {isPending ? "A agendar..." : "Agendar"}

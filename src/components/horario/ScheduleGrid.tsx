@@ -35,9 +35,17 @@ interface ScheduleGridProps {
   view: "aulas" | "provas";
   editable: boolean;
   canPrint?: boolean;
+  /** Janela agendável das provas — só existe quando editable (ver JanelaAgendamento na página). */
+  janela?: { minIso: string; maxIso: string; anoLetivoLabel: string } | null;
 }
 
-export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint = true }: ScheduleGridProps) {
+export async function ScheduleGrid({
+  turmaDisciplinas,
+  view,
+  editable,
+  canPrint = true,
+  janela = null,
+}: ScheduleGridProps) {
   if (turmaDisciplinas.length === 0) {
     return <EmptyState message="Sem disciplinas para mostrar." />;
   }
@@ -116,13 +124,14 @@ export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint 
           </Card>
         )}
 
-        {editable ? (
+        {editable && janela ? (
           <Card>
             <CardBody>
               <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Agendar prova</p>
               <p className="mb-3 text-xs text-navy-400">
-                O prazo de lançamento de notas é calculado automaticamente a partir da data da prova, conforme os dias
-                configurados pelo DAAC em Configuração Académica.
+                Só datas de hoje em diante e dentro do ano letivo {janela.anoLetivoLabel}. O prazo de lançamento de
+                notas é calculado automaticamente a partir da data da prova, conforme os dias configurados pelo DAAC em
+                Configuração Académica.
               </p>
               <CreateProvaForm
                 disciplinas={turmaDisciplinas.map((td) => ({
@@ -132,6 +141,9 @@ export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint 
                   // em vez de deixar escolher um Exame sem P1/P2 e só falhar ao submeter.
                   epocasAgendadas: td.avaliacoes.map((av) => av.epoca),
                 }))}
+                minIso={janela.minIso}
+                maxIso={janela.maxIso}
+                anoLetivoLabel={janela.anoLetivoLabel}
               />
             </CardBody>
           </Card>

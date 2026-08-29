@@ -6,7 +6,7 @@ import { Select } from "@/components/ui/Select";
 import { Field } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/Table";
 import { ScheduleGrid, type TurmaDisciplinaComHorario } from "@/components/horario/ScheduleGrid";
-import { PERIODO_LABEL, formatAnoLetivo, parseIntParam } from "@/lib/utils";
+import { PERIODO_LABEL, formatAnoLetivo, parseIntParam, toIsoDate } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
 import { podeGerirCurriculo } from "@/lib/permissions";
@@ -175,6 +175,21 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   const turmaDisciplinasDoSemestre = turma?.turmaDisciplinas.filter((td) => td.semestre === semestre) ?? [];
   const editavel = podeGerirCurriculo(session.user) && semestre === semestreAtual;
 
+  // A janela agendável das provas: de hoje (nunca antes — não se marca uma prova para ontem) até ao
+  // fim do ano letivo. O ano não chega sequer a ser uma escolha do utilizador: sai daqui
+  // (§pedido do cliente 2026-08-29). O servidor revalida na mesma — isto evita o erro, não o
+  // substitui.
+  const inicioAnoLetivo = config?.anoLetivoInicio ?? null;
+  const fimAnoLetivo = config?.anoLetivoFim ?? null;
+  const janelaProvas =
+    editavel && inicioAnoLetivo && fimAnoLetivo
+      ? {
+          minIso: toIsoDate(agora > inicioAnoLetivo ? agora : inicioAnoLetivo),
+          maxIso: toIsoDate(fimAnoLetivo),
+          anoLetivoLabel: formatAnoLetivo(anoLetivo),
+        }
+      : null;
+
   return (
     <div className="flex flex-col gap-6">
       <HorarioHeader
@@ -253,7 +268,12 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
           {turmaDisciplinasDoSemestre.length === 0 ? (
             <EmptyState message={`Esta turma não tem disciplinas no ${semestre}º semestre do plano curricular.`} />
           ) : (
-            <ScheduleGrid turmaDisciplinas={turmaDisciplinasDoSemestre} view={view} editable={editavel} />
+            <ScheduleGrid
+              turmaDisciplinas={turmaDisciplinasDoSemestre}
+              view={view}
+              editable={editavel}
+              janela={janelaProvas}
+            />
           )}
         </>
       )}
