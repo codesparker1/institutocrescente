@@ -40,7 +40,11 @@ export default async function MinhasNotasPage() {
   // ligadas a uma Turma de um ano anterior ao ano curricular atual do aluno (§4.2). Inclui
   // tentativas inativas (histórico académico, Fase 8) — antes só a ativa era visível ao aluno,
   // e uma tentativa reprovada desaparecia assim que a repetição era criada.
-  const [aluno, inscricoes] = await Promise.all([
+  // As notas do aluno mostram-se SEMPRE todas, agrupadas por semestre em cartões separados: são o
+  // seu histórico académico, e esconder o 1º semestre quando o 2º começa tirava-lhe as notas que já
+  // tem. O semestre a decorrer fica assinalado, que é o que evita a confusão (§pedido do cliente
+  // 2026-08-29) sem esconder nada.
+  const [aluno, inscricoes, configAcademica] = await Promise.all([
     prisma.aluno.findUnique({ where: { id: session.user.alunoId }, select: { curso: true, anoCurricular: true } }),
     prisma.inscricaoCadeira.findMany({
       where: { alunoId: session.user.alunoId },
@@ -56,7 +60,9 @@ export default async function MinhasNotasPage() {
       },
       orderBy: [{ turmaDisciplina: { disciplina: { nome: "asc" } } }, { tentativa: "asc" }],
     }),
+    prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { semestreAtual: true } }),
   ]);
+  const semestreAtual = configAcademica?.semestreAtual === 2 ? 2 : 1;
 
   function calcularEstado(inscricao: (typeof inscricoes)[number]) {
     const notas = inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
@@ -158,7 +164,10 @@ export default async function MinhasNotasPage() {
                 const inscricoesSemestre = grupo.inscricoesPorSemestre.get(semestre)!;
                 return (
                   <Card key={semestre}>
-                    <CardHeader title={`${semestre}º Semestre`} subtitle={`${inscricoesSemestre.length} disciplina(s)`} />
+                    <CardHeader
+                      title={`${semestre}º Semestre${semestre === semestreAtual ? " · a decorrer" : ""}`}
+                      subtitle={`${inscricoesSemestre.length} disciplina(s)`}
+                    />
                     <Table>
                       <Thead>
                         <tr>

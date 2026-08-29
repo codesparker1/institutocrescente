@@ -29,6 +29,15 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
     ? { turmaDisciplinas: { some: { professorId } } }
     : {};
 
+  // A contagem de disciplinas é do semestre a decorrer, para bater certo com o que a página da
+  // turma mostra — que só lista esse semestre (§pedido do cliente 2026-08-29). Sem isto, a lista
+  // prometia "4 disciplinas" e a página seguinte abria com 2.
+  const config = await prisma.configuracaoAcademica.findUnique({
+    where: { id: "config" },
+    select: { semestreAtual: true },
+  });
+  const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
+
   // As opções dos filtros saem do que este utilizador pode mesmo ver, não do catálogo inteiro:
   // sem isto o professor teria no dropdown cursos e anos letivos sem uma única turma sua.
   const turmasVisiveis = await prisma.turma.findMany({
@@ -61,7 +70,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
       _count: {
         select: {
           matriculas: true,
-          turmaDisciplinas: professorId ? { where: { professorId } } : true,
+          turmaDisciplinas: { where: { semestre: semestreAtual, ...(professorId ? { professorId } : {}) } },
         },
       },
     },
@@ -158,7 +167,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
                   <Th>Ano</Th>
                   <Th>Período</Th>
                   <Th>Ano letivo</Th>
-                  <Th>Disciplinas</Th>
+                  <Th>Disciplinas ({semestreAtual}º sem.)</Th>
                   <Th>Alunos</Th>
                 </tr>
               </Thead>

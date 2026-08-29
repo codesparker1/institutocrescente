@@ -6,7 +6,9 @@ import { Select } from "@/components/ui/Select";
 import { Field } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/Table";
 import { ScheduleGrid, type TurmaDisciplinaComHorario } from "@/components/horario/ScheduleGrid";
-import { PERIODO_LABEL, parseIntParam } from "@/lib/utils";
+import { PERIODO_LABEL, formatAnoLetivo, parseIntParam } from "@/lib/utils";
+import { anoLetivoCorrente } from "@/lib/academico";
+import { getAgora } from "@/lib/tempo";
 import { podeGerirCurriculo } from "@/lib/permissions";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis } from "@/lib/avaliacao";
 
@@ -17,7 +19,7 @@ const TURMA_DISCIPLINA_INCLUDE = {
 } as const;
 
 interface HorarioPageProps {
-  searchParams: Promise<{ cursoId?: string; anoCurricular?: string; periodo?: string; view?: string }>;
+  searchParams: Promise<{ cursoId?: string; anoCurricular?: string; periodo?: string; semestre?: string; view?: string }>;
 }
 
 export default async function HorarioPage({ searchParams }: HorarioPageProps) {
@@ -88,31 +90,102 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
     );
   }
 
-  // ADMIN: escolher curso + ano + período primeiro.
-  const cursos = await prisma.curso.findMany({ orderBy: { nome: "asc" } });
-  const cursoId = params.cursoId ?? cursos[0]?.id ?? "";
-  const anoCurricular = parseIntParam(params.anoCurricular) ?? 1;
-  const periodo = params.periodo ?? "MATUTINO";
+  // ADMIN: escolher curso + ano + período primeiro. Só entram cursos que tenham pelo menos uma
+  // turma com alunos matriculados — marcar aulas ou provas numa turma vazia não serve para nada, e
+  // o ecrã enchia-se de combinações que nunca existiram (§pedido do cliente 2026-08-28).
+  const agora = await getAgora();
+  const config = await prisma.configuracaoAcademica.findUnique({
+    where: { id: "config" },
+    select: { semestreAtual: true, anoLetivoInicio: true, anoLetivoFim: true },
+  });
 
-  const turma = cursoId
-    ? await prisma.turma.findFirst({
-        where: { cursoId, anoCurricular, periodo: periodo as "MATUTINO" | "VESPERTINO" | "NOTURNO" },
-        include: { curso: true, turmaDisciplinas: { include: TURMA_DISCIPLINA_INCLUDE } },
-        orderBy: { anoLetivo: "desc" },
+  // O ano letivo é o âmbito de tudo o resto: um ano letivo contém dois semestres, e cada semestre
+  // o seu horário e as suas provas (§pedido do cliente 2026-08-28). Sem ele fixado, o ecrã caía no
+  // `orderBy: anoLetivo desc` e mostrava silenciosamente a turma do ano passado — deixando marcar
+  // provas num ano letivo já encerrado sem nada a assinalar.
+  const anoLetivo = anoLetivoCorrente(agora, config);
+  if (anoLetivo === null) {
+    return (
+      <div className="flex flex-col gap-6">
+        <HorarioHeader subtitle="Gerir horário de aulas e provas." view={view} baseQuery={{}} />
+        <EmptyState message="Não há ano letivo a decorrer. Defina as datas de início e fim do ano letivo em Admin → Académico → Configuração antes de marcar aulas ou provas." />
+      </div>
+    );
+  }
+
+  // Só entram cursos com turmas DESTE ano letivo e com alunos matriculados — marcar aulas ou provas
+  // numa turma vazia não serve para nada, e o ecrã enchia-se de combinações que nunca existiram.
+  const cursos = await prisma.curso.findMany({
+    where: { turmas: { some: { anoLetivo, matriculas: { some: {} } } } },
+    orderBy: { nome: "asc" },
+  });
+  const cursoId = cursos.some((c) => c.id === params.cursoId) ? params.cursoId! : (cursos[0]?.id ?? "");
+  const cursoSelecionado = cursos.find((c) => c.id === cursoId) ?? null;
+
+  // As turmas COM alunos deste curso definem o que o filtro pode oferecer — nem todos os anos do
+  // curso têm turma aberta, e o seletor mostrava sempre 1º a 6º Ano mesmo num curso de 4 anos.
+  const turmasComAlunos = cursoId
+    ? await prisma.turma.findMany({
+        where: { cursoId, anoLetivo, matriculas: { some: {} } },
+        select: { anoCurricular: true, periodo: true },
+        distinct: ["anoCurricular", "periodo"],
+        orderBy: [{ anoCurricular: "asc" }, { periodo: "asc" }],
       })
-    : null;
+    : [];
+
+  // Limitado à duração do curso mesmo que exista uma turma fora dela (dado antigo) — o seletor não
+  // deve ser a porta para continuar a criar horários num 5º ano de um curso de 4.
+  const duracao = cursoSelecionado?.duracaoAnos ?? 0;
+  const anosDisponiveis = [...new Set(turmasComAlunos.map((t) => t.anoCurricular))]
+    .filter((ano) => ano <= duracao)
+    .sort((a, b) => a - b);
+  const anoPedido = parseIntParam(params.anoCurricular);
+  const anoCurricular = anoPedido !== undefined && anosDisponiveis.includes(anoPedido) ? anoPedido : (anosDisponiveis[0] ?? 1);
+
+  const periodosDisponiveis = [
+    ...new Set(turmasComAlunos.filter((t) => t.anoCurricular === anoCurricular).map((t) => t.periodo)),
+  ];
+  const periodo =
+    params.periodo && (periodosDisponiveis as string[]).includes(params.periodo)
+      ? params.periodo
+      : (periodosDisponiveis[0] ?? "MATUTINO");
+
+  const turma =
+    cursoId && anosDisponiveis.length > 0
+      ? await prisma.turma.findFirst({
+          where: {
+            cursoId,
+            anoLetivo,
+            anoCurricular,
+            periodo: periodo as "MATUTINO" | "VESPERTINO" | "NOTURNO",
+            matriculas: { some: {} },
+          },
+          include: { curso: true, turmaDisciplinas: { include: TURMA_DISCIPLINA_INCLUDE } },
+        })
+      : null;
+
+  // A turma tem as disciplinas dos DOIS semestres (nascem todas do plano curricular ao criar a
+  // turma). O ecrã abre no semestre corrente, e o outro só se CONSULTA: o plano curricular do
+  // semestre seguinte ainda está sujeito a alterações, e essas alterações mudam a atribuição de
+  // cadeiras às turmas — um horário marcado adiantado ficaria preso a disciplinas que podem deixar
+  // de existir (§decisão do cliente 2026-08-29).
+  const semestrePedido = parseIntParam(params.semestre);
+  const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
+  const semestre = semestrePedido === 1 || semestrePedido === 2 ? semestrePedido : semestreAtual;
+  const turmaDisciplinasDoSemestre = turma?.turmaDisciplinas.filter((td) => td.semestre === semestre) ?? [];
+  const editavel = podeGerirCurriculo(session.user) && semestre === semestreAtual;
 
   return (
     <div className="flex flex-col gap-6">
       <HorarioHeader
-        subtitle="Gerir horário de aulas e provas."
+        subtitle={`Ano letivo ${formatAnoLetivo(anoLetivo)} · ${semestre}º Semestre — o horário e as provas pertencem a este semestre.`}
         view={view}
-        baseQuery={{ cursoId, anoCurricular: String(anoCurricular), periodo }}
+        baseQuery={{ cursoId, anoCurricular: String(anoCurricular), periodo, semestre: String(semestre) }}
       />
 
       <Card>
         <CardBody>
-          <form className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end">
+          <form className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
             <Field label="Curso" htmlFor="cursoId">
               <Select id="cursoId" name="cursoId" defaultValue={cursoId}>
                 {cursos.map((curso) => (
@@ -124,7 +197,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
             </Field>
             <Field label="Ano curricular" htmlFor="anoCurricular">
               <Select id="anoCurricular" name="anoCurricular" defaultValue={String(anoCurricular)}>
-                {[1, 2, 3, 4, 5, 6].map((ano) => (
+                {anosDisponiveis.map((ano) => (
                   <option key={ano} value={ano}>
                     {ano}º Ano
                   </option>
@@ -133,9 +206,17 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
             </Field>
             <Field label="Período" htmlFor="periodo">
               <Select id="periodo" name="periodo" defaultValue={periodo}>
-                <option value="MATUTINO">Matutino</option>
-                <option value="VESPERTINO">Vespertino</option>
-                <option value="NOTURNO">Noturno</option>
+                {periodosDisponiveis.map((p) => (
+                  <option key={p} value={p}>
+                    {PERIODO_LABEL[p]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Semestre" htmlFor="semestre">
+              <Select id="semestre" name="semestre" defaultValue={String(semestre)}>
+                <option value="1">1º Semestre{config?.semestreAtual !== 2 ? " (atual)" : ""}</option>
+                <option value="2">2º Semestre{config?.semestreAtual === 2 ? " (atual)" : ""}</option>
               </Select>
             </Field>
             <input type="hidden" name="view" value={view} />
@@ -150,13 +231,30 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       </Card>
 
       {!turma ? (
-        <EmptyState message="Nenhuma turma encontrada para este curso, ano e período. Crie-a em Admin → Turmas." />
+        <EmptyState
+          message={
+            cursos.length === 0
+              ? "Ainda não há turmas com alunos matriculados. Matricule alunos em Alunos → Novo antes de marcar aulas ou provas."
+              : "Nenhuma turma com alunos para este curso, ano e período. Só se marcam aulas e provas em turmas que tenham alunos."
+          }
+        />
       ) : (
         <>
           <p className="text-sm font-medium text-navy-700">
-            {turma.curso.nome} · {turma.anoCurricular}º Ano · {PERIODO_LABEL[turma.periodo]}
+            {turma.curso.nome} · {turma.anoCurricular}º Ano · {PERIODO_LABEL[turma.periodo]} · {semestre}º Semestre
           </p>
-          <ScheduleGrid turmaDisciplinas={turma.turmaDisciplinas} view={view} editable={podeGerirCurriculo(session.user)} />
+          {semestre !== semestreAtual ? (
+            <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-2.5 text-xs text-gold-800">
+              Está a consultar o {semestre}º semestre, que ainda não começou — só leitura. O plano curricular deste
+              semestre pode ainda mudar, e com ele as disciplinas atribuídas às turmas. Marque o horário e as provas
+              quando o semestre estiver a decorrer.
+            </p>
+          ) : null}
+          {turmaDisciplinasDoSemestre.length === 0 ? (
+            <EmptyState message={`Esta turma não tem disciplinas no ${semestre}º semestre do plano curricular.`} />
+          ) : (
+            <ScheduleGrid turmaDisciplinas={turmaDisciplinasDoSemestre} view={view} editable={editavel} />
+          )}
         </>
       )}
     </div>
