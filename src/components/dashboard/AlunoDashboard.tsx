@@ -9,6 +9,7 @@ import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
 import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatDate, nomeProfessor } from "@/lib/utils";
+import { anoLetivoCorrente } from "@/lib/academico";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
@@ -66,6 +67,8 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   const agora = await getAgora();
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
+  // Do intervalo configurado, não do ano civil — ver nota em anoLetivoCorrente.
+  const anoLetivo = anoLetivoCorrente(agora, config);
 
   const proximasAulas = todasDisciplinas
     .flatMap((td) => td.horarioSlots.map((slot) => ({ ...slot, disciplinaNome: td.disciplina.nome })))
@@ -121,7 +124,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           // ano letivo/semestre correntes, que sugeririam um estado enganador (regra confirmada).
           trancado
             ? { label: "Matrícula", value: "Sem matrícula ativa" }
-            : { label: "Ano Letivo", value: formatAnoLetivo(agora.getFullYear()) },
+            : { label: "Ano Letivo", value: anoLetivo !== null ? formatAnoLetivo(anoLetivo) : "Por definir" },
           ...(trancado ? [] : [{ label: "Semestre", value: `${semestreAtual}º Semestre` }]),
         ]}
       />

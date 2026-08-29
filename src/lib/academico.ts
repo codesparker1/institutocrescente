@@ -41,3 +41,33 @@ export function decidirRematricula(input: DecisaoRematriculaInput): DecisaoRemat
 export function cadeirasARepetir<T>(reprovadas: T[], aprovadasOuDispensadas: T[], regraRetencao: RegraRetencao): T[] {
   return regraRetencao === "ANO_INTEIRO" ? [...reprovadas, ...aprovadasOuDispensadas] : reprovadas;
 }
+
+/**
+ * O ano letivo corrente, derivado da fronteira que o DAAC configura (anoLetivoInicio/anoLetivoFim) —
+ * não de `agora.getFullYear()`, que muda a meio do ano letivo: em Fevereiro de 2027, o ano letivo
+ * ainda e 2026/2027, mas o ano civil ja e 2027.
+ *
+ * Devolvido como o ano civil de INICIO (2026 = "2026/2027"), a mesma convencao de Turma.anoLetivo,
+ * para poderem ser comparados diretamente.
+ *
+ * Fora do intervalo configurado (ferias entre anos letivos, ou config por preencher) devolve null:
+ * o chamador decide se recusa a operacao ou se recorre ao ano civil. Preferir null a adivinhar —
+ * era isso que deixava marcar provas na turma do ano passado sem ninguem reparar.
+ */
+export function anoLetivoCorrente(
+  agora: Date,
+  config: { anoLetivoInicio: Date | null; anoLetivoFim: Date | null } | null,
+): number | null {
+  if (!config?.anoLetivoInicio || !config.anoLetivoFim) return null;
+  if (agora < config.anoLetivoInicio || agora > config.anoLetivoFim) return null;
+  return config.anoLetivoInicio.getFullYear();
+}
+
+/** A data cai dentro do ano letivo configurado? Usado para recusar provas agendadas fora dele. */
+export function dentroDoAnoLetivo(
+  data: Date,
+  config: { anoLetivoInicio: Date | null; anoLetivoFim: Date | null } | null,
+): boolean {
+  if (!config?.anoLetivoInicio || !config.anoLetivoFim) return true;
+  return data >= config.anoLetivoInicio && data <= config.anoLetivoFim;
+}

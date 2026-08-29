@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
 import { DIA_SEMANA_LABEL, diasAteProximo, formatAnoLetivo, formatDate } from "@/lib/utils";
+import { anoLetivoCorrente } from "@/lib/academico";
 import { EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
@@ -27,11 +28,17 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
   // disciplinas do semestre que o DAAC ainda não abriu — inconsistente com o que a lista mostra.
   const agora = await getAgora();
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
-  const anoAtual = agora.getFullYear();
+  // Do intervalo configurado, NÃO de agora.getFullYear(): a meio do ano letivo o ano civil vira
+  // (Fevereiro de 2027 ainda é 2026/2027) e o professor deixava de ver TODAS as suas disciplinas,
+  // com o painel a ficar vazio sem dizer porquê.
+  const anoLetivo = anoLetivoCorrente(agora, config);
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
 
   const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
-    where: { professorId, turma: { anoLetivo: anoAtual }, semestre: semestreAtual },
+    where:
+      anoLetivo === null
+        ? { id: "" } // fora de um ano letivo não há nada a decorrer — a mensagem explica-o abaixo
+        : { professorId, turma: { anoLetivo }, semestre: semestreAtual },
     include: {
       disciplina: true,
       horarioSlots: true,
@@ -70,10 +77,24 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
         campos={[
           { label: "Especialidade", value: professor.especialidade },
           { label: "Email", value: professor.email },
-          { label: "Ano Letivo", value: formatAnoLetivo(anoAtual) },
+          { label: "Ano Letivo", value: anoLetivo !== null ? formatAnoLetivo(anoLetivo) : "Sem ano letivo a decorrer" },
           { label: "Semestre", value: `${semestreAtual}º Semestre` },
         ]}
       />
+
+      {/* Um ecrã vazio sem explicação faz o professor pensar que o sistema está avariado. Estas
+          mensagens dizem-lhe o que se passa e a quem falar — não o deixam a adivinhar. */}
+      {anoLetivo === null ? (
+        <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-3 text-sm text-gold-800">
+          Não há nenhum ano letivo a decorrer neste momento, por isso não aparecem disciplinas nem aulas. Isto é normal
+          entre anos letivos. Se acha que é engano, fale com o DAAC.
+        </p>
+      ) : turmaDisciplinas.length === 0 ? (
+        <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-3 text-sm text-gold-800">
+          Ainda não tem disciplinas atribuídas no {semestreAtual}º semestre de {formatAnoLetivo(anoLetivo)}. É o DAAC
+          que faz essa atribuição — fale com o DAAC se estiver à espera de leccionar este semestre.
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Disciplinas" value={turmaDisciplinas.length} icon={<GraduationCap size={20} />} />
@@ -116,7 +137,13 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
             }
           />
           {proximasAulas.length === 0 ? (
-            <EmptyState message="Sem aulas agendadas." />
+            <EmptyState
+              message={
+                turmaDisciplinas.length === 0
+                  ? "Sem disciplinas atribuídas neste semestre."
+                  : "As suas disciplinas ainda não têm horário marcado. É o DAAC que o define."
+              }
+            />
           ) : (
             <CardBody className="flex flex-col gap-2">
               {proximasAulas.map((slot) => (
@@ -136,7 +163,13 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
         <Card>
           <CardHeader title="Próximas provas" />
           {proximasProvas.length === 0 ? (
-            <EmptyState message="Sem provas agendadas." />
+            <EmptyState
+              message={
+                turmaDisciplinas.length === 0
+                  ? "Sem disciplinas atribuídas neste semestre."
+                  : "Nenhuma prova por realizar. O DAAC agenda as provas em Horário e Provas."
+              }
+            />
           ) : (
             <CardBody className="flex flex-col gap-2">
               {proximasProvas.map((prova) => (

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { ProfileCard } from "./ProfileCard";
 import { SecretariaAlunoSearchPanel } from "@/components/financeiro/SecretariaAlunoSearchPanel";
 import { formatAnoLetivo, formatCurrency } from "@/lib/utils";
+import { anoLetivoCorrente } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
 import { getListaDevedores } from "@/lib/financeiro";
 import { prisma } from "@/lib/prisma";
@@ -18,11 +19,16 @@ export async function SecretariaDashboard({ nome, email }: SecretariaDashboardPr
   const [devedores, cursos, config, agora] = await Promise.all([
     getListaDevedores(),
     prisma.curso.findMany({ orderBy: { nome: "asc" }, select: { nome: true } }),
-    prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { semestreAtual: true } }),
+    prisma.configuracaoAcademica.findUnique({
+      where: { id: "config" },
+      select: { semestreAtual: true, anoLetivoInicio: true, anoLetivoFim: true },
+    }),
     getAgora(),
   ]);
   const valorTotalEmDivida = devedores.reduce((soma, d) => soma + d.valorEmDivida, 0);
   const semestreAtual = config?.semestreAtual ?? 1;
+  // Do intervalo configurado, não do ano civil — ver nota em anoLetivoCorrente.
+  const anoLetivo = anoLetivoCorrente(agora, config);
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,7 +42,7 @@ export async function SecretariaDashboard({ nome, email }: SecretariaDashboardPr
         cargo="Secretaria"
         campos={[
           { label: "Email", value: email },
-          { label: "Ano Letivo", value: formatAnoLetivo(agora.getFullYear()) },
+          { label: "Ano Letivo", value: anoLetivo !== null ? formatAnoLetivo(anoLetivo) : "Por definir" },
           { label: "Semestre", value: `${semestreAtual}º Semestre` },
         ]}
       />

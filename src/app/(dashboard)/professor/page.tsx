@@ -6,6 +6,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { PERIODO_LABEL, formatAnoLetivo } from "@/lib/utils";
+import { anoLetivoCorrente } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
 
 export default async function ProfessorDisciplinasPage() {
@@ -19,15 +20,20 @@ export default async function ProfessorDisciplinasPage() {
   // torna-se histórico/futuro, consultável pelo DAAC/Admin/Secretaria, não trabalho do dia a dia
   // do professor.
   const agora = await getAgora();
-  const anoAtual = agora.getFullYear();
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  // Do intervalo configurado, não do ano civil: a meio do ano letivo o ano civil vira e a lista
+  // ficava vazia, como se o professor não leccionasse nada.
+  const anoLetivo = anoLetivoCorrente(agora, config);
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
   // "Alunos" tem de contar o roster real da disciplina (InscricaoCadeira ativa, §4.2) — não
   // turma._count.matriculas, que só conta quem está matriculado NESTA turma/coorte. Um repetente
   // aparece na pauta desta disciplina através de InscricaoCadeira mesmo com a Matricula noutra
   // turma (ano diferente), e ficava de fora desta contagem.
   const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
-    where: { professorId: session.user.professorId, turma: { anoLetivo: anoAtual }, semestre: semestreAtual },
+    where:
+      anoLetivo === null
+        ? { id: "" } // sem ano letivo a decorrer não há trabalho do dia a dia — explicado no ecrã
+        : { professorId: session.user.professorId, turma: { anoLetivo }, semestre: semestreAtual },
     include: { disciplina: true, turma: { include: { curso: true } }, _count: { select: { inscricoes: { where: { ativa: true } } } } },
     orderBy: [{ turma: { anoCurricular: "asc" } }, { disciplina: { nome: "asc" } }],
   });
@@ -42,10 +48,20 @@ export default async function ProfessorDisciplinasPage() {
       <Card>
         <CardHeader
           title="Disciplinas atribuídas"
-          subtitle={`${turmaDisciplinas.length} disciplina(s) · Ano letivo ${formatAnoLetivo(anoAtual)} · ${semestreAtual}º Semestre`}
+          subtitle={
+            anoLetivo !== null
+              ? `${turmaDisciplinas.length} disciplina(s) · Ano letivo ${formatAnoLetivo(anoLetivo)} · ${semestreAtual}º Semestre`
+              : "Sem ano letivo a decorrer"
+          }
         />
         {turmaDisciplinas.length === 0 ? (
-          <EmptyState message="Nenhuma disciplina atribuída neste semestre." />
+          <EmptyState
+            message={
+              anoLetivo === null
+                ? "Não há nenhum ano letivo a decorrer. Isto é normal entre anos letivos — se achar que é engano, fale com o DAAC."
+                : `Ainda não tem disciplinas atribuídas no ${semestreAtual}º semestre. É o DAAC que faz a atribuição — fale com o DAAC se está à espera de leccionar.`
+            }
+          />
         ) : (
           <Table>
             <Thead>
