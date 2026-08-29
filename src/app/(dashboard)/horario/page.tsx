@@ -48,10 +48,15 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       subtitle = "Horário das suas disciplinas.";
     } else {
       if (!session.user.alunoId) redirect("/dashboard");
+      const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { semestreAtual: true } });
+      const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
       // Por InscricaoCadeira, não pela Matricula — um repetente frequenta cadeiras cujas
       // TurmaDisciplina pertencem a uma Turma de ano diferente da sua matrícula atual (§4.2).
+      // Filtrado ao semestre corrente (§pedido do cliente 2026-08-29): sem isto, o aluno via as
+      // disciplinas do 1º e do 2º semestre juntas no mesmo horário e na mesma contagem, mesmo só
+      // devendo assistir às do semestre a decorrer.
       const inscricoes = await prisma.inscricaoCadeira.findMany({
-        where: { alunoId: session.user.alunoId, ativa: true },
+        where: { alunoId: session.user.alunoId, ativa: true, turmaDisciplina: { semestre: semestreAtual } },
         include: {
           turmaDisciplina: { include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } } },
           notas: { include: { avaliacao: true } },
@@ -78,8 +83,8 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       const repetidas = turmaDisciplinas.filter((td) => td.emRepeticao).length;
       subtitle =
         repetidas > 0
-          ? `O seu horário de aulas e provas — ${repetidas} cadeira(s) em repetição, mostradas em separado.`
-          : "O seu horário de aulas e provas.";
+          ? `${semestreAtual}º Semestre — ${repetidas} cadeira(s) em repetição, mostradas em separado.`
+          : `${semestreAtual}º Semestre.`;
     }
 
     return (

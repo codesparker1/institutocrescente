@@ -26,9 +26,18 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     return <EmptyState message="Aluno não encontrado." />;
   }
 
+  const agora = await getAgora();
+  const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
+  // Do intervalo configurado, não do ano civil — ver nota em anoLetivoCorrente.
+  const anoLetivo = anoLetivoCorrente(agora, config);
+
   // Por InscricaoCadeira, não por Matricula — cobre cadeiras repetidas noutra Turma (§4.2).
+  // Filtrado ao semestre corrente (§pedido do cliente 2026-08-29): "Disciplinas ativas" e "Próximas
+  // aulas" contavam as do 1º e do 2º semestre juntas, mostrando por exemplo "2 disciplinas ativas"
+  // durante o 1º semestre quando só uma estava mesmo a decorrer.
   const inscricoes = await prisma.inscricaoCadeira.findMany({
-    where: { alunoId, ativa: true },
+    where: { alunoId, ativa: true, turmaDisciplina: { semestre: semestreAtual } },
     include: {
       turmaDisciplina: {
         include: {
@@ -64,11 +73,6 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   const percentualPresenca = todasFrequencias.length > 0 ? Math.round((presencas / todasFrequencias.length) * 100) : null;
 
   const todasDisciplinas = inscricoes.map((i) => i.turmaDisciplina);
-  const agora = await getAgora();
-  const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
-  const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
-  // Do intervalo configurado, não do ano civil — ver nota em anoLetivoCorrente.
-  const anoLetivo = anoLetivoCorrente(agora, config);
 
   const proximasAulas = todasDisciplinas
     .flatMap((td) => td.horarioSlots.map((slot) => ({ ...slot, disciplinaNome: td.disciplina.nome })))
@@ -136,7 +140,11 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           icon={<TrendingUp size={20} />}
         />
         <StatCard label="Assiduidade" value={percentualPresenca !== null ? `${percentualPresenca}%` : "—"} icon={<ClipboardCheck size={20} />} />
-        <StatCard label="Disciplinas ativas" value={todasDisciplinas.length} icon={<GraduationCap size={20} />} />
+        <StatCard
+          label={`Disciplinas ativas (${semestreAtual}º sem.)`}
+          value={todasDisciplinas.length}
+          icon={<GraduationCap size={20} />}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
