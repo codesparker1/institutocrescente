@@ -63,6 +63,31 @@ export function anoLetivoCorrente(
   return config.anoLetivoInicio.getFullYear();
 }
 
+/**
+ * As datas do ano letivo seguinte: as mesmas, um ano à frente. Um ano letivo que ia de 1/Set/2026 a
+ * 31/Jul/2027 passa a 1/Set/2027 – 31/Jul/2028.
+ *
+ * Existe porque, sem isto, quando o ano letivo acabava a configuração continuava a apontar para o
+ * ano velho: anoLetivoCorrente devolvia null, o Horário bloqueava e o sistema ficava parado até
+ * alguém ir mexer nas datas à mão — logo no momento em que as matrículas abrem e é preciso marcar
+ * os horários. O DAAC corrige depois se as datas reais forem outras; o que não pode é o sistema
+ * ficar de rastos à espera disso.
+ *
+ * O dia é preservado tal como está: 29/Fev daria 1/Mar no ano seguinte (o Date normaliza), e é o
+ * comportamento certo — nenhum ano letivo começa a 29 de Fevereiro por acaso, e forçar 28 seria
+ * inventar.
+ */
+export function datasDoAnoLetivoSeguinte(config: {
+  anoLetivoInicio: Date;
+  anoLetivoFim: Date;
+}): { anoLetivoInicio: Date; anoLetivoFim: Date } {
+  const maisUmAno = (d: Date) => new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
+  return {
+    anoLetivoInicio: maisUmAno(config.anoLetivoInicio),
+    anoLetivoFim: maisUmAno(config.anoLetivoFim),
+  };
+}
+
 /** A data cai dentro do ano letivo configurado? Usado para recusar provas agendadas fora dele. */
 export function dentroDoAnoLetivo(
   data: Date,

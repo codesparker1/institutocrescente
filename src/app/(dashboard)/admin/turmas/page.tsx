@@ -50,7 +50,8 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
         <h1 className="text-xl font-bold text-navy-900">Turmas</h1>
         <p className="text-sm text-navy-400">
           Gestão académica — uma turma é uma coorte: Curso + Ano curricular + Período. As disciplinas são atribuídas dentro de cada turma.
-          Ao fim do ano letivo, a turma do ano seguinte é criada automaticamente (mesma grelha de disciplinas/professores) — a antiga fica como histórico.
+          Ao fim do ano letivo, a turma do ano seguinte é criada automaticamente com as mesmas disciplinas, mas <strong>sem professor e sem sala</strong> —
+          essas atribuem-se de novo no início de cada ano. A turma antiga fica como histórico.
         </p>
       </div>
 

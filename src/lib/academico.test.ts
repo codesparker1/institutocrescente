@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo } from "./academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte } from "./academico";
 
 test("reprovações dentro do limite avança de ano", () => {
   const r = decidirRematricula({ reprovacoes: 2, limiteReprovacoes: 2, anoCurricular: 1 });
@@ -65,4 +65,27 @@ test("dentroDoAnoLetivo: recusa datas fora, aceita as fronteiras", () => {
 test("dentroDoAnoLetivo: sem configuracao nao bloqueia nada", () => {
   // Config por preencher nao pode impedir o DAAC de trabalhar — a fronteira e opcional no schema.
   assert.equal(dentroDoAnoLetivo(new Date(2030, 0, 1), null), true);
+});
+
+test("datasDoAnoLetivoSeguinte: as mesmas datas, um ano a frente", () => {
+  // Sem isto, quando o ano letivo acabava a configuracao continuava a apontar para o ano velho:
+  // anoLetivoCorrente devolvia null e o Horario bloqueava, exatamente quando as matriculas abrem.
+  const seguinte = datasDoAnoLetivoSeguinte({
+    anoLetivoInicio: new Date(2026, 8, 1),
+    anoLetivoFim: new Date(2027, 6, 31),
+  });
+  assert.equal(seguinte.anoLetivoInicio.getFullYear(), 2027);
+  assert.equal(seguinte.anoLetivoInicio.getMonth(), 8, "continua Setembro");
+  assert.equal(seguinte.anoLetivoInicio.getDate(), 1, "continua dia 1");
+  assert.equal(seguinte.anoLetivoFim.getFullYear(), 2028);
+  assert.equal(seguinte.anoLetivoFim.getMonth(), 6, "continua Julho");
+  assert.equal(seguinte.anoLetivoFim.getDate(), 31, "continua dia 31");
+});
+
+test("datasDoAnoLetivoSeguinte: o intervalo novo e reconhecido por anoLetivoCorrente", () => {
+  // A propriedade que interessa: depois do rollover o sistema volta a ter um ano letivo a decorrer.
+  const antigo = { anoLetivoInicio: new Date(2026, 8, 1), anoLetivoFim: new Date(2027, 6, 31) };
+  const novo = datasDoAnoLetivoSeguinte(antigo);
+  assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), novo), 2027, "Outubro de 2027 cai no ano novo");
+  assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), antigo), null, "e nao no antigo");
 });

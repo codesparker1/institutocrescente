@@ -6,6 +6,7 @@ import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import type { Periodo, Prisma } from "@/generated/prisma/client";
 type Decimal = Prisma.Decimal;
 import { SALA_A_CONFIRMAR } from "@/lib/utils";
+import { datasDoAnoLetivoSeguinte } from "@/lib/academico";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -343,7 +344,8 @@ function inicioDoDia(data: Date): Date {
  */
 export async function garantirSuspensaoAutomatica(): Promise<void> {
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
-  if (!config?.anoLetivoFim) return;
+  // Ambas as datas: o ano novo e as datas novas derivam-se do intervalo antigo, não do calendário.
+  if (!config?.anoLetivoFim || !config.anoLetivoInicio) return;
 
   const agora = await getAgora();
   if (agora <= config.anoLetivoFim) return;
@@ -360,9 +362,24 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   });
   if (reclamado.count === 0) return;
 
+  // O ano novo é o que acabou + 1, lido da configuração — não o ano civil de hoje. Ver nota em
+  // rolloverTurmas: o job corre no primeiro acesso depois do fim do ano letivo, e essa data pode
+  // cair em qualquer altura do ano civil.
+  // Fixados fora do closure: dentro de after() o TypeScript já não vê o guarda de null acima.
+  const { anoLetivoInicio, anoLetivoFim } = config;
+  const anoLetivoNovo = anoLetivoInicio.getFullYear() + 1;
+
   after(async () => {
-    await rolloverTurmas(agora);
-    await suspenderNaoRematriculados(agora, config.semestreAtual);
+    await rolloverTurmas(anoLetivoNovo);
+    await suspenderNaoRematriculados(anoLetivoNovo, config.semestreAtual);
+    // Sem avançar as datas, a configuração continuava a apontar para o ano que acabou:
+    // anoLetivoCorrente devolvia null, o Horário bloqueava e o sistema ficava parado à espera que
+    // alguém fosse mexer nas datas — precisamente quando as matrículas abrem e é preciso marcar os
+    // horários. O DAAC ajusta depois se as datas reais do ano novo forem outras.
+    await prisma.configuracaoAcademica.update({
+      where: { id: "config" },
+      data: datasDoAnoLetivoSeguinte({ anoLetivoInicio, anoLetivoFim }),
+    });
   });
 }
 
@@ -372,14 +389,23 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
  * de turmas atualiza automaticamente, a antiga fica só como histórico"). Sem isto,
  * processarRematriculaAction rejeitava toda rematrícula com "crie a turma primeiro em Admin >
  * Turmas" — alguém tinha de pré-criar cada combinação à mão antes da época de rematrícula.
- * Copia também as TurmaDisciplina (disciplina/professor/sala) da turma antiga — decisão do
- * cliente: nasce com a mesma grelha do ano anterior, o DAAC só corrige o que mudou, em vez de
- * montar tudo de novo. A turma antiga nunca é tocada — fica exatamente como histórico.
+ *
+ * Copia as disciplinas, mas NÃO o professor nem a sala (§decisão do cliente 2026-08-29): quem
+ * lecciona o quê, e onde, decide-se no início de cada ano, e um professor herdado do ano anterior é
+ * uma informação que parece verdadeira e pode não ser — pior do que estar vazia, porque ninguém a
+ * revê. Vazio força a decisão consciente, e o cartão "A precisar de atenção" no painel conta
+ * quantas faltam. O horário também não é copiado (nunca foi): marca-se de novo a cada ano.
+ *
+ * `anoLetivoNovo` vem da configuração (ano que acabou + 1), NÃO de agora.getFullYear(): o job corre
+ * no primeiro acesso depois do fim do ano letivo, que pode cair em qualquer altura do ano civil, e
+ * com o ano errado ou criava turmas duplicadas (engolidas pelo catch, ficando o ano novo sem
+ * nenhuma) ou trancava os alunos errados.
+ *
+ * A turma antiga nunca é tocada — fica exatamente como histórico.
  */
-async function rolloverTurmas(agora: Date): Promise<void> {
-  const anoLetivoCorrente = agora.getFullYear();
+async function rolloverTurmas(anoLetivoNovo: number): Promise<void> {
   const turmasAnoAnterior = await prisma.turma.findMany({
-    where: { anoLetivo: anoLetivoCorrente - 1 },
+    where: { anoLetivo: anoLetivoNovo - 1 },
     include: { turmaDisciplinas: true },
   });
 
@@ -391,7 +417,7 @@ async function rolloverTurmas(agora: Date): Promise<void> {
           cursoId: turmaAntiga.cursoId,
           anoCurricular: turmaAntiga.anoCurricular,
           periodo: turmaAntiga.periodo,
-          anoLetivo: anoLetivoCorrente,
+          anoLetivo: anoLetivoNovo,
         },
       });
     } catch (error) {
@@ -404,7 +430,7 @@ async function rolloverTurmas(agora: Date): Promise<void> {
             cursoId: turmaAntiga.cursoId,
             anoCurricular: turmaAntiga.anoCurricular,
             periodo: turmaAntiga.periodo,
-            anoLetivo: anoLetivoCorrente,
+            anoLetivo: anoLetivoNovo,
           },
         },
       });
@@ -418,9 +444,10 @@ async function rolloverTurmas(agora: Date): Promise<void> {
           turmaId: turmaNova.id,
           disciplinaId: td.disciplinaId,
           cadeiraCurricularId: td.cadeiraCurricularId,
-          professorId: td.professorId,
+          // professorId e sala ficam por preencher de propósito — ver nota no cabeçalho.
+          professorId: null,
           semestre: td.semestre,
-          sala: td.sala,
+          sala: SALA_A_CONFIRMAR,
         })),
         skipDuplicates: true,
       });
@@ -434,7 +461,7 @@ async function rolloverTurmas(agora: Date): Promise<void> {
  * é da mesma família de custo pesado-no-dia-da-virada que causava contenção no pool de ligações
  * sob os picos de tráfego da simulação de ano caótico.
  */
-async function suspenderNaoRematriculados(agora: Date, semestreAtual: number): Promise<void> {
+async function suspenderNaoRematriculados(anoLetivoNovo: number, semestreAtual: number): Promise<void> {
   // Passado o fim do ano letivo, um novo ano letivo começa — o semestre volta sempre a 1º, para o
   // DAAC não ter de se lembrar de o repor manualmente todos os anos. Incondicional (não depende de
   // haver alunos a suspender) e idempotente, porque este job corre uma vez por dia civil enquanto
@@ -443,7 +470,6 @@ async function suspenderNaoRematriculados(agora: Date, semestreAtual: number): P
     await prisma.configuracaoAcademica.update({ where: { id: "config" }, data: { semestreAtual: 1 } });
   }
 
-  const anoLetivoCorrente = agora.getFullYear();
   // §Opção A (2026-08-24): só ATIVO é suspendível. FORMADO fica de fora de propósito — quem
   // terminou o curso (processarRematriculaAction marca FORMADO no fim-de-curso) não "trancou",
   // terminou; TRANCADO/DESISTENTE já estão fora do ciclo de matrículas.
@@ -461,7 +487,7 @@ async function suspenderNaoRematriculados(agora: Date, semestreAtual: number): P
 
   const aSuspender = alunosAtivos.filter((a) => {
     const ultimaMatricula = a.matriculas[0];
-    return ultimaMatricula && ultimaMatricula.turma.anoLetivo < anoLetivoCorrente;
+    return ultimaMatricula && ultimaMatricula.turma.anoLetivo < anoLetivoNovo;
   });
   if (aSuspender.length === 0) return;
 
