@@ -125,7 +125,13 @@ export async function ScheduleGrid({ turmaDisciplinas, view, editable, canPrint 
                 configurados pelo DAAC em Configuração Académica.
               </p>
               <CreateProvaForm
-                disciplinas={turmaDisciplinas.map((td) => ({ id: td.id, nome: td.disciplina.nome }))}
+                disciplinas={turmaDisciplinas.map((td) => ({
+                  id: td.id,
+                  nome: td.disciplina.nome,
+                  // Épocas já marcadas: o formulário usa-as para só oferecer a próxima da cascata,
+                  // em vez de deixar escolher um Exame sem P1/P2 e só falhar ao submeter.
+                  epocasAgendadas: td.avaliacoes.map((av) => av.epoca),
+                }))}
               />
             </CardBody>
           </Card>

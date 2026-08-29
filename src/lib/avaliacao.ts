@@ -71,6 +71,39 @@ export function motivoLancamentoFechado(
   return null;
 }
 
+/** Porque é que uma época não pode ser agendada agora — ou null se puder. */
+export type MotivoAgendamentoInvalido =
+  | { tipo: "JA_AGENDADA" }
+  | { tipo: "FALTA_ANTERIOR"; anterior: Epoca }
+  | { tipo: "ANTES_DA_ANTERIOR"; anterior: Epoca; dataAnterior: Date };
+
+/**
+ * A ordem das épocas não é decorativa: P2 depois de P1, Exame depois das duas, Recurso depois do
+ * Exame, Especial depois do Recurso — é a mesma cascata que calcularNotaFinal percorre. Agendar um
+ * P2 sem P1, ou um Exame para antes do P2, produzia uma turma cuja pauta nunca podia fechar
+ * (§pedido do cliente 2026-08-28: "podes marcar P2 mesmo não tendo P1").
+ *
+ * Só valida a ordem entre épocas — a data em si (dentro do ano letivo, dia útil) é outro assunto.
+ * Recebe as avaliações JÁ existentes desta TurmaDisciplina; devolve null quando o agendamento é
+ * coerente.
+ */
+export function motivoAgendamentoInvalido(
+  epoca: Epoca,
+  data: Date,
+  existentes: { epoca: Epoca; data: Date }[],
+): MotivoAgendamentoInvalido | null {
+  const porEpoca = new Map(existentes.map((a) => [a.epoca, a.data]));
+  if (porEpoca.has(epoca)) return { tipo: "JA_AGENDADA" };
+
+  const indice = EPOCA_ORDEM.indexOf(epoca);
+  if (indice <= 0) return null;
+  const anterior = EPOCA_ORDEM[indice - 1];
+  const dataAnterior = porEpoca.get(anterior);
+  if (!dataAnterior) return { tipo: "FALTA_ANTERIOR", anterior };
+  if (data < dataAnterior) return { tipo: "ANTES_DA_ANTERIOR", anterior, dataAnterior };
+  return null;
+}
+
 export type EstadoAvaliacao =
   | "EM_CURSO"
   | "DISPENSADO"

@@ -7,9 +7,11 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, type SessionComUser } from "@/lib/permissions";
-import { EPOCA_LABEL, diasPrazoParaEpoca } from "@/lib/avaliacao";
+import { EPOCA_LABEL, diasPrazoParaEpoca, motivoAgendamentoInvalido } from "@/lib/avaliacao";
 import { HORA_REGEX, encontrarConflito, type SlotExistente } from "@/lib/horario";
-import { fromIsoDate } from "@/lib/utils";
+import { formatAnoLetivo, formatDate, fromIsoDate } from "@/lib/utils";
+import { anoLetivoCorrente, dentroDoAnoLetivo } from "@/lib/academico";
+import { getAgora } from "@/lib/tempo";
 
 async function audit(session: SessionComUser, action: string, entityType: string, entityId?: string) {
   await registrarAuditoria({
@@ -60,11 +62,36 @@ export async function createHorarioSlotAction(
 
   const alvo = await prisma.turmaDisciplina.findUnique({
     where: { id: parsed.data.turmaDisciplinaId },
-    select: { professorId: true, turmaId: true },
+    select: { professorId: true, turmaId: true, semestre: true, turma: { select: { anoLetivo: true } } },
   });
   if (!alvo) {
     return {
       fieldErrors: { turmaDisciplinaId: "Disciplina inválida." },
+      values: extrairValores(formData, CAMPOS_HORARIO_SLOT),
+    };
+  }
+
+  // Mesma regra das provas: o horário pertence a um semestre de um ano letivo. Um ano letivo
+  // encerrado é histórico — não se lhe acrescentam aulas.
+  const [agora, config] = await Promise.all([
+    getAgora(),
+    prisma.configuracaoAcademica.findUnique({
+      where: { id: "config" },
+      select: { anoLetivoInicio: true, anoLetivoFim: true, semestreAtual: true },
+    }),
+  ]);
+  const anoLetivo = anoLetivoCorrente(agora, config);
+  if (anoLetivo !== null && alvo.turma.anoLetivo !== anoLetivo) {
+    return {
+      error: `Esta turma é do ano letivo ${formatAnoLetivo(alvo.turma.anoLetivo)}. Só se marcam aulas no ano letivo a decorrer (${formatAnoLetivo(anoLetivo)}).`,
+      values: extrairValores(formData, CAMPOS_HORARIO_SLOT),
+    };
+  }
+  // O horário do semestre seguinte não se marca adiantado: o plano curricular ainda pode mudar, e
+  // com ele as disciplinas atribuídas às turmas (§decisão do cliente 2026-08-29).
+  if (config && alvo.semestre !== config.semestreAtual) {
+    return {
+      error: `Esta disciplina é do ${alvo.semestre}º semestre e corre o ${config.semestreAtual}º. Só se marca o horário do semestre a decorrer — o plano curricular do próximo ainda pode mudar.`,
       values: extrairValores(formData, CAMPOS_HORARIO_SLOT),
     };
   }
@@ -170,7 +197,56 @@ export async function createProvaAction(
     };
   }
 
+  // Ano letivo → semestre → provas: a prova pertence ao semestre de um ano letivo, e não se marca
+  // fora dele (§pedido do cliente 2026-08-28). Recusado aqui, não só na UI — a página já não
+  // oferece turmas de outros anos, mas um POST direto ignorava-a.
+  const alvo = await prisma.turmaDisciplina.findUnique({
+    where: { id: parsed.data.turmaDisciplinaId },
+    select: { semestre: true, turma: { select: { anoLetivo: true } } },
+  });
+  if (!alvo) {
+    return { fieldErrors: { turmaDisciplinaId: "Disciplina inválida." }, values: extrairValores(formData, CAMPOS_PROVA) };
+  }
+
+  const agora = await getAgora();
   const config = await prisma.configuracaoAcademica.upsert({ where: { id: "config" }, update: {}, create: { id: "config" } });
+  const anoLetivo = anoLetivoCorrente(agora, config);
+  if (anoLetivo !== null && alvo.turma.anoLetivo !== anoLetivo) {
+    return {
+      error: `Esta turma é do ano letivo ${formatAnoLetivo(alvo.turma.anoLetivo)}. Só se marcam provas no ano letivo a decorrer (${formatAnoLetivo(anoLetivo)}).`,
+      values: extrairValores(formData, CAMPOS_PROVA),
+    };
+  }
+  if (alvo.semestre !== config.semestreAtual) {
+    return {
+      error: `Esta disciplina é do ${alvo.semestre}º semestre e corre o ${config.semestreAtual}º. Só se marcam provas do semestre a decorrer — o plano curricular do próximo ainda pode mudar.`,
+      values: extrairValores(formData, CAMPOS_PROVA),
+    };
+  }
+  if (!dentroDoAnoLetivo(dataProva, config)) {
+    return {
+      fieldErrors: { data: "A data tem de cair dentro do ano letivo a decorrer." },
+      values: extrairValores(formData, CAMPOS_PROVA),
+    };
+  }
+
+  // A cascata P1 → P2 → Exame → Recurso → Especial tem de ser respeitada na marcação, não só no
+  // cálculo: um Exame marcado para antes do P2 nunca chegaria a ter uma frequência para combinar.
+  const jaAgendadas = await prisma.avaliacao.findMany({
+    where: { turmaDisciplinaId: parsed.data.turmaDisciplinaId },
+    select: { epoca: true, data: true },
+  });
+  const ordemInvalida = motivoAgendamentoInvalido(parsed.data.epoca, dataProva, jaAgendadas);
+  if (ordemInvalida) {
+    const mensagem =
+      ordemInvalida.tipo === "JA_AGENDADA"
+        ? `Já existe uma ${EPOCA_LABEL[parsed.data.epoca]} agendada para esta disciplina.`
+        : ordemInvalida.tipo === "FALTA_ANTERIOR"
+          ? `Agende primeiro a ${EPOCA_LABEL[ordemInvalida.anterior]} — as épocas seguem a ordem P1 → P2 → Exame → Recurso → Exame Especial.`
+          : `A ${EPOCA_LABEL[parsed.data.epoca]} tem de ser depois da ${EPOCA_LABEL[ordemInvalida.anterior]} (${formatDate(ordemInvalida.dataAnterior)}).`;
+    return { error: mensagem, values: extrairValores(formData, CAMPOS_PROVA) };
+  }
+
   const dias = diasPrazoParaEpoca(config, parsed.data.epoca);
   const prazoLancamento = new Date(dataProva.getFullYear(), dataProva.getMonth(), dataProva.getDate() + dias);
 

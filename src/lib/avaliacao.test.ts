@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, epocasVisiveis, motivoLancamentoFechado, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
 const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
@@ -197,4 +197,47 @@ test("motivoLancamentoFechado: abre no DIA da prova, nao a hora", () => {
 test("motivoLancamentoFechado: continua a fechar no fim do prazo", () => {
   assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 18)), null, "dentro do prazo");
   assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 21)), "PRAZO_EXPIRADO", "depois do prazo");
+});
+
+// --- Ordem de agendamento das provas (P1 -> P2 -> Exame -> Recurso -> Especial) ---
+
+const P1_MARCADA = [{ epoca: "P1" as const, data: new Date(2026, 10, 10) }];
+const P1_P2_MARCADAS = [
+  { epoca: "P1" as const, data: new Date(2026, 10, 10) },
+  { epoca: "P2" as const, data: new Date(2026, 11, 10) },
+];
+
+test("motivoAgendamentoInvalido: P1 pode sempre ser a primeira", () => {
+  assert.equal(motivoAgendamentoInvalido("P1", new Date(2026, 10, 10), []), null);
+});
+
+test("motivoAgendamentoInvalido: nao deixa marcar P2 sem P1", () => {
+  // O bug relatado pelo cliente: dava para marcar P2 sem P1 existir.
+  const r = motivoAgendamentoInvalido("P2", new Date(2026, 11, 10), []);
+  assert.deepEqual(r, { tipo: "FALTA_ANTERIOR", anterior: "P1" });
+});
+
+test("motivoAgendamentoInvalido: nao deixa saltar do P1 para o Exame", () => {
+  const r = motivoAgendamentoInvalido("EXAME", new Date(2026, 11, 20), P1_MARCADA);
+  assert.deepEqual(r, { tipo: "FALTA_ANTERIOR", anterior: "P2" });
+});
+
+test("motivoAgendamentoInvalido: nao deixa marcar para antes da epoca anterior", () => {
+  const r = motivoAgendamentoInvalido("EXAME", new Date(2026, 10, 1), P1_P2_MARCADAS);
+  assert.equal(r?.tipo, "ANTES_DA_ANTERIOR");
+});
+
+test("motivoAgendamentoInvalido: aceita a proxima epoca em data posterior", () => {
+  assert.equal(motivoAgendamentoInvalido("P2", new Date(2026, 11, 10), P1_MARCADA), null);
+  assert.equal(motivoAgendamentoInvalido("EXAME", new Date(2027, 0, 15), P1_P2_MARCADAS), null);
+});
+
+test("motivoAgendamentoInvalido: recusa duplicar uma epoca ja agendada", () => {
+  const r = motivoAgendamentoInvalido("P1", new Date(2026, 10, 12), P1_MARCADA);
+  assert.deepEqual(r, { tipo: "JA_AGENDADA" });
+});
+
+test("motivoAgendamentoInvalido: mesmo dia da anterior e aceite", () => {
+  // So recusa datas ANTERIORES — duas epocas no mesmo dia sao improvaveis mas nao incoerentes.
+  assert.equal(motivoAgendamentoInvalido("P2", new Date(2026, 10, 10), P1_MARCADA), null);
 });
