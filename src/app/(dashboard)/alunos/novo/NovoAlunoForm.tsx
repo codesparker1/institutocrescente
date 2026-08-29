@@ -21,9 +21,13 @@ interface TurmaOption {
 
 interface NovoAlunoFormProps {
   turmas: TurmaOption[];
+  /** Ano de getAgora() (respeita o relógio simulado) — teto do seletor de nascimento (idade mínima
+   * 15 anos). Sem isto, usava new Date().getFullYear() do relógio REAL, e uma simulação avançada
+   * no tempo impedia escolher um ano de nascimento coerente com a data simulada. */
+  anoDeReferencia: number;
 }
 
-export function NovoAlunoForm({ turmas }: NovoAlunoFormProps) {
+export function NovoAlunoForm({ turmas, anoDeReferencia }: NovoAlunoFormProps) {
   const [state, formAction, isPending] = useActionState(createAlunoAction, initialState);
 
   if (state.success) {
@@ -117,7 +121,7 @@ export function NovoAlunoForm({ turmas }: NovoAlunoFormProps) {
             <Field label="Data de nascimento" htmlFor="dataNascimento" error={state.fieldErrors?.dataNascimento}>
               <DateSelect
                 name="dataNascimento"
-                maxYear={new Date().getFullYear() - 15}
+                maxYear={anoDeReferencia - 15}
                 defaultValue={state.values?.dataNascimento}
               />
             </Field>

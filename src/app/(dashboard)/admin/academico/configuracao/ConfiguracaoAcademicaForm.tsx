@@ -30,6 +30,10 @@ interface ConfiguracaoAcademicaFormProps {
   diasPrazoExame: number;
   diasPrazoRecurso: number;
   diasPrazoExameEspecial: number;
+  /** Ano de getAgora() (respeita o relógio simulado) — base para os limites min/max dos seletores
+   * de data abaixo. Sem isto, os seletores usavam new Date().getFullYear() do relógio REAL da
+   * máquina, e uma simulação avançada para 2029 ficava sem conseguir escolher datas de 2029. */
+  anoDeReferencia: number;
 }
 
 export function ConfiguracaoAcademicaForm({
@@ -44,6 +48,7 @@ export function ConfiguracaoAcademicaForm({
   diasPrazoExame,
   diasPrazoRecurso,
   diasPrazoExameEspecial,
+  anoDeReferencia,
 }: ConfiguracaoAcademicaFormProps) {
   const diasPorCampo: Record<(typeof CAMPOS_PRAZO)[number]["name"], number> = {
     diasPrazoP1,
@@ -77,8 +82,8 @@ export function ConfiguracaoAcademicaForm({
         <span className="text-sm font-medium text-navy-700">Início do ano letivo</span>
         <DateSelect
           name="anoLetivoInicio"
-          minYear={new Date().getFullYear() - 1}
-          maxYear={new Date().getFullYear() + 2}
+          minYear={anoDeReferencia - 1}
+          maxYear={anoDeReferencia + 2}
           defaultValue={state.values?.anoLetivoInicio ?? anoLetivoInicio}
         />
         {state.fieldErrors?.anoLetivoInicio ? <p className="text-xs text-red-600">{state.fieldErrors.anoLetivoInicio}</p> : null}
@@ -88,8 +93,8 @@ export function ConfiguracaoAcademicaForm({
         <span className="text-sm font-medium text-navy-700">Fim do ano letivo</span>
         <DateSelect
           name="anoLetivoFim"
-          minYear={new Date().getFullYear() - 1}
-          maxYear={new Date().getFullYear() + 2}
+          minYear={anoDeReferencia - 1}
+          maxYear={anoDeReferencia + 2}
           defaultValue={state.values?.anoLetivoFim ?? anoLetivoFim}
         />
         {state.fieldErrors?.anoLetivoFim ? (
@@ -105,8 +110,8 @@ export function ConfiguracaoAcademicaForm({
         <span className="text-sm font-medium text-navy-700">Início do período de matrícula</span>
         <DateSelect
           name="matriculaInicio"
-          minYear={new Date().getFullYear() - 1}
-          maxYear={new Date().getFullYear() + 2}
+          minYear={anoDeReferencia - 1}
+          maxYear={anoDeReferencia + 2}
           defaultValue={state.values?.matriculaInicio ?? matriculaInicio}
         />
         {state.fieldErrors?.matriculaInicio ? <p className="text-xs text-red-600">{state.fieldErrors.matriculaInicio}</p> : null}
@@ -116,8 +121,8 @@ export function ConfiguracaoAcademicaForm({
         <span className="text-sm font-medium text-navy-700">Fim do período de matrícula</span>
         <DateSelect
           name="matriculaFim"
-          minYear={new Date().getFullYear() - 1}
-          maxYear={new Date().getFullYear() + 2}
+          minYear={anoDeReferencia - 1}
+          maxYear={anoDeReferencia + 2}
           defaultValue={state.values?.matriculaFim ?? matriculaFim}
         />
         {state.fieldErrors?.matriculaFim ? <p className="text-xs text-red-600">{state.fieldErrors.matriculaFim}</p> : null}

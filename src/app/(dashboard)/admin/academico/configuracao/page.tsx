@@ -68,6 +68,7 @@ export default async function ConfiguracaoAcademicaPage() {
             diasPrazoExame={config?.diasPrazoExame ?? 7}
             diasPrazoRecurso={config?.diasPrazoRecurso ?? 5}
             diasPrazoExameEspecial={config?.diasPrazoExameEspecial ?? 5}
+            anoDeReferencia={agora.getFullYear()}
           />
         </CardBody>
       </Card>

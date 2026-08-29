@@ -75,7 +75,7 @@ export default async function NovoAlunoPage() {
         <h1 className="mt-2 text-xl font-bold text-navy-900">Nova Matrícula</h1>
       </div>
 
-      <NovoAlunoForm turmas={turmaOptions} />
+      <NovoAlunoForm turmas={turmaOptions} anoDeReferencia={agora.getFullYear()} />
     </div>
   );
 }
