@@ -297,8 +297,9 @@ export interface DevedorListItem {
   /** Só propinas — uma multa não é "um mês", e contá-la junto inflava a contagem (§pedido do
    * cliente 2026-08-30: "isso esta adicionar o mes ainda nao vecido como 2 meses de atrasos"). */
   mesesPropinaEmAtraso: number;
-  /** true quando o aluno tem também multa(s) pendente(s) além da tolerância — mostrado à parte. */
-  temMultaEmAtraso: boolean;
+  /** Quantas multas pendentes além da tolerância — contadas à parte das propinas, e mostradas
+   * com o número (§pedido do cliente 2026-08-30) para a secretaria saber o tamanho da dívida. */
+  multasEmAtraso: number;
   antiguidadeDias: number;
 }
 
@@ -374,7 +375,7 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
   if (grupos.length === 0) return [];
 
   const mesesPropinaPorAluno = new Map(gruposPropina.map((g) => [g.alunoId, g._count._all]));
-  const multaPorAluno = new Set(gruposMulta.map((g) => g.alunoId));
+  const multasPorAluno = new Map(gruposMulta.map((g) => [g.alunoId, g._count._all]));
 
   const alunos = await prisma.aluno.findMany({
     where: { id: { in: grupos.map((g) => g.alunoId) } },
@@ -394,7 +395,7 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
       categoria: aluno.categoria,
       valorEmDivida: Number(g._sum.valorDevido ?? 0) - Number(g._sum.valorPago ?? 0),
       mesesPropinaEmAtraso: mesesPropinaPorAluno.get(g.alunoId) ?? 0,
-      temMultaEmAtraso: multaPorAluno.has(g.alunoId),
+      multasEmAtraso: multasPorAluno.get(g.alunoId) ?? 0,
       antiguidadeDias,
     };
   });

@@ -53,7 +53,7 @@ export interface DevedorLinha {
   categoria: string;
   valorEmDivida: number;
   mesesPropinaEmAtraso: number;
-  temMultaEmAtraso: boolean;
+  multasEmAtraso: number;
 }
 
 export interface DevedoresDocumentProps {
@@ -122,7 +122,7 @@ export function DevedoresDocument({ instituicaoNome, logoSrc, filtrosAplicados, 
               </Text>
               <Text style={[styles.cell, styles.cellCategoria]}>{d.categoria}</Text>
               <Text style={[styles.cell, styles.cellValor]}>{formatCurrency(d.valorEmDivida)}</Text>
-              <Text style={[styles.cell, styles.cellMeses]}>{formatSituacaoDivida(d.mesesPropinaEmAtraso, d.temMultaEmAtraso)}</Text>
+              <Text style={[styles.cell, styles.cellMeses]}>{formatSituacaoDivida(d.mesesPropinaEmAtraso, d.multasEmAtraso)}</Text>
             </View>
           ))}
         </View>

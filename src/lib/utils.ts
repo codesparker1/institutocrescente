@@ -51,10 +51,14 @@ export function formatCurrency(value: number | string): string {
  * Texto da coluna "Situação" na lista de devedores — separa propina de multa em vez de somar as
  * duas como "meses de atraso" (§pedido do cliente 2026-08-30: uma multa não é um mês de propina).
  */
-export function formatSituacaoDivida(mesesPropinaEmAtraso: number, temMultaEmAtraso: boolean): string {
+export function formatSituacaoDivida(mesesPropinaEmAtraso: number, multasEmAtraso: number): string {
   const partes: string[] = [];
-  if (mesesPropinaEmAtraso > 0) partes.push(`${mesesPropinaEmAtraso} mês(es) de propina`);
-  if (temMultaEmAtraso) partes.push("multa");
+  if (mesesPropinaEmAtraso > 0) {
+    partes.push(`${mesesPropinaEmAtraso} ${mesesPropinaEmAtraso === 1 ? "mês" : "meses"} de propina`);
+  }
+  if (multasEmAtraso > 0) {
+    partes.push(`${multasEmAtraso} ${multasEmAtraso === 1 ? "multa" : "multas"}`);
+  }
   return partes.length > 0 ? partes.join(" + ") : "—";
 }
 

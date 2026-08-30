@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fromIsoDate, toIsoDate } from "./utils";
+import { formatSituacaoDivida, fromIsoDate, toIsoDate } from "./utils";
 
 test("fromIsoDate lê 'aaaa-mm-dd' como meia-noite LOCAL, não UTC", () => {
   const data = fromIsoDate("2026-09-01");
@@ -33,4 +33,24 @@ test("fromIsoDate rejeita datas que não existem, em vez de as deixar transborda
   assert.equal(fromIsoDate("2026-13-01"), null, "mês 13 não existe");
   assert.equal(fromIsoDate("2025-02-29"), null, "2025 não é bissexto");
   assert.ok(fromIsoDate("2024-02-29"), "2024 é bissexto — esta existe");
+});
+
+test("formatSituacaoDivida conta propina e multa em separado — 1 mês vencido não vira '2 meses'", () => {
+  // O caso que motivou a correção: a multa automática gerada pelo atraso da propina era somada
+  // à contagem de meses, e 1 mês de atraso aparecia na lista como 2.
+  assert.equal(formatSituacaoDivida(1, 1), "1 mês de propina + 1 multa");
+});
+
+test("formatSituacaoDivida mostra só a multa quando não há propina em atraso", () => {
+  assert.equal(formatSituacaoDivida(0, 1), "1 multa");
+  assert.equal(formatSituacaoDivida(0, 3), "3 multas");
+});
+
+test("formatSituacaoDivida mostra só a propina quando não há multa", () => {
+  assert.equal(formatSituacaoDivida(1, 0), "1 mês de propina");
+  assert.equal(formatSituacaoDivida(4, 0), "4 meses de propina");
+});
+
+test("formatSituacaoDivida devolve travessão quando não há nada em atraso", () => {
+  assert.equal(formatSituacaoDivida(0, 0), "—");
 });

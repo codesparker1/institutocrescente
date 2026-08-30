@@ -70,7 +70,7 @@ export async function GET(req: Request) {
         categoria: CATEGORIA_LABEL[d.categoria],
         valorEmDivida: d.valorEmDivida,
         mesesPropinaEmAtraso: d.mesesPropinaEmAtraso,
-        temMultaEmAtraso: d.temMultaEmAtraso,
+        multasEmAtraso: d.multasEmAtraso,
       }))}
     />,
   );

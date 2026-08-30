@@ -187,7 +187,7 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
                     <Td>{CATEGORIA_LABEL[d.categoria]}</Td>
                     <Td className="font-semibold text-navy-900">{formatCurrency(d.valorEmDivida)}</Td>
                     <Td>
-                      <Badge tone="danger">{formatSituacaoDivida(d.mesesPropinaEmAtraso, d.temMultaEmAtraso)}</Badge>
+                      <Badge tone="danger">{formatSituacaoDivida(d.mesesPropinaEmAtraso, d.multasEmAtraso)}</Badge>
                     </Td>
                   </Tr>
                 ))}
