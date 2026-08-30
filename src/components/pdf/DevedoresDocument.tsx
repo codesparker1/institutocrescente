@@ -1,5 +1,5 @@
 import { Document, Page, View, Text, Image as PdfImage, StyleSheet } from "@react-pdf/renderer";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatSituacaoDivida } from "@/lib/utils";
 
 const NAVY = "#1b1b5c";
 const GRAY_LABEL = "#6b7280";
@@ -52,7 +52,8 @@ export interface DevedorLinha {
   anoCurricular: number;
   categoria: string;
   valorEmDivida: number;
-  mesesEmAtraso: number;
+  mesesPropinaEmAtraso: number;
+  temMultaEmAtraso: boolean;
 }
 
 export interface DevedoresDocumentProps {
@@ -71,7 +72,7 @@ function TableHeader() {
       <Text style={[styles.headerCell, styles.cellCurso]}>Curso / Ano</Text>
       <Text style={[styles.headerCell, styles.cellCategoria]}>Categoria</Text>
       <Text style={[styles.headerCell, styles.cellValor]}>Valor em dívida</Text>
-      <Text style={[styles.headerCell, styles.cellMeses]}>Meses em atraso</Text>
+      <Text style={[styles.headerCell, styles.cellMeses]}>Situação</Text>
     </View>
   );
 }
@@ -121,7 +122,7 @@ export function DevedoresDocument({ instituicaoNome, logoSrc, filtrosAplicados, 
               </Text>
               <Text style={[styles.cell, styles.cellCategoria]}>{d.categoria}</Text>
               <Text style={[styles.cell, styles.cellValor]}>{formatCurrency(d.valorEmDivida)}</Text>
-              <Text style={[styles.cell, styles.cellMeses]}>{d.mesesEmAtraso}</Text>
+              <Text style={[styles.cell, styles.cellMeses]}>{formatSituacaoDivida(d.mesesPropinaEmAtraso, d.temMultaEmAtraso)}</Text>
             </View>
           ))}
         </View>

@@ -294,7 +294,11 @@ export interface DevedorListItem {
   anoCurricular: number;
   categoria: CategoriaEstudante;
   valorEmDivida: number;
-  mesesEmAtraso: number;
+  /** Só propinas — uma multa não é "um mês", e contá-la junto inflava a contagem (§pedido do
+   * cliente 2026-08-30: "isso esta adicionar o mes ainda nao vecido como 2 meses de atrasos"). */
+  mesesPropinaEmAtraso: number;
+  /** true quando o aluno tem também multa(s) pendente(s) além da tolerância — mostrado à parte. */
+  temMultaEmAtraso: boolean;
   antiguidadeDias: number;
 }
 
@@ -346,15 +350,31 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
     },
   };
 
-  const grupos = await prisma.cobranca.groupBy({
-    by: ["alunoId"],
-    where: whereBase,
-    _sum: { valorDevido: true, valorPago: true },
-    _min: { dataVencimento: true },
-    _count: { _all: true },
-  });
+  const [grupos, gruposPropina, gruposMulta] = await Promise.all([
+    prisma.cobranca.groupBy({
+      by: ["alunoId"],
+      where: whereBase,
+      _sum: { valorDevido: true, valorPago: true },
+      _min: { dataVencimento: true },
+    }),
+    // Contagem de "meses em atraso" só sobre PROPINA — uma MULTA não é um mês de mensalidade
+    // (§pedido do cliente 2026-08-30), por isso não pode entrar na mesma contagem.
+    prisma.cobranca.groupBy({
+      by: ["alunoId"],
+      where: { ...whereBase, tipo: "PROPINA" },
+      _count: { _all: true },
+    }),
+    prisma.cobranca.groupBy({
+      by: ["alunoId"],
+      where: { ...whereBase, tipo: "MULTA" },
+      _count: { _all: true },
+    }),
+  ]);
 
   if (grupos.length === 0) return [];
+
+  const mesesPropinaPorAluno = new Map(gruposPropina.map((g) => [g.alunoId, g._count._all]));
+  const multaPorAluno = new Set(gruposMulta.map((g) => g.alunoId));
 
   const alunos = await prisma.aluno.findMany({
     where: { id: { in: grupos.map((g) => g.alunoId) } },
@@ -373,7 +393,8 @@ export async function getListaDevedores(filtros: FiltrosListaDevedores = {}): Pr
       anoCurricular: aluno.anoCurricular,
       categoria: aluno.categoria,
       valorEmDivida: Number(g._sum.valorDevido ?? 0) - Number(g._sum.valorPago ?? 0),
-      mesesEmAtraso: g._count._all,
+      mesesPropinaEmAtraso: mesesPropinaPorAluno.get(g.alunoId) ?? 0,
+      temMultaEmAtraso: multaPorAluno.has(g.alunoId),
       antiguidadeDias,
     };
   });

@@ -69,7 +69,8 @@ export async function GET(req: Request) {
         anoCurricular: d.anoCurricular,
         categoria: CATEGORIA_LABEL[d.categoria],
         valorEmDivida: d.valorEmDivida,
-        mesesEmAtraso: d.mesesEmAtraso,
+        mesesPropinaEmAtraso: d.mesesPropinaEmAtraso,
+        temMultaEmAtraso: d.temMultaEmAtraso,
       }))}
     />,
   );

@@ -47,6 +47,17 @@ export function formatCurrency(value: number | string): string {
   return `${amount.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY}`;
 }
 
+/**
+ * Texto da coluna "Situação" na lista de devedores — separa propina de multa em vez de somar as
+ * duas como "meses de atraso" (§pedido do cliente 2026-08-30: uma multa não é um mês de propina).
+ */
+export function formatSituacaoDivida(mesesPropinaEmAtraso: number, temMultaEmAtraso: boolean): string {
+  const partes: string[] = [];
+  if (mesesPropinaEmAtraso > 0) partes.push(`${mesesPropinaEmAtraso} mês(es) de propina`);
+  if (temMultaEmAtraso) partes.push("multa");
+  return partes.length > 0 ? partes.join(" + ") : "—";
+}
+
 const FUSO_ANGOLA = "Africa/Luanda";
 
 export function formatDate(date: Date | string): string {

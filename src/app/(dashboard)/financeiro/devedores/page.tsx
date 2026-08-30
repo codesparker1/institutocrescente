@@ -7,7 +7,7 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { Select } from "@/components/ui/Select";
 import { Printer } from "lucide-react";
-import { formatCurrency, turmaLabel, parseIntParam, formatAnoLetivo } from "@/lib/utils";
+import { formatCurrency, turmaLabel, parseIntParam, formatAnoLetivo, formatSituacaoDivida } from "@/lib/utils";
 import { getListaDevedores } from "@/lib/financeiro";
 import { podeRegistarPagamento } from "@/lib/permissions";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
@@ -169,7 +169,7 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
                   <Th>Curso/Ano</Th>
                   <Th>Categoria</Th>
                   <Th>Valor em dívida</Th>
-                  <Th>Meses em atraso</Th>
+                  <Th>Situação</Th>
                 </tr>
               </Thead>
               <Tbody>
@@ -187,7 +187,7 @@ export default async function DevedoresPage({ searchParams }: DevedoresPageProps
                     <Td>{CATEGORIA_LABEL[d.categoria]}</Td>
                     <Td className="font-semibold text-navy-900">{formatCurrency(d.valorEmDivida)}</Td>
                     <Td>
-                      <Badge tone="danger">{d.mesesEmAtraso} mês(es)</Badge>
+                      <Badge tone="danger">{formatSituacaoDivida(d.mesesPropinaEmAtraso, d.temMultaEmAtraso)}</Badge>
                     </Td>
                   </Tr>
                 ))}
