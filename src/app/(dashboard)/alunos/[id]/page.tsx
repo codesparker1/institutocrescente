@@ -14,7 +14,7 @@ import { RepeticaoForm } from "@/components/alunos/RepeticaoForm";
 import { RematriculaForm } from "@/components/alunos/RematriculaForm";
 import { MudarCursoForm } from "@/components/alunos/MudarCursoForm";
 import { DesistenciaForm } from "@/components/alunos/DesistenciaForm";
-import { EditarNotaHistoricaForm } from "@/components/alunos/EditarNotaHistoricaForm";
+import { LinhaPercursoEditavel } from "@/components/alunos/LinhaPercursoEditavel";
 import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
@@ -23,10 +23,10 @@ import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas, podeMarcarDesistencia, podeReativarDesistente } from "@/lib/permissions";
-import { calcularNotaFinal, extrairNotasPorEpoca, ESTADO_LABEL } from "@/lib/avaliacao";
-import { CelulaNota, COLUNAS_EPOCA, ESTADO_TONE, notaDaEpoca } from "@/components/notas/ColunasNotas";
+import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
+import { COLUNAS_EPOCA, notaDaEpoca } from "@/components/notas/ColunasNotas";
 import { getAgora } from "@/lib/tempo";
-import type { AlunoStatus, CobrancaTipo } from "@/generated/prisma/client";
+import type { AlunoStatus, CobrancaTipo, Epoca } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
   ATIVO: "success",
@@ -403,64 +403,24 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                               {doSemestre.map((inscricao) => {
                                 const resultado = resultadoDaInscricao(inscricao);
                                 return (
-                                  <Tr key={inscricao.id} className={!inscricao.ativa ? "opacity-60" : undefined}>
-                                    <Td className="font-medium text-navy-900">
-                                      {inscricao.turmaDisciplina.disciplina.nome}
-                                      {inscricao.tentativa > 1 ? (
-                                        <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
-                                          {inscricao.tentativa}ª tentativa
-                                        </span>
-                                      ) : null}
-                                      {!inscricao.ativa ? (
-                                        <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">
-                                          Anterior
-                                        </span>
-                                      ) : null}
-                                      {inscricao.creditada ? (
-                                        <span
-                                          className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                                          title={inscricao.instituicaoOrigemCreditado ?? undefined}
-                                        >
-                                          Creditado
-                                        </span>
-                                      ) : null}
-                                    </Td>
-                                    {COLUNAS_EPOCA.map((coluna) => (
-                                      <CelulaNota key={coluna.epoca} nota={notaDaEpoca(inscricao, coluna.epoca)} />
-                                    ))}
-                                    <Td className="text-center text-navy-800">
-                                      {resultado.notaFrequencia !== null ? resultado.notaFrequencia.toFixed(1) : "—"}
-                                    </Td>
-                                    <Td className="text-center font-semibold text-navy-900">
-                                      {resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}
-                                    </Td>
-                                    {/* O aproveitamento real, que "Ativa/Anterior" não dizia. */}
-                                    <Td>
-                                      <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
-                                    </Td>
-                                    <Td
-                                      className={
-                                        inscricao.turmaDisciplina.professor ? "text-xs" : "text-xs text-navy-400 italic"
-                                      }
-                                    >
-                                      {nomeProfessor(inscricao.turmaDisciplina.professor)}
-                                    </Td>
-                                    {podeRepetir ? (
-                                      <Td>
-                                        <EditarNotaHistoricaForm
-                                          inscricaoCadeiraId={inscricao.id}
-                                          notasAtuais={Object.fromEntries(
-                                            inscricao.notas.map((n) => [
-                                              { P1: "p1", P2: "p2", EXAME: "exame", RECURSO: "recurso", EXAME_ESPECIAL: "exameEspecial" }[
-                                                n.avaliacao.epoca
-                                              ],
-                                              Number(n.valor),
-                                            ]),
-                                          )}
-                                        />
-                                      </Td>
-                                    ) : null}
-                                  </Tr>
+                                  <LinhaPercursoEditavel
+                                    key={inscricao.id}
+                                    inscricaoCadeiraId={inscricao.id}
+                                    disciplinaNome={inscricao.turmaDisciplina.disciplina.nome}
+                                    tentativa={inscricao.tentativa}
+                                    ativa={inscricao.ativa}
+                                    creditada={inscricao.creditada}
+                                    instituicaoOrigemCreditado={inscricao.instituicaoOrigemCreditado}
+                                    notasPorEpoca={Object.fromEntries(
+                                      COLUNAS_EPOCA.map((c) => [c.epoca, notaDaEpoca(inscricao, c.epoca)]),
+                                    ) as Record<Epoca, ReturnType<typeof notaDaEpoca>>}
+                                    notaFrequencia={resultado.notaFrequencia}
+                                    notaFinal={resultado.notaFinal}
+                                    estado={resultado.estado}
+                                    professorNome={nomeProfessor(inscricao.turmaDisciplina.professor)}
+                                    temProfessor={Boolean(inscricao.turmaDisciplina.professor)}
+                                    editavel={podeRepetir}
+                                  />
                                 );
                               })}
                             </Tbody>
