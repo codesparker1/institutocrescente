@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, provaJaPassou, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
 const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
@@ -240,4 +240,31 @@ test("motivoAgendamentoInvalido: recusa duplicar uma epoca ja agendada", () => {
 test("motivoAgendamentoInvalido: mesmo dia da anterior e aceite", () => {
   // So recusa datas ANTERIORES — duas epocas no mesmo dia sao improvaveis mas nao incoerentes.
   assert.equal(motivoAgendamentoInvalido("P2", new Date(2026, 10, 10), P1_MARCADA), null);
+});
+
+test("provaJaPassou: no DIA da prova ainda não passou — o professor tem de poder imprimir a lista", () => {
+  // O bug (§2026-08-31): avaliacao.data é meia-noite do dia da prova, por isso `data < agora`
+  // dizia "já passou" a partir das 00:00 desse mesmo dia, e o professor perdia a lista de presença
+  // logo de manhã — justamente no dia em que precisava dela para a sala.
+  const prova = new Date(2026, 8, 15);
+  assert.equal(provaJaPassou(prova, new Date(2026, 8, 15, 0, 0)), false, "meia-noite do dia da prova");
+  assert.equal(provaJaPassou(prova, new Date(2026, 8, 15, 8, 30)), false, "manhã do dia da prova");
+  assert.equal(provaJaPassou(prova, new Date(2026, 8, 15, 23, 59)), false, "fim do dia da prova");
+});
+
+test("provaJaPassou: a partir do dia seguinte a prova conta como dada", () => {
+  const prova = new Date(2026, 8, 15);
+  assert.equal(provaJaPassou(prova, new Date(2026, 8, 16, 0, 0)), true);
+  assert.equal(provaJaPassou(prova, new Date(2026, 9, 1)), true);
+});
+
+test("provaJaPassou: antes do dia da prova é falso", () => {
+  const prova = new Date(2026, 8, 15);
+  assert.equal(provaJaPassou(prova, new Date(2026, 8, 14, 23, 59)), false);
+});
+
+test("provaJaPassou atravessa fronteiras de mês e ano sem se enganar", () => {
+  assert.equal(provaJaPassou(new Date(2026, 11, 31), new Date(2026, 11, 31, 20, 0)), false, "31 dez, no próprio dia");
+  assert.equal(provaJaPassou(new Date(2026, 11, 31), new Date(2027, 0, 1)), true, "1 jan do ano seguinte");
+  assert.equal(provaJaPassou(new Date(2026, 7, 31), new Date(2026, 8, 1)), true, "vira o mês");
 });

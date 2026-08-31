@@ -44,6 +44,20 @@ export function diasPrazoParaEpoca(config: DiasPrazoConfig, epoca: Epoca): numbe
   }
 }
 
+/**
+ * A prova já ficou para trás? Compara por DIA, pela mesma razão que motivoLancamentoFechado: a data
+ * agendada é meia-noite do dia da prova, por isso `avaliacao.data < agora` dava "já passou" logo à
+ * primeira hora da manhã do próprio dia — e o professor perdia a lista de presença justamente no dia
+ * em que precisava dela para a sala (§pedido do cliente 2026-08-31).
+ *
+ * No dia da prova devolve false: só depois de o dia acabar é que a prova conta como dada.
+ */
+export function provaJaPassou(dataProva: Date, agora: Date): boolean {
+  const diaDaProva = new Date(dataProva.getFullYear(), dataProva.getMonth(), dataProva.getDate());
+  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  return hoje > diaDaProva;
+}
+
 /** Porque é que o lançamento de nota está fechado — ou null se estiver aberto. */
 export type MotivoLancamentoFechado = "PROVA_POR_REALIZAR" | "PRAZO_EXPIRADO";
 

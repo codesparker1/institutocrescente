@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
 import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { DIA_SEMANA_LABEL, formatDate, cn } from "@/lib/utils";
-import { EPOCA_LABEL } from "@/lib/avaliacao";
+import { EPOCA_LABEL, provaJaPassou } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 import { deleteHorarioSlotAction, deleteProvaAction } from "@/actions/horario";
 import { CreateProvaForm } from "./CreateProvaForm";
@@ -67,8 +67,9 @@ export async function ScheduleGrid({
             <CardBody className="flex flex-col gap-2">
               {provas.map((prova) => {
                 // Prova já dada — a lista de presença deixa de fazer sentido para imprimir (era
-                // para conferir quem entra na sala nesse dia, não um registo histórico).
-                const passada = prova.data < agora;
+                // para conferir quem entra na sala nesse dia, não um registo histórico). No próprio
+                // dia da prova ainda imprime: ver provaJaPassou.
+                const passada = provaJaPassou(prova.data, agora);
                 return (
                   <div
                     key={prova.id}

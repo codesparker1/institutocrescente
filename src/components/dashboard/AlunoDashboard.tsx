@@ -10,7 +10,7 @@ import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloquead
 import { verificarBloqueioAluno } from "@/lib/financeiro";
 import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatDate, nomeProfessor } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
-import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, EPOCA_LABEL } from "@/lib/avaliacao";
+import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, provaJaPassou, EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
 interface AlunoDashboardProps {
@@ -190,7 +190,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
                     </p>
                     <p className="text-xs text-navy-400">{prova.sala ?? "Sala a confirmar"}</p>
                   </div>
-                  <Badge tone={prova.data >= agora ? "info" : "neutral"}>{formatDate(prova.data)}</Badge>
+                  <Badge tone={provaJaPassou(prova.data, agora) ? "neutral" : "info"}>{formatDate(prova.data)}</Badge>
                 </div>
               ))}
             </CardBody>

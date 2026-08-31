@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate, nomeProfessor } from "@/lib/utils";
 import { getConjuntoAlunosEmDivida } from "@/lib/financeiro";
 import { ListaPresencaDocument } from "@/components/pdf/ListaPresencaDocument";
-import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca, proximaEpocaPendente } from "@/lib/avaliacao";
+import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca, provaJaPassou, proximaEpocaPendente } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
 export const runtime = "nodejs";
@@ -47,7 +47,8 @@ export async function GET(_req: Request, { params }: RouteParams) {
 
   // Espelha o bloqueio do botão de imprimir em ScheduleGrid — a lista serve para conferir quem
   // entra na sala nesse dia, não é um registo histórico para reimprimir depois da prova.
-  if (avaliacao.data < (await getAgora())) {
+  // No próprio dia da prova continua a imprimir: ver provaJaPassou.
+  if (provaJaPassou(avaliacao.data, await getAgora())) {
     return new Response("Esta prova já foi dada — a lista de presença já não pode ser impressa.", { status: 403 });
   }
 

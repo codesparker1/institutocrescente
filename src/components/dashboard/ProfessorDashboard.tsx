@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
 import { DIA_SEMANA_LABEL, diasAteProximo, formatAnoLetivo, formatDate } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
-import { EPOCA_LABEL } from "@/lib/avaliacao";
+import { EPOCA_LABEL, provaJaPassou } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
 interface ProfessorDashboardProps {
@@ -57,10 +57,12 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
     .slice(0, 5);
 
   // "Próximas" = ainda não vencidas, tal como no dashboard do aluno — sem este filtro, provas já
-  // realizadas ficavam no topo da lista por ordenação de data.
+  // realizadas ficavam no topo da lista por ordenação de data. A prova de HOJE conta como próxima
+  // (provaJaPassou compara por dia): comparar com `agora` fazia-a desaparecer da lista logo de
+  // manhã, no dia em que o professor mais precisa de a ver.
   const proximasProvas = turmaDisciplinas
     .flatMap((td) => td.avaliacoes.map((av) => ({ ...av, disciplinaNome: td.disciplina.nome })))
-    .filter((av) => av.data >= agora)
+    .filter((av) => !provaJaPassou(av.data, agora))
     .sort((a, b) => a.data.getTime() - b.data.getTime())
     .slice(0, 5);
 
@@ -180,7 +182,7 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
                     </p>
                     <p className="text-xs text-navy-400">{prova.sala ?? "Sala a confirmar"}</p>
                   </div>
-                  <Badge tone={prova.data >= agora ? "info" : "neutral"}>{formatDate(prova.data)}</Badge>
+                  <Badge tone={provaJaPassou(prova.data, agora) ? "neutral" : "info"}>{formatDate(prova.data)}</Badge>
                 </div>
               ))}
             </CardBody>
