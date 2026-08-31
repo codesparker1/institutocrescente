@@ -7,7 +7,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, type SessionComUser } from "@/lib/permissions";
-import { EPOCA_LABEL, diasPrazoParaEpoca, motivoAgendamentoInvalido } from "@/lib/avaliacao";
+import { EPOCA_LABEL, diasPrazoParaEpoca, motivoAgendamentoInvalido, provaJaPassou } from "@/lib/avaliacao";
 import { HORA_REGEX, encontrarConflito, type SlotExistente } from "@/lib/horario";
 import { formatAnoLetivo, formatDate, fromIsoDate } from "@/lib/utils";
 import { anoLetivoCorrente, dentroDoAnoLetivo } from "@/lib/academico";
@@ -283,6 +283,132 @@ export async function createProvaAction(
       values: extrairValores(formData, CAMPOS_PROVA),
     };
   }
+
+  revalidatePath("/horario");
+  return {};
+}
+
+const EditarProvaSchema = z.object({
+  id: z.string().min(1),
+  data: z.string().min(1, "Data é obrigatória"),
+  sala: z.string().min(1, "Sala é obrigatória"),
+});
+
+const CAMPOS_EDITAR_PROVA = ["id", "data", "sala"] as const;
+export type EditarProvaState = FormState<Record<(typeof CAMPOS_EDITAR_PROVA)[number], string>>;
+
+/**
+ * Remarcar uma prova já agendada (§pedido do cliente 2026-08-31). Só o dia e a sala se mudam — a
+ * época e a disciplina não, porque mudá-las seria outra prova, e a cascata de épocas deixaria de
+ * fazer sentido; para isso apaga-se e agenda-se de novo.
+ *
+ * Só ENQUANTO a prova não passou: depois de dada, a data é registo do que aconteceu, e mexer-lhe
+ * moveria o prazo de lançamento de notas de uma prova já corrigida. No próprio dia ainda se edita
+ * (provaJaPassou compara por dia) — é normal remarcar de manhã uma prova da tarde.
+ */
+export async function editarProvaAction(
+  _prevState: EditarProvaState,
+  formData: FormData,
+): Promise<EditarProvaState> {
+  const session = await requireGerirCurriculo();
+  const parsed = EditarProvaSchema.safeParse({
+    id: formData.get("id"),
+    data: formData.get("data"),
+    sala: formData.get("sala"),
+  });
+  if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_EDITAR_PROVA);
+
+  const dataProva = fromIsoDate(parsed.data.data);
+  if (!dataProva) {
+    return { fieldErrors: { data: "Data inválida" }, values: extrairValores(formData, CAMPOS_EDITAR_PROVA) };
+  }
+
+  const existente = await prisma.avaliacao.findUnique({
+    where: { id: parsed.data.id },
+    select: {
+      epoca: true,
+      data: true,
+      turmaDisciplinaId: true,
+      turmaDisciplina: { select: { semestre: true, turma: { select: { anoLetivo: true } } } },
+    },
+  });
+  if (!existente) {
+    return { error: "Prova não encontrada.", values: extrairValores(formData, CAMPOS_EDITAR_PROVA) };
+  }
+
+  const agora = await getAgora();
+  const config = await prisma.configuracaoAcademica.upsert({ where: { id: "config" }, update: {}, create: { id: "config" } });
+
+  // O portão que o cliente pediu: passado o dia da prova, deixa de se poder remarcar.
+  if (provaJaPassou(existente.data, agora)) {
+    return {
+      error: `Esta prova já foi dada (${formatDate(existente.data)}) — já não pode ser remarcada.`,
+      values: extrairValores(formData, CAMPOS_EDITAR_PROVA),
+    };
+  }
+
+  // As mesmas regras da marcação: uma remarcação não pode pôr a prova onde a marcação não a
+  // deixaria criar de raiz.
+  const anoLetivo = anoLetivoCorrente(agora, config);
+  if (anoLetivo !== null && existente.turmaDisciplina.turma.anoLetivo !== anoLetivo) {
+    return {
+      error: `Esta turma é do ano letivo ${formatAnoLetivo(existente.turmaDisciplina.turma.anoLetivo)}. Só se remarcam provas no ano letivo a decorrer (${formatAnoLetivo(anoLetivo)}).`,
+      values: extrairValores(formData, CAMPOS_EDITAR_PROVA),
+    };
+  }
+  if (existente.turmaDisciplina.semestre !== config.semestreAtual) {
+    return {
+      error: `Esta disciplina é do ${existente.turmaDisciplina.semestre}º semestre e corre o ${config.semestreAtual}º.`,
+      values: extrairValores(formData, CAMPOS_EDITAR_PROVA),
+    };
+  }
+  if (!dentroDoAnoLetivo(dataProva, config)) {
+    return {
+      fieldErrors: { data: "A data tem de cair dentro do ano letivo a decorrer." },
+      values: extrairValores(formData, CAMPOS_EDITAR_PROVA),
+    };
+  }
+  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  if (dataProva < hoje) {
+    return {
+      fieldErrors: { data: "Não é possível remarcar uma prova para uma data que já passou." },
+      values: extrairValores(formData, CAMPOS_EDITAR_PROVA),
+    };
+  }
+
+  // A cascata continua a valer na nova data — excluindo esta prova da comparação, senão a sua
+  // própria época contaria como "já agendada" e nenhuma edição passaria.
+  const jaAgendadas = await prisma.avaliacao.findMany({
+    where: { turmaDisciplinaId: existente.turmaDisciplinaId, id: { not: parsed.data.id } },
+    select: { epoca: true, data: true },
+  });
+  const ordemInvalida = motivoAgendamentoInvalido(existente.epoca, dataProva, jaAgendadas);
+  if (ordemInvalida) {
+    const mensagem =
+      ordemInvalida.tipo === "JA_AGENDADA"
+        ? `Já existe uma ${EPOCA_LABEL[existente.epoca]} agendada para esta disciplina.`
+        : ordemInvalida.tipo === "FALTA_ANTERIOR"
+          ? `Agende primeiro a ${EPOCA_LABEL[ordemInvalida.anterior]} — as épocas seguem a ordem P1 → P2 → Exame → Recurso → Exame Especial.`
+          : `A ${EPOCA_LABEL[existente.epoca]} tem de ser depois da ${EPOCA_LABEL[ordemInvalida.anterior]} (${formatDate(ordemInvalida.dataAnterior)}).`;
+    return { error: mensagem, values: extrairValores(formData, CAMPOS_EDITAR_PROVA) };
+  }
+
+  // O prazo de lançamento anda com a data: é sempre "data da prova + dias da época", e deixá-lo
+  // preso à data antiga daria ao professor um prazo já expirado numa prova adiada.
+  const dias = diasPrazoParaEpoca(config, existente.epoca);
+  const prazoLancamento = new Date(dataProva.getFullYear(), dataProva.getMonth(), dataProva.getDate() + dias);
+
+  const prova = await prisma.avaliacao.update({
+    where: { id: parsed.data.id },
+    data: { data: dataProva, sala: parsed.data.sala, prazoLancamento },
+    include: { turmaDisciplina: { include: { disciplina: true } } },
+  });
+  await audit(
+    session,
+    `Remarcou "${EPOCA_LABEL[prova.epoca]}" de ${prova.turmaDisciplina.disciplina.nome} de ${formatDate(existente.data)} para ${formatDate(dataProva)}`,
+    "Avaliacao",
+    prova.id,
+  );
 
   revalidatePath("/horario");
   return {};

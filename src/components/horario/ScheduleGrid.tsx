@@ -1,12 +1,11 @@
-import { Printer } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Table";
 import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
-import { DIA_SEMANA_LABEL, formatDate, cn } from "@/lib/utils";
-import { EPOCA_LABEL, provaJaPassou } from "@/lib/avaliacao";
+import { DIA_SEMANA_LABEL, toIsoDate, cn } from "@/lib/utils";
+import { provaJaPassou } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
-import { deleteHorarioSlotAction, deleteProvaAction } from "@/actions/horario";
+import { deleteHorarioSlotAction } from "@/actions/horario";
+import { ProvaRow } from "./ProvaRow";
 import { CreateProvaForm } from "./CreateProvaForm";
 import { CreateHorarioSlotForm } from "./CreateHorarioSlotForm";
 import type { Avaliacao, Disciplina, HorarioSlot } from "@/generated/prisma/client";
@@ -65,62 +64,26 @@ export async function ScheduleGrid({
         ) : (
           <Card>
             <CardBody className="flex flex-col gap-2">
-              {provas.map((prova) => {
+              {provas.map((prova) => (
                 // Prova já dada — a lista de presença deixa de fazer sentido para imprimir (era
-                // para conferir quem entra na sala nesse dia, não um registo histórico). No próprio
-                // dia da prova ainda imprime: ver provaJaPassou.
-                const passada = provaJaPassou(prova.data, agora);
-                return (
-                  <div
-                    key={prova.id}
-                    className={cn(
-                      "flex items-center justify-between rounded-lg border border-navy-50 px-4 py-2.5 text-sm",
-                      passada && "opacity-50",
-                    )}
-                  >
-                    <div>
-                      <p className={cn("font-medium", passada ? "text-navy-500" : "text-navy-800")}>
-                        {EPOCA_LABEL[prova.epoca]} · {prova.disciplina.nome}
-                        {/* Aqui a lista fica cronológica (é o que interessa numa época de provas) —
-                            a repetição assinala-se com etiqueta, não separando em duas listas. */}
-                        {prova.emRepeticao ? (
-                          <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">repetição</span>
-                        ) : null}
-                      </p>
-                      <p className="text-xs text-navy-400">
-                        {prova.cursoAnoLabel ? `${prova.cursoAnoLabel} · ` : ""}
-                        {prova.sala ?? "Sala a confirmar"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge tone={passada ? "neutral" : "info"}>{formatDate(prova.data)}</Badge>
-                      {canPrint ? (
-                        passada ? (
-                          <span
-                            className="cursor-not-allowed rounded-md p-1 text-navy-200"
-                            aria-label="Prova já dada — lista de presença indisponível"
-                            title="Prova já dada — já não é possível imprimir a lista de presença"
-                          >
-                            <Printer size={14} />
-                          </span>
-                        ) : (
-                          <a
-                            href={`/api/lista-presenca/${prova.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
-                            aria-label="Imprimir lista de presença"
-                            title="Imprimir lista de presença"
-                          >
-                            <Printer size={14} />
-                          </a>
-                        )
-                      ) : null}
-                      {editable ? <DeleteButtonForm action={deleteProvaAction} id={prova.id} /> : null}
-                    </div>
-                  </div>
-                );
-              })}
+                // para conferir quem entra na sala nesse dia, não um registo histórico), e a data
+                // deixa de se poder remarcar. No próprio dia ainda se faz as duas: ver provaJaPassou.
+                <ProvaRow
+                  key={prova.id}
+                  id={prova.id}
+                  epoca={prova.epoca}
+                  disciplinaNome={prova.disciplina.nome}
+                  data={prova.data}
+                  dataIso={toIsoDate(prova.data)}
+                  sala={prova.sala}
+                  cursoAnoLabel={prova.cursoAnoLabel}
+                  emRepeticao={prova.emRepeticao}
+                  passada={provaJaPassou(prova.data, agora)}
+                  canPrint={canPrint}
+                  editable={editable}
+                  janela={janela}
+                />
+              ))}
             </CardBody>
           </Card>
         )}

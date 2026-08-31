@@ -268,3 +268,18 @@ test("provaJaPassou atravessa fronteiras de mês e ano sem se enganar", () => {
   assert.equal(provaJaPassou(new Date(2026, 11, 31), new Date(2027, 0, 1)), true, "1 jan do ano seguinte");
   assert.equal(provaJaPassou(new Date(2026, 7, 31), new Date(2026, 8, 1)), true, "vira o mês");
 });
+
+test("remarcar: a própria prova excluída da lista deixa de bloquear como JA_AGENDADA", () => {
+  // Ao editar, a prova a remarcar tem de sair da lista de existentes — senão a sua própria época
+  // conta como "já agendada" e nenhuma remarcação passaria (§editarProvaAction, 2026-08-31).
+  const outras = [{ epoca: "P1" as const, data: new Date(2026, 8, 10) }];
+  // P2 remarcado para depois do P1: válido, porque o P2 antigo não está na lista.
+  assert.equal(motivoAgendamentoInvalido("P2", new Date(2026, 8, 20), outras), null);
+});
+
+test("remarcar: a cascata continua a valer na nova data", () => {
+  const outras = [{ epoca: "P1" as const, data: new Date(2026, 8, 10) }];
+  // Puxar o P2 para antes do P1 tem de continuar a ser recusado, mesmo a remarcar.
+  const motivo = motivoAgendamentoInvalido("P2", new Date(2026, 8, 5), outras);
+  assert.equal(motivo?.tipo, "ANTES_DA_ANTERIOR");
+});
