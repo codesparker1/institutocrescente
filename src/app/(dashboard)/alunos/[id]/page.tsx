@@ -23,7 +23,8 @@ import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas, podeMarcarDesistencia, podeReativarDesistente } from "@/lib/permissions";
-import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
+import { calcularNotaFinal, extrairNotasPorEpoca, ESTADO_LABEL } from "@/lib/avaliacao";
+import { CelulaNota, COLUNAS_EPOCA, ESTADO_TONE, notaDaEpoca } from "@/components/notas/ColunasNotas";
 import { getAgora } from "@/lib/tempo";
 import type { AlunoStatus, CobrancaTipo } from "@/generated/prisma/client";
 
@@ -64,11 +65,51 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   const inscricoes = await prisma.inscricaoCadeira.findMany({
     where: { alunoId: aluno.id },
     include: {
-      turmaDisciplina: { include: { disciplina: true, professor: true, turma: { include: { curso: true } } } },
+      turmaDisciplina: {
+        include: { disciplina: true, professor: true, turma: { include: { curso: true } }, avaliacoes: true },
+      },
       notas: { include: { avaliacao: true } },
     },
     orderBy: [{ ativa: "desc" }, { tentativa: "desc" }],
   });
+
+  // O percurso lê-se por ano letivo, do mais recente para trás, e dentro dele por ano curricular e
+  // semestre (§pedido do cliente 2026-08-31). A tabela plana repetia turma/ano/professor em todas as
+  // linhas e não deixava ver onde o aluno está nem o que já fez — o agrupamento é que conta a
+  // história; as colunas repetidas passam a ser o cabeçalho do grupo.
+  const percurso = new Map<
+    string,
+    { anoLetivo: number; cursoNome: string; anoCurricular: number; porSemestre: Map<number, typeof inscricoes> }
+  >();
+  for (const inscricao of inscricoes) {
+    const turma = inscricao.turmaDisciplina.turma;
+    const chave = `${turma.anoLetivo}:${turma.curso.nome}:${turma.anoCurricular}`;
+    if (!percurso.has(chave)) {
+      percurso.set(chave, {
+        anoLetivo: turma.anoLetivo,
+        cursoNome: turma.curso.nome,
+        anoCurricular: turma.anoCurricular,
+        porSemestre: new Map(),
+      });
+    }
+    const grupo = percurso.get(chave)!;
+    const semestre = inscricao.turmaDisciplina.semestre;
+    const lista = grupo.porSemestre.get(semestre) ?? [];
+    lista.push(inscricao);
+    grupo.porSemestre.set(semestre, lista);
+  }
+  const percursoOrdenado = [...percurso.values()].sort(
+    (a, b) => b.anoLetivo - a.anoLetivo || b.anoCurricular - a.anoCurricular,
+  );
+
+  /** Resultado académico da inscrição — o que "Ativa/Anterior" não dizia: passou, chumbou, falta. */
+  function resultadoDaInscricao(inscricao: (typeof inscricoes)[number]) {
+    const notas = inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
+    return calcularNotaFinal(extrairNotasPorEpoca(notas), {
+      permiteDispensa: inscricao.permiteDispensaAplicada,
+      notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+    });
+  }
 
   const session = await auth();
   const podeEditarCategoria = session?.user ? podeRegistarPagamento(session.user) : false;
@@ -120,15 +161,9 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       agora >= configAcademica.matriculaInicio &&
       agora <= configAcademica.matriculaFim,
   );
-  const reprovacoesAnoCorrente = inscricoes.filter((i) => {
-    if (!i.ativa) return false;
-    const notas = i.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
-    const resultado = calcularNotaFinal(extrairNotasPorEpoca(notas), {
-      permiteDispensa: i.permiteDispensaAplicada,
-      notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
-    });
-    return resultado.estado === "REPROVADO";
-  }).length;
+  const reprovacoesAnoCorrente = inscricoes.filter(
+    (i) => i.ativa && resultadoDaInscricao(i).estado === "REPROVADO",
+  ).length;
 
   // Segunda licenciatura / mudança de curso (Fase 8c) — cursos além do atual do aluno.
   // select: MudarCursoForm (Client Component) só precisa de id/nome — Curso.valorPropina é
@@ -320,72 +355,133 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       {/* Aberto por omissão: é uma das três coisas que o Admin/DAAC consulta mais (§pedido do
           cliente 2026-08-28) — as ações de gestão é que ficam recolhidas, não o percurso. */}
       <Disclosure title="Percurso Curricular" subtitle={`${inscricoes.length} inscrição(ões)`} defaultOpen>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           {inscricoes.length === 0 ? (
             <EmptyState message="Sem cadeiras inscritas." />
           ) : (
-            <Table>
-              <Thead>
-                <tr>
-                  <Th>Disciplina</Th>
-                  <Th>Turma</Th>
-                  <Th>Ano Letivo</Th>
-                  <Th>Professor</Th>
-                  <Th>Tentativa</Th>
-                  <Th>Estado</Th>
-                  <Th>Notas</Th>
-                </tr>
-              </Thead>
-              <Tbody>
-                {inscricoes.map((inscricao) => (
-                  <Tr key={inscricao.id}>
-                    <Td className="font-medium text-navy-900">
-                      {inscricao.turmaDisciplina.disciplina.nome}
-                      {inscricao.creditada ? (
-                        <span
-                          className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                          title={inscricao.instituicaoOrigemCreditado ?? undefined}
-                        >
-                          Creditado
-                        </span>
-                      ) : null}
-                    </Td>
-                    <Td>
-                      {inscricao.turmaDisciplina.turma.curso.nome} · {inscricao.turmaDisciplina.turma.anoCurricular}º Ano
-                    </Td>
-                    <Td>{formatAnoLetivo(inscricao.turmaDisciplina.turma.anoLetivo)}</Td>
-                    <Td className={inscricao.turmaDisciplina.professor ? undefined : "text-navy-400 italic"}>
-                      {nomeProfessor(inscricao.turmaDisciplina.professor)}
-                    </Td>
-                    <Td>{inscricao.tentativa}ª</Td>
-                    <Td>
-                      <Badge tone={inscricao.ativa ? "success" : "neutral"}>{inscricao.ativa ? "Ativa" : "Anterior"}</Badge>
-                    </Td>
-                    <Td>
-                      <div className="flex flex-col items-start gap-1">
-                        <span>
-                          {inscricao.notas.length === 0
-                            ? "—"
-                            : inscricao.notas.map((n) => `${EPOCA_LABEL[n.avaliacao.epoca]}: ${n.valor}`).join(" · ")}
-                        </span>
-                        {podeRepetir ? (
-                          <EditarNotaHistoricaForm
-                            inscricaoCadeiraId={inscricao.id}
-                            notasAtuais={Object.fromEntries(
-                              inscricao.notas.map((n) => [
-                                { P1: "p1", P2: "p2", EXAME: "exame", RECURSO: "recurso", EXAME_ESPECIAL: "exameEspecial" }[n.avaliacao.epoca],
-                                Number(n.valor),
-                              ]),
-                            )}
-                          />
-                        ) : null}
+            percursoOrdenado.map((grupo) => {
+              const semestres = [...grupo.porSemestre.keys()].sort((a, b) => a - b);
+              const doGrupo = semestres.flatMap((s) => grupo.porSemestre.get(s)!);
+              const aprovadas = doGrupo.filter((i) => resultadoDaInscricao(i).aprovado === true).length;
+              return (
+                <div key={`${grupo.anoLetivo}-${grupo.anoCurricular}`} className="flex flex-col gap-3">
+                  {/* O que se repetia em cada linha (ano letivo, curso, ano) sobe para aqui, uma vez. */}
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-navy-100 pb-2">
+                    <h3 className="text-sm font-semibold text-navy-900">
+                      {formatAnoLetivo(grupo.anoLetivo)} · {grupo.cursoNome} · {grupo.anoCurricular}º Ano
+                    </h3>
+                    <span className="text-xs text-navy-400">
+                      {aprovadas} de {doGrupo.length} aprovada(s)
+                    </span>
+                  </div>
+
+                  {semestres.map((semestre) => {
+                    const doSemestre = grupo.porSemestre.get(semestre)!;
+                    return (
+                      <div key={semestre} className="flex flex-col gap-1">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">
+                          {semestre}º Semestre
+                        </p>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <Thead>
+                              <tr>
+                                <Th>Disciplina</Th>
+                                {COLUNAS_EPOCA.map((coluna) => (
+                                  <Th key={coluna.epoca} className="text-center">
+                                    {coluna.label}
+                                  </Th>
+                                ))}
+                                <Th className="text-center">Média</Th>
+                                <Th className="text-center">Final</Th>
+                                <Th>Resultado</Th>
+                                <Th>Professor</Th>
+                                {podeRepetir ? <Th>{""}</Th> : null}
+                              </tr>
+                            </Thead>
+                            <Tbody>
+                              {doSemestre.map((inscricao) => {
+                                const resultado = resultadoDaInscricao(inscricao);
+                                return (
+                                  <Tr key={inscricao.id} className={!inscricao.ativa ? "opacity-60" : undefined}>
+                                    <Td className="font-medium text-navy-900">
+                                      {inscricao.turmaDisciplina.disciplina.nome}
+                                      {inscricao.tentativa > 1 ? (
+                                        <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
+                                          {inscricao.tentativa}ª tentativa
+                                        </span>
+                                      ) : null}
+                                      {!inscricao.ativa ? (
+                                        <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">
+                                          Anterior
+                                        </span>
+                                      ) : null}
+                                      {inscricao.creditada ? (
+                                        <span
+                                          className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                                          title={inscricao.instituicaoOrigemCreditado ?? undefined}
+                                        >
+                                          Creditado
+                                        </span>
+                                      ) : null}
+                                    </Td>
+                                    {COLUNAS_EPOCA.map((coluna) => (
+                                      <CelulaNota key={coluna.epoca} nota={notaDaEpoca(inscricao, coluna.epoca)} />
+                                    ))}
+                                    <Td className="text-center text-navy-800">
+                                      {resultado.notaFrequencia !== null ? resultado.notaFrequencia.toFixed(1) : "—"}
+                                    </Td>
+                                    <Td className="text-center font-semibold text-navy-900">
+                                      {resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}
+                                    </Td>
+                                    {/* O aproveitamento real, que "Ativa/Anterior" não dizia. */}
+                                    <Td>
+                                      <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
+                                    </Td>
+                                    <Td
+                                      className={
+                                        inscricao.turmaDisciplina.professor ? "text-xs" : "text-xs text-navy-400 italic"
+                                      }
+                                    >
+                                      {nomeProfessor(inscricao.turmaDisciplina.professor)}
+                                    </Td>
+                                    {podeRepetir ? (
+                                      <Td>
+                                        <EditarNotaHistoricaForm
+                                          inscricaoCadeiraId={inscricao.id}
+                                          notasAtuais={Object.fromEntries(
+                                            inscricao.notas.map((n) => [
+                                              { P1: "p1", P2: "p2", EXAME: "exame", RECURSO: "recurso", EXAME_ESPECIAL: "exameEspecial" }[
+                                                n.avaliacao.epoca
+                                              ],
+                                              Number(n.valor),
+                                            ]),
+                                          )}
+                                        />
+                                      </Td>
+                                    ) : null}
+                                  </Tr>
+                                );
+                              })}
+                            </Tbody>
+                          </Table>
+                        </div>
                       </div>
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+                    );
+                  })}
+                </div>
+              );
+            })
           )}
+
+          {/* Legenda só quando há mesmo um zero automático — um asterisco sem explicação não diz
+              nada a quem o vê pela primeira vez. */}
+          {inscricoes.some((i) => i.notas.some((n) => n.automatica)) ? (
+            <p className="text-xs text-navy-400">
+              <span className="text-red-600">*</span> Nota lançada automaticamente a 0 — o prazo de lançamento
+              expirou sem nota entregue.
+            </p>
+          ) : null}
 
           {podeRepetir ? (
             <div className="border-t border-navy-50 pt-4">
