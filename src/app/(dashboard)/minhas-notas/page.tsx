@@ -6,7 +6,8 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
-import { calcularNotaFinal, extrairNotasPorEpoca, EPOCA_LABEL, ESTADO_LABEL, type EstadoAvaliacao } from "@/lib/avaliacao";
+import { calcularNotaFinal, extrairNotasPorEpoca, ESTADO_LABEL, type EstadoAvaliacao } from "@/lib/avaliacao";
+import type { Epoca } from "@/generated/prisma/client";
 
 const ESTADO_TONE: Record<EstadoAvaliacao, "success" | "warning" | "danger" | "neutral"> = {
   EM_CURSO: "neutral",
@@ -17,6 +18,33 @@ const ESTADO_TONE: Record<EstadoAvaliacao, "success" | "warning" | "danger" | "n
   APROVADO: "success",
   REPROVADO: "danger",
 };
+
+/** Uma coluna por época, na ordem da cascata — a leitura em linha segue o percurso da cadeira. */
+const COLUNAS_EPOCA: { epoca: Epoca; label: string }[] = [
+  { epoca: "P1", label: "P1" },
+  { epoca: "P2", label: "P2" },
+  { epoca: "EXAME", label: "Exame" },
+  { epoca: "RECURSO", label: "Recurso" },
+  { epoca: "EXAME_ESPECIAL", label: "Ex. Especial" },
+];
+
+/**
+ * Célula de nota. Vazia quando a época não se aplica à cadeira, "—" quando está agendada mas ainda
+ * sem nota, e a vermelho quando é um 0 automático por prazo expirado (o aluno tem de perceber que
+ * aquele zero não foi uma prova feita).
+ */
+function CelulaNota({ nota }: { nota: { valor: number | null; automatica: boolean } | null }) {
+  if (!nota) return <Td className="text-center text-navy-200">{""}</Td>;
+  if (nota.valor === null) return <Td className="text-center text-navy-300">—</Td>;
+  return (
+    <Td className={`text-center font-medium ${nota.automatica ? "text-red-600" : "text-navy-800"}`}>
+      <span title={nota.automatica ? "0 automático — prazo de lançamento expirado sem nota entregue" : undefined}>
+        {nota.valor.toFixed(1)}
+        {nota.automatica ? "*" : ""}
+      </span>
+    </Td>
+  );
+}
 
 export default async function MinhasNotasPage() {
   const session = await auth();
@@ -70,6 +98,18 @@ export default async function MinhasNotasPage() {
       permiteDispensa: inscricao.permiteDispensaAplicada,
       notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
     });
+  }
+
+  /**
+   * A nota de uma época, para a sua própria coluna. Distingue três casos que a leitura em coluna
+   * torna importantes: nota lançada, época agendada mas ainda sem nota ("—"), e época que nem
+   * sequer se aplica a esta cadeira (fica vazia, não "—", para a linha não sugerir que falta algo).
+   */
+  function notaDaEpoca(inscricao: (typeof inscricoes)[number], epoca: Epoca) {
+    const nota = inscricao.notas.find((n) => n.avaliacao.epoca === epoca);
+    if (nota) return { valor: Number(nota.valor), automatica: nota.automatica };
+    const agendada = inscricao.turmaDisciplina.avaliacoes.some((av) => av.epoca === epoca);
+    return agendada ? { valor: null, automatica: false } : null;
   }
 
   const grupos = new Map<string, { label: string; inscricoesPorSemestre: Map<number, typeof inscricoes> }>();
@@ -168,71 +208,78 @@ export default async function MinhasNotasPage() {
                       title={`${semestre}º Semestre${semestre === semestreAtual ? " · a decorrer" : ""}`}
                       subtitle={`${inscricoesSemestre.length} disciplina(s)`}
                     />
-                    <Table>
-                      <Thead>
-                        <tr>
-                          <Th>Disciplina</Th>
-                          <Th>Notas</Th>
-                          <Th>Estado</Th>
-                          <Th>Nota Final</Th>
-                        </tr>
-                      </Thead>
-                      <Tbody>
-                        {inscricoesSemestre.map((inscricao) => {
-                          const resultado = calcularEstado(inscricao);
-                          return (
-                            <Tr key={inscricao.id} className={!inscricao.ativa ? "opacity-60" : undefined}>
-                              <Td className="font-medium text-navy-900">
-                                {inscricao.turmaDisciplina.disciplina.nome}
-                                {inscricao.tentativa > 1 ? (
-                                  <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
-                                    {inscricao.tentativa}ª tentativa
-                                  </span>
-                                ) : null}
-                                {!inscricao.ativa ? (
-                                  <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">
-                                    Histórico
-                                  </span>
-                                ) : null}
-                                {inscricao.creditada ? (
-                                  <span
-                                    className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                                    title={inscricao.instituicaoOrigemCreditado ? `Creditado — ${inscricao.instituicaoOrigemCreditado}` : "Creditado de outra instituição"}
-                                  >
-                                    Creditado
-                                  </span>
-                                ) : null}
-                              </Td>
-                              <Td>
-                                {inscricao.turmaDisciplina.avaliacoes.length === 0 ? (
-                                  "—"
-                                ) : (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {inscricao.turmaDisciplina.avaliacoes.map((av) => {
-                                      const nota = inscricao.notas.find((n) => n.avaliacaoId === av.id);
-                                      return (
-                                        <Badge
-                                          key={av.id}
-                                          tone={nota?.automatica ? "danger" : nota ? "info" : "neutral"}
-                                          title={nota?.automatica ? "0 automático — prazo de lançamento expirado sem nota entregue" : undefined}
-                                        >
-                                          {EPOCA_LABEL[av.epoca]}: {nota ? Number(nota.valor) : "—"}
-                                          {nota?.automatica ? " (falta)" : ""}
-                                        </Badge>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </Td>
-                              <Td>
-                                <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
-                              </Td>
-                              <Td className="font-semibold text-navy-900">{resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}</Td>
-                            </Tr>
-                          );
-                        })}
-                      </Tbody>
-                    </Table>
+                    {/* Uma coluna por época (§pedido do cliente 2026-08-31): a leitura fica em
+                        linha, como numa pauta, em vez de badges empilhados numa só célula. Rola na
+                        horizontal em ecrã estreito — as colunas não encolhem até ficarem ilegíveis. */}
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <Thead>
+                          <tr>
+                            <Th>Disciplina</Th>
+                            {COLUNAS_EPOCA.map((coluna) => (
+                              <Th key={coluna.epoca} className="text-center">
+                                {coluna.label}
+                              </Th>
+                            ))}
+                            <Th className="text-center">Média</Th>
+                            <Th>Situação</Th>
+                            <Th className="text-center">Nota Final</Th>
+                          </tr>
+                        </Thead>
+                        <Tbody>
+                          {inscricoesSemestre.map((inscricao) => {
+                            const resultado = calcularEstado(inscricao);
+                            return (
+                              <Tr key={inscricao.id} className={!inscricao.ativa ? "opacity-60" : undefined}>
+                                <Td className="font-medium text-navy-900">
+                                  {inscricao.turmaDisciplina.disciplina.nome}
+                                  {inscricao.tentativa > 1 ? (
+                                    <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
+                                      {inscricao.tentativa}ª tentativa
+                                    </span>
+                                  ) : null}
+                                  {!inscricao.ativa ? (
+                                    <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">
+                                      Histórico
+                                    </span>
+                                  ) : null}
+                                  {inscricao.creditada ? (
+                                    <span
+                                      className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                                      title={inscricao.instituicaoOrigemCreditado ? `Creditado — ${inscricao.instituicaoOrigemCreditado}` : "Creditado de outra instituição"}
+                                    >
+                                      Creditado
+                                    </span>
+                                  ) : null}
+                                </Td>
+                                {COLUNAS_EPOCA.map((coluna) => (
+                                  <CelulaNota key={coluna.epoca} nota={notaDaEpoca(inscricao, coluna.epoca)} />
+                                ))}
+                                {/* Média de frequência (P1+P2)/2 — é dela que sai a dispensa, por
+                                    isso fica ao lado das notas que a produzem, não no fim. */}
+                                <Td className="text-center font-medium text-navy-800">
+                                  {resultado.notaFrequencia !== null ? resultado.notaFrequencia.toFixed(1) : "—"}
+                                </Td>
+                                <Td>
+                                  <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
+                                </Td>
+                                <Td className="text-center font-semibold text-navy-900">
+                                  {resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}
+                                </Td>
+                              </Tr>
+                            );
+                          })}
+                        </Tbody>
+                      </Table>
+                    </div>
+                    {/* Legenda só quando há mesmo um zero automático — um asterisco sem explicação
+                        não diz nada a quem o vê pela primeira vez. */}
+                    {inscricoesSemestre.some((i) => i.notas.some((n) => n.automatica)) ? (
+                      <p className="px-4 pb-3 text-xs text-navy-400">
+                        <span className="text-red-600">*</span> Nota lançada automaticamente a 0 — o prazo de
+                        lançamento expirou sem nota entregue.
+                      </p>
+                    ) : null}
                   </Card>
                 );
               })}
