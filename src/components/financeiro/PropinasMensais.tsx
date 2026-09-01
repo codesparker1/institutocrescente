@@ -17,9 +17,25 @@ interface PropinasMensaisProps {
    */
   selecionados?: Set<string>;
   onToggleSelecionado?: (id: string, valor: number) => void;
+  /** Recarregar o estado depois de reverter um mês pago — ver nota em PropinaMesChip. */
+  onAtualizado?: () => void;
+  /**
+   * Reverter um pagamento já confirmado é exclusivo do ADMIN (podeAlterarPagamentoIndividual) — a
+   * Secretaria tem de o pedir ao ADMIN (§regra confirmada 2026-09-01). Sem isto o chip aparecia
+   * clicável à Secretaria, a action rejeitava, e o clique rebentava em vez de explicar.
+   */
+  podeReverter?: boolean;
 }
 
-export function PropinasMensais({ meses, multas = [], editable, selecionados, onToggleSelecionado }: PropinasMensaisProps) {
+export function PropinasMensais({
+  meses,
+  multas = [],
+  editable,
+  selecionados,
+  onToggleSelecionado,
+  onAtualizado,
+  podeReverter = true,
+}: PropinasMensaisProps) {
   if (meses.length === 0) {
     return <p className="text-sm text-navy-400">Sem mensalidades registadas.</p>;
   }
@@ -63,10 +79,26 @@ export function PropinasMensais({ meses, multas = [], editable, selecionados, on
                   />
                   Selecionar
                 </label>
-              ) : editable ? (
-                <PropinaMesChip propinaId={mes.id} pagoInicial={mes.status === "PAGO"} estadoVisual={mes.estadoVisual} />
+              ) : editable && podeReverter ? (
+                <PropinaMesChip
+                  propinaId={mes.id}
+                  pago={mes.status === "PAGO"}
+                  estadoVisual={mes.estadoVisual}
+                  onAtualizado={onAtualizado}
+                />
               ) : (
-                <Badge tone={ESTADO_COBRANCA_TONE[mes.estadoVisual]}>{ESTADO_COBRANCA_LABEL[mes.estadoVisual]}</Badge>
+                <Badge
+                  tone={ESTADO_COBRANCA_TONE[mes.estadoVisual]}
+                  // Quem não pode reverter tem de saber a quem pedir, senão fica a clicar num
+                  // rótulo que não responde a pensar que o sistema está avariado.
+                  title={
+                    editable && !podeReverter && mes.status === "PAGO"
+                      ? "Só o Admin pode reverter um pagamento já confirmado — peça ao Admin."
+                      : undefined
+                  }
+                >
+                  {ESTADO_COBRANCA_LABEL[mes.estadoVisual]}
+                </Badge>
               )}
             </div>
           </div>

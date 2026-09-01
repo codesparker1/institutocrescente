@@ -183,6 +183,9 @@ export function PagamentosSecretariaPanel({
               editable
               selecionados={selecionadosPropinas}
               onToggleSelecionado={toggleSelecionadoPropina}
+              onAtualizado={onAtualizado}
+              // Reverter um pagamento é exclusivo do ADMIN — a Secretaria pede-lhe (§2026-09-01).
+              podeReverter={isAdmin}
             />
           </div>
 
@@ -199,6 +202,8 @@ export function PagamentosSecretariaPanel({
                   editable
                   selecionados={selecionadosPropinas}
                   onToggleSelecionado={toggleSelecionadoPropina}
+                  onAtualizado={onAtualizado}
+                  podeReverter={isAdmin}
                 />
               </div>
             ) : null

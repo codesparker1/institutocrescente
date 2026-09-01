@@ -10,9 +10,20 @@ interface MultasPendentesProps {
   /** Ver PropinasMensais — mesma lógica de seleção em lote para multas PENDENTE. */
   selecionados?: Set<string>;
   onToggleSelecionado?: (id: string, valor: number) => void;
+  /** Recarregar o estado depois de reverter uma multa — ver nota em PropinaMesChip. */
+  onAtualizado?: () => void;
+  /** Reverter é exclusivo do ADMIN — ver nota em PropinasMensais. */
+  podeReverter?: boolean;
 }
 
-export function MultasPendentes({ multas, editable, selecionados, onToggleSelecionado }: MultasPendentesProps) {
+export function MultasPendentes({
+  multas,
+  editable,
+  selecionados,
+  onToggleSelecionado,
+  onAtualizado,
+  podeReverter = true,
+}: MultasPendentesProps) {
   if (multas.length === 0) return null;
 
   return (
@@ -43,8 +54,8 @@ export function MultasPendentes({ multas, editable, selecionados, onToggleSeleci
                   />
                   Selecionar
                 </label>
-              ) : editable ? (
-                <MultaChip multaId={multa.id} pagoInicial={multa.status === "PAGO"} />
+              ) : editable && podeReverter ? (
+                <MultaChip multaId={multa.id} pago={multa.status === "PAGO"} onAtualizado={onAtualizado} />
               ) : (
                 <Badge tone={ESTADO_COBRANCA_TONE[multa.estadoVisual]}>{ESTADO_COBRANCA_LABEL[multa.estadoVisual]}</Badge>
               )}

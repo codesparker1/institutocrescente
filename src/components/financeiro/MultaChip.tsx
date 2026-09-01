@@ -6,11 +6,13 @@ import { cn } from "@/lib/utils";
 
 interface MultaChipProps {
   multaId: string;
-  pagoInicial: boolean;
+  /** Estado vindo do servidor — não é copiado para estado local, pela mesma razão do PropinaMesChip. */
+  pago: boolean;
+  /** Recarregar, quando o pai carrega o estado no cliente. */
+  onAtualizado?: () => void;
 }
 
-export function MultaChip({ multaId, pagoInicial }: MultaChipProps) {
-  const [pago, setPago] = useState(pagoInicial);
+export function MultaChip({ multaId, pago, onAtualizado }: MultaChipProps) {
   const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -25,7 +27,7 @@ export function MultaChip({ multaId, pagoInicial }: MultaChipProps) {
           setErro(resultado.error);
           return;
         }
-        setPago((v) => !v);
+        onAtualizado?.();
       } catch (error) {
         // togglePropinaAction/toggleMultaAction lançam Error diretamente em alguns casos (ex.
         // sessão desatualizada em requireSessao) — sem isto o clique parecia não fazer nada.
