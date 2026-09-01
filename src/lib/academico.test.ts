@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte } from "./academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, semestreFechado } from "./academico";
 
 test("reprovações dentro do limite avança de ano", () => {
   const r = decidirRematricula({ reprovacoes: 2, limiteReprovacoes: 2, anoCurricular: 1 });
@@ -88,4 +88,29 @@ test("datasDoAnoLetivoSeguinte: o intervalo novo e reconhecido por anoLetivoCorr
   const novo = datasDoAnoLetivoSeguinte(antigo);
   assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), novo), 2027, "Outubro de 2027 cai no ano novo");
   assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), antigo), null, "e nao no antigo");
+});
+
+test("semestreFechado: o semestre a decorrer não está fechado", () => {
+  const corrente = { anoLetivo: 2026, semestreAtual: 2 };
+  assert.equal(semestreFechado({ anoLetivo: 2026, semestre: 2 }, corrente), false);
+});
+
+test("semestreFechado: o 1º fecha quando o sistema avança para o 2º", () => {
+  assert.equal(semestreFechado({ anoLetivo: 2026, semestre: 1 }, { anoLetivo: 2026, semestreAtual: 2 }), true);
+  // Enquanto o 1º corre, ainda não fechou.
+  assert.equal(semestreFechado({ anoLetivo: 2026, semestre: 1 }, { anoLetivo: 2026, semestreAtual: 1 }), false);
+});
+
+test("semestreFechado: anos letivos anteriores estão fechados por inteiro", () => {
+  const corrente = { anoLetivo: 2026, semestreAtual: 1 };
+  assert.equal(semestreFechado({ anoLetivo: 2025, semestre: 1 }, corrente), true);
+  assert.equal(semestreFechado({ anoLetivo: 2025, semestre: 2 }, corrente), true);
+});
+
+test("semestreFechado: um ano letivo futuro nunca está fechado", () => {
+  assert.equal(semestreFechado({ anoLetivo: 2027, semestre: 1 }, { anoLetivo: 2026, semestreAtual: 2 }), false);
+});
+
+test("semestreFechado: sem ano letivo configurado nada fecha — não se inventa uma fronteira", () => {
+  assert.equal(semestreFechado({ anoLetivo: 2025, semestre: 1 }, { anoLetivo: null, semestreAtual: 1 }), false);
 });

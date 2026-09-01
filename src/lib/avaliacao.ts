@@ -137,6 +137,41 @@ export const ESTADO_LABEL: Record<EstadoAvaliacao, string> = {
   REPROVADO: "Reprovado",
 };
 
+/** Estados em que a cadeira ainda espera por uma prova que aconteça. */
+const ESTADOS_PENDENTES: EstadoAvaliacao[] = ["EM_CURSO", "ADMITIDO_A_EXAME", "EM_RECURSO", "EM_EXAME_ESPECIAL"];
+
+/**
+ * Como mostrar o estado de uma cadeira, tendo em conta se o semestre dela já fechou.
+ *
+ * O fecho de semestre só atribui 0 a épocas que foram AGENDADAS (§decisão do cliente 2026-09-01:
+ * "atribui só notas a que foi agendado") — não inventa provas que nunca existiram. Consequência: uma
+ * cadeira cujo Recurso nunca foi marcado fica parada em EM_RECURSO, e num semestre já fechado esse
+ * rótulo mente, porque não vai haver recurso nenhum.
+ *
+ * O estado calculado não muda — descreve bem onde a cascata parou, e é o que a gestão precisa de
+ * saber para agendar a prova em falta. Muda só a leitura: num semestre fechado, "Em recurso" passa a
+ * "Por concluir", que é a verdade.
+ */
+export function rotuloEstado(estado: EstadoAvaliacao, semestreFechado: boolean): string {
+  if (semestreFechado && ESTADOS_PENDENTES.includes(estado)) return "Por concluir";
+  return ESTADO_LABEL[estado];
+}
+
+/** Tom do badge, coerente com rotuloEstado — "Por concluir" não é um aviso passageiro. */
+export function toneEstado(
+  estado: EstadoAvaliacao,
+  semestreFechado: boolean,
+): "success" | "warning" | "danger" | "neutral" {
+  if (semestreFechado && ESTADOS_PENDENTES.includes(estado)) return "danger";
+  return estado === "DISPENSADO" || estado === "APROVADO"
+    ? "success"
+    : estado === "REPROVADO"
+      ? "danger"
+      : estado === "EM_CURSO"
+        ? "neutral"
+        : "warning";
+}
+
 export interface NotasCadeira {
   p1: number | null;
   p2: number | null;

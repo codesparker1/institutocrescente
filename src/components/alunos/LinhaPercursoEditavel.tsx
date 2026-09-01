@@ -4,8 +4,8 @@ import { useActionState, useState } from "react";
 import { Tr, Td } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { CelulaNota, COLUNAS_EPOCA, ESTADO_TONE, type NotaDeEpoca } from "@/components/notas/ColunasNotas";
-import { ESTADO_LABEL, type EstadoAvaliacao } from "@/lib/avaliacao";
+import { CelulaNota, COLUNAS_EPOCA, type NotaDeEpoca } from "@/components/notas/ColunasNotas";
+import { rotuloEstado, toneEstado, type EstadoAvaliacao } from "@/lib/avaliacao";
 import { guardarNotaHistoricaAction, type GuardarNotaHistoricaState } from "@/actions/notas";
 import type { Epoca } from "@/generated/prisma/client";
 
@@ -30,6 +30,8 @@ interface LinhaPercursoEditavelProps {
   notaFrequencia: number | null;
   notaFinal: number | null;
   estado: EstadoAvaliacao;
+  /** O semestre desta cadeira já encerrou — muda a leitura do estado, não o cálculo. */
+  semestreEncerrado: boolean;
   professorNome: string;
   temProfessor: boolean;
   editavel: boolean;
@@ -57,6 +59,7 @@ export function LinhaPercursoEditavel({
   notaFrequencia,
   notaFinal,
   estado,
+  semestreEncerrado,
   professorNome,
   temProfessor,
   editavel,
@@ -98,7 +101,8 @@ export function LinhaPercursoEditavel({
         <Td className="text-center text-navy-800">{notaFrequencia !== null ? notaFrequencia.toFixed(1) : "—"}</Td>
         <Td className="text-center font-semibold text-navy-900">{notaFinal !== null ? notaFinal.toFixed(1) : "—"}</Td>
         <Td>
-          <Badge tone={ESTADO_TONE[estado]}>{ESTADO_LABEL[estado]}</Badge>
+          {/* Num semestre encerrado "Em curso"/"Em recurso" mentiriam — ver rotuloEstado. */}
+          <Badge tone={toneEstado(estado, semestreEncerrado)}>{rotuloEstado(estado, semestreEncerrado)}</Badge>
         </Td>
         <Td className={temProfessor ? "text-xs" : "text-xs text-navy-400 italic"}>{professorNome}</Td>
         {editavel ? (

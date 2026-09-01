@@ -19,6 +19,7 @@ import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
 import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo, nomeProfessor } from "@/lib/utils";
+import { anoLetivoCorrente, semestreFechado } from "@/lib/academico";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
@@ -155,6 +156,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   // Rematrícula (§4.2/Fase 8b) — resumo do ano corrente e janela de matrícula.
   const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   const agora = await getAgora();
+  // Para distinguir, na pauta, um semestre a decorrer de um já encerrado: num encerrado
+  // "Em curso"/"Em recurso" mentem, porque não vai entrar mais nota nenhuma (ver rotuloEstado).
+  const anoLetivoAtual = anoLetivoCorrente(agora, configAcademica);
+  const semestreAtualConfig = configAcademica?.semestreAtual === 2 ? 2 : 1;
   const dentroDaJanela = Boolean(
     configAcademica?.matriculaInicio &&
       configAcademica.matriculaFim &&
@@ -417,6 +422,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                                     notaFrequencia={resultado.notaFrequencia}
                                     notaFinal={resultado.notaFinal}
                                     estado={resultado.estado}
+                                    semestreEncerrado={semestreFechado(
+                                      { anoLetivo: grupo.anoLetivo, semestre },
+                                      { anoLetivo: anoLetivoAtual, semestreAtual: semestreAtualConfig },
+                                    )}
                                     professorNome={nomeProfessor(inscricao.turmaDisciplina.professor)}
                                     temProfessor={Boolean(inscricao.turmaDisciplina.professor)}
                                     editavel={podeRepetir}

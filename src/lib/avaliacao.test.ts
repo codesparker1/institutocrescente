@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, provaJaPassou, proximaEpocaPendente, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, provaJaPassou, proximaEpocaPendente, rotuloEstado, toneEstado, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
 const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
@@ -317,4 +317,27 @@ test("fecho de semestre: cadeira já dispensada não recebe zeros nenhuns", () =
 test("fecho de semestre: cadeira sem nota nenhuma começa a cascata no P1", () => {
   const resultado = calcularNotaFinal(SEM_NOTAS, REGRAS_PADRAO);
   assert.equal(proximaEpocaPendente(SEM_NOTAS, resultado.estado), "P1");
+});
+
+test("rotuloEstado: num semestre fechado, um estado pendente lê-se 'Por concluir'", () => {
+  // O fecho só grava 0 em épocas AGENDADAS (§decisão do cliente 2026-09-01). Uma cadeira cujo
+  // Recurso nunca foi marcado fica parada em EM_RECURSO — e nesse semestre não vai haver recurso.
+  assert.equal(rotuloEstado("EM_RECURSO", true), "Por concluir");
+  assert.equal(rotuloEstado("EM_CURSO", true), "Por concluir");
+  assert.equal(rotuloEstado("ADMITIDO_A_EXAME", true), "Por concluir");
+  assert.equal(toneEstado("EM_RECURSO", true), "danger", "não é um aviso passageiro");
+});
+
+test("rotuloEstado: com o semestre a decorrer, o rótulo normal mantém-se", () => {
+  assert.equal(rotuloEstado("EM_RECURSO", false), "Em recurso");
+  assert.equal(rotuloEstado("EM_CURSO", false), "Em curso");
+});
+
+test("rotuloEstado: estados já decididos não mudam, semestre fechado ou não", () => {
+  for (const fechado of [true, false]) {
+    assert.equal(rotuloEstado("APROVADO", fechado), "Aprovado");
+    assert.equal(rotuloEstado("DISPENSADO", fechado), "Dispensado");
+    assert.equal(rotuloEstado("REPROVADO", fechado), "Reprovado");
+  }
+  assert.equal(toneEstado("DISPENSADO", true), "success", "quem dispensou não fica marcado a vermelho");
 });

@@ -64,6 +64,26 @@ export function anoLetivoCorrente(
 }
 
 /**
+ * O semestre de uma cadeira já fechou? Fechado = já não entra nota nenhuma nele.
+ *
+ * É o caso de qualquer semestre de um ano letivo anterior, e do 1º semestre do ano corrente quando
+ * o sistema já avançou para o 2º — a mesma fronteira que alterarSemestreAction usa para fechar as
+ * cadeiras a zeros (§2026-08-31/09-01).
+ *
+ * Serve para a leitura: numa cadeira de um semestre fechado, "Em recurso" ou "Em curso" mentem, e
+ * passam a "Por concluir" (ver rotuloEstado em lib/avaliacao.ts).
+ */
+export function semestreFechado(
+  cadeira: { anoLetivo: number; semestre: number },
+  corrente: { anoLetivo: number | null; semestreAtual: number },
+): boolean {
+  if (corrente.anoLetivo === null) return false;
+  if (cadeira.anoLetivo < corrente.anoLetivo) return true;
+  if (cadeira.anoLetivo > corrente.anoLetivo) return false;
+  return cadeira.semestre < corrente.semestreAtual;
+}
+
+/**
  * As datas do ano letivo seguinte: as mesmas, um ano à frente. Um ano letivo que ia de 1/Set/2026 a
  * 31/Jul/2027 passa a 1/Set/2027 – 31/Jul/2028.
  *

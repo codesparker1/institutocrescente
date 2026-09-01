@@ -6,8 +6,10 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
-import { calcularNotaFinal, extrairNotasPorEpoca, ESTADO_LABEL } from "@/lib/avaliacao";
-import { CelulaNota, COLUNAS_EPOCA, ESTADO_TONE, notaDaEpoca } from "@/components/notas/ColunasNotas";
+import { calcularNotaFinal, extrairNotasPorEpoca, rotuloEstado, toneEstado } from "@/lib/avaliacao";
+import { CelulaNota, COLUNAS_EPOCA, notaDaEpoca } from "@/components/notas/ColunasNotas";
+import { anoLetivoCorrente, semestreFechado } from "@/lib/academico";
+import { getAgora } from "@/lib/tempo";
 
 
 export default async function MinhasNotasPage() {
@@ -52,9 +54,13 @@ export default async function MinhasNotasPage() {
       },
       orderBy: [{ turmaDisciplina: { disciplina: { nome: "asc" } } }, { tentativa: "asc" }],
     }),
-    prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { semestreAtual: true } }),
+    prisma.configuracaoAcademica.findUnique({ where: { id: "config" } }),
   ]);
   const semestreAtual = configAcademica?.semestreAtual === 2 ? 2 : 1;
+  // Para distinguir um semestre a decorrer de um já fechado: num fechado, "Em curso"/"Em recurso"
+  // mentem, porque não vai entrar mais nota nenhuma (ver rotuloEstado).
+  const agora = await getAgora();
+  const anoLetivoAtual = anoLetivoCorrente(agora, configAcademica);
 
   function calcularEstado(inscricao: (typeof inscricoes)[number]) {
     const notas = inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao }));
@@ -65,13 +71,17 @@ export default async function MinhasNotasPage() {
   }
 
 
-  const grupos = new Map<string, { label: string; inscricoesPorSemestre: Map<number, typeof inscricoes> }>();
+  const grupos = new Map<
+    string,
+    { label: string; anoLetivo: number; inscricoesPorSemestre: Map<number, typeof inscricoes> }
+  >();
   for (const inscricao of inscricoes) {
     const turma = inscricao.turmaDisciplina.turma;
     const chave = turma.id;
     if (!grupos.has(chave)) {
       grupos.set(chave, {
         label: `${turma.curso.nome} · ${turma.anoCurricular}º Ano`,
+        anoLetivo: turma.anoLetivo,
         inscricoesPorSemestre: new Map(),
       });
     }
@@ -155,10 +165,14 @@ export default async function MinhasNotasPage() {
 
               {semestres.map((semestre) => {
                 const inscricoesSemestre = grupo.inscricoesPorSemestre.get(semestre)!;
+                const fechado = semestreFechado(
+                  { anoLetivo: grupo.anoLetivo, semestre },
+                  { anoLetivo: anoLetivoAtual, semestreAtual },
+                );
                 return (
                   <Card key={semestre}>
                     <CardHeader
-                      title={`${semestre}º Semestre${semestre === semestreAtual ? " · a decorrer" : ""}`}
+                      title={`${semestre}º Semestre${semestre === semestreAtual && !fechado ? " · a decorrer" : fechado ? " · encerrado" : ""}`}
                       subtitle={`${inscricoesSemestre.length} disciplina(s)`}
                     />
                     {/* Uma coluna por época (§pedido do cliente 2026-08-31): a leitura fica em
@@ -214,7 +228,11 @@ export default async function MinhasNotasPage() {
                                   {resultado.notaFrequencia !== null ? resultado.notaFrequencia.toFixed(1) : "—"}
                                 </Td>
                                 <Td>
-                                  <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
+                                  {/* Num semestre já encerrado "Em curso"/"Em recurso" mentiriam —
+                                      não vai entrar mais nota nenhuma. Ver rotuloEstado. */}
+                                  <Badge tone={toneEstado(resultado.estado, fechado)}>
+                                    {rotuloEstado(resultado.estado, fechado)}
+                                  </Badge>
                                 </Td>
                                 <Td className="text-center font-semibold text-navy-900">
                                   {resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}
