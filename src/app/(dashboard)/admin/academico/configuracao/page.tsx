@@ -5,6 +5,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { podeGerirCurriculo } from "@/lib/permissions";
 import { toIsoDate } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
+import { contarFechoSemestre } from "@/lib/fecho-semestre";
 import { getAgora } from "@/lib/tempo";
 import { ConfiguracaoAcademicaForm } from "./ConfiguracaoAcademicaForm";
 import { SemestreAtualCard } from "./SemestreAtualCard";
@@ -35,6 +36,13 @@ export default async function ConfiguracaoAcademicaPage() {
           }),
         ]);
 
+  // O que o fecho do 1º semestre vai marcar a 0 — contado antes, para o aviso poder dizer o número
+  // em vez de o DAAC só descobrir depois de a mudança já ser irreversível.
+  const fecho =
+    anoLetivo === null || semestreAtual !== 1
+      ? { porFechar: 0, semAvaliacaoAgendada: 0 }
+      : await contarFechoSemestre(anoLetivo, 1);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -48,6 +56,9 @@ export default async function ConfiguracaoAcademicaPage() {
         semestreAtual={semestreAtual}
         disciplinasSemProfessor={semProfessor}
         disciplinasSemHorario={semHorario}
+        cadeirasPorFechar={fecho.porFechar}
+        semAvaliacaoAgendada={fecho.semAvaliacaoAgendada}
+        dentroDoAnoLetivo={anoLetivo !== null}
       />
 
       <Card>

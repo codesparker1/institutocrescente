@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, provaJaPassou, proximaEpocaPendente, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, provaJaPassou, proximaEpocaPendente, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
 const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
@@ -282,4 +282,39 @@ test("remarcar: a cascata continua a valer na nova data", () => {
   // Puxar o P2 para antes do P1 tem de continuar a ser recusado, mesmo a remarcar.
   const motivo = motivoAgendamentoInvalido("P2", new Date(2026, 8, 5), outras);
   assert.equal(motivo?.tipo, "ANTES_DA_ANTERIOR");
+});
+
+test("fecho de semestre: P1 lançado e P2 em falta apura reprovado, não fica 'Em curso'", () => {
+  // O caso da imagem (§2026-08-31): P1 = 8, P2 nunca lançado. Enquanto o semestre corre é
+  // legitimamente EM_CURSO; quando fecha, o 0 no P2 tem de fazer a cascata avançar.
+  const antes: NotasCadeira = { ...SEM_NOTAS, p1: 8 };
+  assert.equal(calcularNotaFinal(antes, REGRAS_PADRAO).estado, "EM_CURSO");
+
+  // Simula o que fecharSemestre grava: 0 na próxima época pendente, em cascata.
+  let notas = antes;
+  const zeros: string[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    const resultado = calcularNotaFinal(notas, REGRAS_PADRAO);
+    const proxima = proximaEpocaPendente(notas, resultado.estado);
+    if (!proxima) break;
+    zeros.push(proxima);
+    notas = { ...notas, [EPOCA_PARA_CHAVE_NOTAS[proxima]]: 0 };
+  }
+
+  // P2=0 dá média 4 (admitido a exame), Exame=0 dá 2 (recurso), Recurso=0 (especial), Especial=0.
+  assert.deepEqual(zeros, ["P2", "EXAME", "RECURSO", "EXAME_ESPECIAL"]);
+  assert.equal(calcularNotaFinal(notas, REGRAS_PADRAO).estado, "REPROVADO");
+});
+
+test("fecho de semestre: cadeira já dispensada não recebe zeros nenhuns", () => {
+  // Quem já fechou a cadeira não pode ser tocado pelo fecho — proximaEpocaPendente devolve null.
+  const notas: NotasCadeira = { ...SEM_NOTAS, p1: 15, p2: 15 };
+  const resultado = calcularNotaFinal(notas, REGRAS_PADRAO);
+  assert.equal(resultado.estado, "DISPENSADO");
+  assert.equal(proximaEpocaPendente(notas, resultado.estado), null);
+});
+
+test("fecho de semestre: cadeira sem nota nenhuma começa a cascata no P1", () => {
+  const resultado = calcularNotaFinal(SEM_NOTAS, REGRAS_PADRAO);
+  assert.equal(proximaEpocaPendente(SEM_NOTAS, resultado.estado), "P1");
 });

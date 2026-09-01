@@ -10,7 +10,8 @@ import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes, garantir
 import { getEstadoFinanceiroAluno, gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { formatCurrency, fromIsoDate } from "@/lib/utils";
-import { decidirRematricula, cadeirasARepetir } from "@/lib/academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente } from "@/lib/academico";
+import { fecharSemestre } from "@/lib/fecho-semestre";
 import { getAgora } from "@/lib/tempo";
 
 const ConfiguracaoAcademicaSchema = z.object({
@@ -126,17 +127,46 @@ export async function alterarSemestreAction(formData: FormData): Promise<void> {
   const novoSemestre = Number(formData.get("semestre"));
   if (novoSemestre !== 1 && novoSemestre !== 2) throw new Error("Semestre inválido.");
 
-  await prisma.configuracaoAcademica.upsert({
+  const config = await prisma.configuracaoAcademica.upsert({
     where: { id: "config" },
-    update: { semestreAtual: novoSemestre, updatedPorId: session.user.id },
-    create: { id: "config", semestreAtual: novoSemestre, updatedPorId: session.user.id },
+    update: {},
+    create: { id: "config" },
+  });
+  const semestreAnterior = config.semestreAtual === 2 ? 2 : 1;
+  if (semestreAnterior === novoSemestre) return;
+
+  const agora = await getAgora();
+  const anoLetivo = anoLetivoCorrente(agora, config);
+
+  // Voltar do 2º ao 1º só na viragem do ano letivo (§decisão do cliente 2026-08-31). A meio do ano
+  // seria reabrir um semestre já fechado a zeros: as notas automáticas do fecho continuariam lá, e
+  // o 1º semestre voltaria a aceitar horários e provas como se nada tivesse acontecido.
+  if (novoSemestre === 1 && anoLetivo !== null) {
+    throw new Error(
+      "O 1º semestre já foi fechado neste ano letivo. Só se volta ao 1º semestre no início de um novo ano letivo.",
+    );
+  }
+
+  // Avançar 1º → 2º fecha o 1º: as cadeiras que ficaram com notas por lançar apuram o resultado com
+  // 0 nas épocas em falta, em vez de ficarem "Em curso" para sempre.
+  let notasAtribuidas = 0;
+  if (semestreAnterior === 1 && novoSemestre === 2 && anoLetivo !== null) {
+    notasAtribuidas = await fecharSemestre(anoLetivo, 1);
+  }
+
+  await prisma.configuracaoAcademica.update({
+    where: { id: "config" },
+    data: { semestreAtual: novoSemestre, updatedPorId: session.user.id },
   });
 
   await registrarAuditoria({
     userId: session.user.id,
     userName: session.user.name ?? session.user.email ?? "Utilizador",
     userRole: session.user.role,
-    action: `Mudou o sistema para o ${novoSemestre}º Semestre`,
+    action:
+      notasAtribuidas > 0
+        ? `Mudou o sistema para o ${novoSemestre}º Semestre — fecho do ${semestreAnterior}º atribuiu ${notasAtribuidas} nota(s) 0 por falta`
+        : `Mudou o sistema para o ${novoSemestre}º Semestre`,
     entityType: "ConfiguracaoAcademica",
     entityId: "config",
   });
