@@ -35,21 +35,31 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
     let turmaDisciplinas: TurmaDisciplinaComHorario[] = [];
     let subtitle = "";
 
+    const configPessoal = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+    const semestreAtual = configPessoal?.semestreAtual === 2 ? 2 : 1;
+    // Do intervalo configurado, não do ano civil — ver nota em anoLetivoCorrente.
+    const anoLetivoPessoal = anoLetivoCorrente(await getAgora(), configPessoal);
+
     if (role === "PROFESSOR") {
       if (!session.user.professorId) redirect("/dashboard");
+      // Filtrado ao semestre e ao ano letivo correntes (§pedido do cliente 2026-09-01): sem isto o
+      // professor via as aulas e provas do 1º semestre — já encerrado — misturadas com as do 2º, e
+      // as de anos letivos anteriores por cima. O mesmo filtro que o aluno já tinha.
       const rows = await prisma.turmaDisciplina.findMany({
-        where: { professorId: session.user.professorId },
+        where: {
+          professorId: session.user.professorId,
+          semestre: semestreAtual,
+          ...(anoLetivoPessoal !== null ? { turma: { anoLetivo: anoLetivoPessoal } } : {}),
+        },
         include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } },
       });
       turmaDisciplinas = rows.map((r) => ({
         ...r,
         cursoAnoLabel: `${r.turma.curso.nome} · ${r.turma.anoCurricular}º Ano`,
       }));
-      subtitle = "Horário das suas disciplinas.";
+      subtitle = `${semestreAtual}º Semestre — as suas disciplinas.`;
     } else {
       if (!session.user.alunoId) redirect("/dashboard");
-      const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { semestreAtual: true } });
-      const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
       // Por InscricaoCadeira, não pela Matricula — um repetente frequenta cadeiras cujas
       // TurmaDisciplina pertencem a uma Turma de ano diferente da sua matrícula atual (§4.2).
       // Filtrado ao semestre corrente (§pedido do cliente 2026-08-29): sem isto, o aluno via as
