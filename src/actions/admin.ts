@@ -202,6 +202,24 @@ export async function createDisciplinaAction(
 export async function deleteDisciplinaAction(formData: FormData) {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
+
+  // Uma disciplina pode estar no plano de vários cursos (§pedido do cliente 2026-09-02), por isso
+  // a chave estrangeira sozinha diria só "ainda está em uso" — e quem apaga a partir de Engenharia
+  // não adivinharia que o problema está no plano de Gestão. Nomeamos os cursos antes de tentar.
+  const noPlanoDe = await prisma.cadeiraCurricular.findMany({
+    where: { disciplinaId: id },
+    select: { curso: { select: { nome: true } } },
+    distinct: ["cursoId"],
+    orderBy: { curso: { nome: "asc" } },
+  });
+  if (noPlanoDe.length > 0) {
+    const cursos = noPlanoDe.map((c) => c.curso.nome).join(", ");
+    throw new Error(
+      `Não é possível remover: esta disciplina está no plano curricular de ${cursos}. ` +
+        "Retire-a desses planos primeiro, em Plano Curricular.",
+    );
+  }
+
   try {
     const disciplina = await prisma.disciplina.delete({ where: { id } });
     await audit(session, `Removeu a disciplina ${disciplina.nome}`, "Disciplina", id);

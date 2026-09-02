@@ -18,16 +18,36 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
   const cursoId = cursoIdParam ?? cursos[0]?.id ?? "";
   const curso = cursoId ? cursos.find((c) => c.id === cursoId) : null;
 
+  // TODAS as disciplinas, não só as deste curso (§pedido do cliente 2026-09-02): uma disciplina
+  // pode entrar no plano de vários cursos, para não haver cinco "Matemática I" no sistema. O que
+  // o plano partilha é a DEFINIÇÃO (nome, código, carga horária) — cada curso continua a ter a sua
+  // turma, professor, horário e pauta, porque tudo isso pende de CadeiraCurricular, não daqui.
+  // `Disciplina.cursoId` fica a significar apenas onde a disciplina foi criada: serve para agrupar
+  // esta lista e mostrar de onde vem, não para restringir quem a usa.
   const [disciplinas, cadeiras] = cursoId
     ? await Promise.all([
-        prisma.disciplina.findMany({ where: { cursoId }, orderBy: { nome: "asc" } }),
+        prisma.disciplina.findMany({
+          include: { curso: { select: { nome: true } } },
+          orderBy: [{ curso: { nome: "asc" } }, { nome: "asc" }],
+        }),
         prisma.cadeiraCurricular.findMany({
           where: { cursoId },
-          include: { disciplina: true, _count: { select: { turmaDisciplinas: true } } },
+          include: {
+            disciplina: { include: { curso: { select: { nome: true } } } },
+            _count: { select: { turmaDisciplinas: true } },
+          },
           orderBy: [{ anoCurricular: "asc" }, { semestre: "asc" }, { disciplina: { nome: "asc" } }],
         }),
       ])
     : [[], []];
+
+  // Já no plano: não vale a pena voltar a oferecê-las no seletor — o @@unique da CadeiraCurricular
+  // recusaria a mesma disciplina no mesmo ano/semestre, e repeti-la noutro ano é raro o suficiente
+  // para não justificar poluir a lista.
+  const jaNoPlano = new Set(cadeiras.map((c) => c.disciplinaId));
+  const disciplinasDisponiveis = disciplinas
+    .filter((d) => !jaNoPlano.has(d.id))
+    .map((d) => ({ id: d.id, nome: d.nome, cursoOrigem: d.cursoId === cursoId ? null : d.curso.nome }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,16 +87,32 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
         <Card>
           <CardHeader title={curso.nome} subtitle={`${cadeiras.length} cadeira(s) no plano curricular`} />
           <CardBody className="flex flex-col gap-4">
-            {disciplinas.length === 0 ? (
+            {disciplinasDisponiveis.length === 0 ? (
               <p className="text-sm text-navy-400">
-                Este curso ainda não tem disciplinas. Crie-as primeiro em{" "}
-                <Link href="/admin/disciplinas" className="underline hover:text-navy-600">
-                  Disciplinas
-                </Link>
-                .
+                {disciplinas.length === 0 ? (
+                  <>
+                    Ainda não há disciplinas no sistema. Crie-as primeiro em{" "}
+                    <Link href="/admin/disciplinas" className="underline hover:text-navy-600">
+                      Disciplinas
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Todas as disciplinas do sistema já estão neste plano. Para acrescentar outra, crie-a em{" "}
+                    <Link href="/admin/disciplinas" className="underline hover:text-navy-600">
+                      Disciplinas
+                    </Link>
+                    .
+                  </>
+                )}
               </p>
             ) : (
-              <CreateCadeiraCurricularForm cursoId={curso.id} disciplinas={disciplinas} duracaoAnos={curso.duracaoAnos} />
+              <CreateCadeiraCurricularForm
+                cursoId={curso.id}
+                disciplinas={disciplinasDisponiveis}
+                duracaoAnos={curso.duracaoAnos}
+              />
             )}
 
             {cadeiras.length === 0 ? (
@@ -96,7 +132,14 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                 <Tbody>
                   {cadeiras.map((cadeira) => (
                     <Tr key={cadeira.id}>
-                      <Td className="font-medium text-navy-900">{cadeira.disciplina.nome}</Td>
+                      <Td className="font-medium text-navy-900">
+                        {cadeira.disciplina.nome}
+                        {cadeira.disciplina.cursoId !== cursoId ? (
+                          <span className="ml-2 rounded bg-navy-50 px-1.5 py-0.5 text-xs font-normal text-navy-500">
+                            de {cadeira.disciplina.curso.nome}
+                          </span>
+                        ) : null}
+                      </Td>
                       <Td>{cadeira.anoCurricular}º Ano</Td>
                       <Td>{cadeira.semestre}º Semestre</Td>
                       <Td>{cadeira._count.turmaDisciplinas}</Td>
