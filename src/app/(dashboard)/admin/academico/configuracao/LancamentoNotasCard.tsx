@@ -25,22 +25,10 @@ interface LancamentoNotasCardProps {
 export function LancamentoNotasCard({ aberto, alteradoEm, cadeirasPorLancar }: LancamentoNotasCardProps) {
   function handleSubmit(abrir: boolean) {
     return (e: FormEvent<HTMLFormElement>) => {
-      const mensagem = abrir
-        ? "Abrir o lançamento de notas?\n\n" +
-          "Todos os professores passam a poder lançar e corrigir notas das suas disciplinas do " +
-          "semestre e ano letivo correntes. Continua a não ser possível lançar a nota de uma prova " +
-          "que ainda não se realizou.\n\n" +
-          "A janela fica aberta até alguém a fechar — NÃO fecha sozinha."
-        : "Fechar o lançamento de notas?\n\n" +
-          "Nenhum professor passa a conseguir lançar ou corrigir notas — os campos da pauta ficam " +
-          "bloqueados em todas as disciplinas.\n\n" +
-          (cadeirasPorLancar > 0
-            ? `FICA POR LANÇAR:\n• ${cadeirasPorLancar} cadeira(s) de aluno ainda sem nota numa época já agendada.\n` +
-              "Ficam nesse estado até alguém reabrir a janela, ou até o fecho do semestre lhes atribuir 0.\n\n"
-            : "Não há neste momento nenhuma nota por lançar.\n\n") +
-          "O DAAC e a ADMIN continuam a lançar por Gestão Académica > Notas. Pode reabrir a qualquer momento.";
-
-      if (!window.confirm(mensagem)) e.preventDefault();
+      // Só o FECHO pergunta: é o que tira uma capacidade a toda a gente. Abrir devolve-a, é
+      // reversível com um clique, e uma confirmação aí só ensinaria a carregar em "OK" sem ler.
+      if (abrir) return;
+      if (!window.confirm("Tem a certeza que quer fechar a janela de notas?")) e.preventDefault();
     };
   }
 
