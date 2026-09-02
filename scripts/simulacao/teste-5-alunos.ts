@@ -9,7 +9,7 @@
  * script tem de respeitar (ver o plano para o raciocínio completo):
  *
  *   1. avancarRelogio() não dispara nada sozinho — as 3 jobs preguiçosas (garantirSuspensaoAutomatica
- *      → garantirCobrancasGeradas → garantirNotasAutomaticasPorFalta, src/app/(dashboard)/layout.tsx)
+ *      → garantirCobrancasGeradas → garantirTurmasSincronizadasComPlano, src/app/(dashboard)/layout.tsx)
  *      só correm no próximo carregamento de um /dashboard. Por isso todo salto de relógio é seguido
  *      de uma visita a /dashboard antes de qualquer ação depender do efeito desse salto.
  *   2. Nada no sistema avança ConfiguracaoAcademica de um ano letivo para o seguinte — o próprio
@@ -120,6 +120,16 @@ async function lerConfigAcademica(): Promise<ConfigAcademicaParaMarcos> {
   const config = await prisma.configuracaoAcademica.findUniqueOrThrow({ where: { id: "config" } });
   if (!config.anoLetivoInicio || !config.anoLetivoFim || !config.matriculaInicio || !config.matriculaFim) {
     throw new Error("ConfiguracaoAcademica incompleta — corre scripts/seed-teste-5-anos.ts primeiro.");
+  }
+  // §2026-09-02: sem a janela de lançamento aberta, TODOS os cenários que lançam notas pela UI
+  // falham em silêncio (lancarNotaAluno devolve false) e a corrida parece partida por outro motivo.
+  // Na realidade é o DAAC que a abre pela Configuração Académica; aqui é feito por Prisma direto,
+  // simplificação deliberada no mesmo espírito das outras deste script.
+  if (!config.lancamentoNotasAberto) {
+    await prisma.configuracaoAcademica.update({
+      where: { id: "config" },
+      data: { lancamentoNotasAberto: true },
+    });
   }
   return {
     anoLetivoInicio: config.anoLetivoInicio,

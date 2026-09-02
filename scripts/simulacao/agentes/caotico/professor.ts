@@ -5,7 +5,7 @@ import type { AcaoCaotica, ResultadoAgenteCaotico } from "./comum";
 
 /**
  * Professor que insiste em mexer em notas fora do que devia: confirma que colunas de época já
- * fechadas (prazoLancamento expirado) continuam bloqueadas na UI mesmo sob pressão, e faz duplo
+ * fechadas (janela de lançamento fechada, ou prova por realizar) continuam bloqueadas na UI mesmo sob pressão, e faz duplo
  * clique rápido em "Guardar alterações" para testar se um duplo-submit do mesmo lote causa
  * alguma coisa estranha (deve ser inofensivo — GradebookEditor esvazia as edições após gravar).
  */

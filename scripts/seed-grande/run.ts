@@ -297,9 +297,9 @@ async function main(): Promise<void> {
   const avaliacoes = turmaDisciplinas.flatMap((td) =>
     (
       [
-        { epoca: "P1" as const, data: daysAgo(45), prazoLancamento: daysAgo(38) },
-        { epoca: "P2" as const, data: daysAgo(20), prazoLancamento: daysAgo(13) },
-        { epoca: "EXAME" as const, data: daysAgo(-10), prazoLancamento: daysAgo(-3) },
+        { epoca: "P1" as const, data: daysAgo(45) },
+        { epoca: "P2" as const, data: daysAgo(20) },
+        { epoca: "EXAME" as const, data: daysAgo(-10) },
       ]
     ).map((a) => ({ id: id(), turmaDisciplinaId: td.id, sala: td.sala, ...a })),
   );

@@ -35,7 +35,7 @@ interface AvaliacaoResumo {
    * Porquê fechada — dá ao professor a razão em vez de um campo cinzento sem explicação.
    * null quando está aberta (ou quando `disabled` vem de outra causa que não a janela).
    */
-  motivoFechado?: "PROVA_POR_REALIZAR" | "PRAZO_EXPIRADO" | null;
+  motivoFechado?: "PROVA_POR_REALIZAR" | "LANCAMENTO_FECHADO" | null;
   /** Data da prova, para a mensagem dizer a partir de quando abre. */
   dataProva?: Date | null;
 }
@@ -210,10 +210,10 @@ export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, edi
                           ? "Ainda não é preciso — depende do resultado das épocas anteriores"
                           : avaliacao.motivoFechado === "PROVA_POR_REALIZAR"
                             ? `A prova ainda não se realizou — abre a ${avaliacao.dataProva ? formatDate(avaliacao.dataProva) : "data da prova"}`
-                            : avaliacao.motivoFechado === "PRAZO_EXPIRADO"
-                              ? "Prazo de lançamento fechado — peça a reabertura ao DAAC"
+                            : avaliacao.motivoFechado === "LANCAMENTO_FECHADO"
+                              ? "O lançamento de notas está fechado — peça ao DAAC para abrir"
                               : ehAutomatica
-                                ? "0 automático — prazo de lançamento expirado sem nota"
+                                ? "0 automático — atribuído no fecho do semestre por falta de nota"
                                 : undefined
                     }
                     onChange={(e) => handleChange(inscricao.id, avaliacao.epoca, e.target.value)}

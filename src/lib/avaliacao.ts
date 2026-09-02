@@ -19,31 +19,6 @@ export const EPOCA_LABEL: Record<Epoca, string> = {
   EXAME_ESPECIAL: "Exame Especial",
 };
 
-export interface DiasPrazoConfig {
-  diasPrazoP1: number;
-  diasPrazoP2: number;
-  diasPrazoExame: number;
-  diasPrazoRecurso: number;
-  diasPrazoExameEspecial: number;
-}
-
-/** Dias corridos após a prova em que o prazo de lançamento fecha, por época — configurado pelo
- * DAAC em Configuração Académica. Congelado na Avaliacao no momento em que é agendada/criada. */
-export function diasPrazoParaEpoca(config: DiasPrazoConfig, epoca: Epoca): number {
-  switch (epoca) {
-    case "P1":
-      return config.diasPrazoP1;
-    case "P2":
-      return config.diasPrazoP2;
-    case "EXAME":
-      return config.diasPrazoExame;
-    case "RECURSO":
-      return config.diasPrazoRecurso;
-    case "EXAME_ESPECIAL":
-      return config.diasPrazoExameEspecial;
-  }
-}
-
 /**
  * A prova já ficou para trás? Compara por DIA, pela mesma razão que motivoLancamentoFechado: a data
  * agendada é meia-noite do dia da prova, por isso `avaliacao.data < agora` dava "já passou" logo à
@@ -59,30 +34,55 @@ export function provaJaPassou(dataProva: Date, agora: Date): boolean {
 }
 
 /** Porque é que o lançamento de nota está fechado — ou null se estiver aberto. */
-export type MotivoLancamentoFechado = "PROVA_POR_REALIZAR" | "PRAZO_EXPIRADO";
+export type MotivoLancamentoFechado = "PROVA_POR_REALIZAR" | "LANCAMENTO_FECHADO";
 
 /**
- * A janela em que o PROFESSOR pode lançar a nota de uma avaliação: do dia da prova até ao fim do
- * prazo. Antes, só o limite superior era aplicado — dava para lançar a nota de uma prova que ainda
- * não tinha acontecido (§pedido do cliente 2026-08-28).
+ * A janela em que o PROFESSOR pode lançar a nota. Duas condições, ambas necessárias:
+ *
+ * 1. LANCAMENTO_FECHADO — o DAAC/ADMIN tem de ter aberto a janela global
+ *    (ConfiguracaoAcademica.lancamentoNotasAberto). §decisão do cliente 2026-09-02: voltou-se ao
+ *    sistema manual, "onde se clica para poder permitir os professores introduzir as notas".
+ *    Substitui o antigo PRAZO_EXPIRADO, que fechava sozinho N dias depois da prova.
+ * 2. PROVA_POR_REALIZAR — a prova tem de já ter acontecido. Não veio abaixo com a mudança acima:
+ *    continua a não fazer sentido lançar a nota de uma prova que ainda não se deu (§pedido do
+ *    cliente 2026-08-28), por muito aberta que a janela esteja.
+ *
+ * A janela global é verificada PRIMEIRO: com ela fechada, dizer "a prova ainda não se realizou"
+ * mandaria o professor esperar por uma data que não ia resolver nada.
  *
  * Abre no DIA da prova, não à hora: a hora agendada serve para o aluno saber quando comparecer, e
  * exigi-la aqui fechava o campo ao professor que corrige e lança logo a seguir, sempre que a hora
  * estivesse mal preenchida. O dia é a fronteira que toda a gente entende.
  *
- * O DAAC/ADMIN não passa por aqui (ver podeIgnorarPrazo): já ignora o prazo de fim — que é o
- * mecanismo de reabertura do §4.3 — e ignora também este limite de início, para poder registar uma
- * prova feita fora do calendário sem ter de mexer na data da avaliação.
+ * O DAAC/ADMIN não passa por aqui (ver podeIgnorarJanela/podeLancarNota): ignora ambos os limites —
+ * é o mecanismo de correção fora da janela, o mesmo de sempre.
  */
 export function motivoLancamentoFechado(
-  avaliacao: { data: Date; prazoLancamento: Date },
+  avaliacao: { data: Date },
   agora: Date,
+  lancamentoAberto: boolean,
 ): MotivoLancamentoFechado | null {
+  if (!lancamentoAberto) return "LANCAMENTO_FECHADO";
   const diaDaProva = new Date(avaliacao.data.getFullYear(), avaliacao.data.getMonth(), avaliacao.data.getDate());
   const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-  if (hoje < diaDaProva) return "PROVA_POR_REALIZAR";
-  if (avaliacao.prazoLancamento < agora) return "PRAZO_EXPIRADO";
-  return null;
+  return hoje < diaDaProva ? "PROVA_POR_REALIZAR" : null;
+}
+
+/**
+ * O mesmo, para uma época que ainda não tem Avaliacao formal (Recurso/Exame Especial por agendar).
+ * Sem data de prova não há PROVA_POR_REALIZAR a validar, mas a janela global continua a valer.
+ *
+ * Existe para as duas leituras não divergirem: a UI (TurmaGradebook) e a barreira real
+ * (lancarNotasEmLoteAction) faziam esta mesma decisão em sítios diferentes, e uma cópia que se
+ * desatualizasse deixaria o campo aberto no ecrã e fechado no servidor — ou o contrário.
+ */
+export function motivoLancamentoFechadoOuAusente(
+  avaliacao: { data: Date } | null | undefined,
+  agora: Date,
+  lancamentoAberto: boolean,
+): MotivoLancamentoFechado | null {
+  if (!avaliacao) return lancamentoAberto ? null : "LANCAMENTO_FECHADO";
+  return motivoLancamentoFechado(avaliacao, agora, lancamentoAberto);
 }
 
 /** Porque é que uma época não pode ser agendada agora — ou null se puder. */

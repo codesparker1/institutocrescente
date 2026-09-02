@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, provaJaPassou, proximaEpocaPendente, rotuloEstado, toneEstado, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, motivoLancamentoFechadoOuAusente, provaJaPassou, proximaEpocaPendente, rotuloEstado, toneEstado, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
 const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
@@ -177,26 +177,48 @@ test("epocasOrfas: vazio quando a cascata usa realmente todas as notas presentes
   assert.deepEqual(reprovado.epocasOrfas, []);
 });
 
-// --- Janela de lancamento: do dia da prova ao fim do prazo ---
-// Prova a 15/11/2026 as 14h, prazo de lancamento ate 20/11.
-const PROVA = { data: new Date(2026, 10, 15, 14, 0), prazoLancamento: new Date(2026, 10, 20, 23, 59) };
+// --- Janela de lancamento: interruptor manual do DAAC + prova ja realizada ---
+// §decisao do cliente 2026-09-02: o prazo automatico por epoca desapareceu; quem abre e fecha e o
+// DAAC, com um unico interruptor global. Prova a 15/11/2026 as 14h.
+const PROVA = { data: new Date(2026, 10, 15, 14, 0) };
 
-test("motivoLancamentoFechado: nao deixa lancar antes do dia da prova", () => {
-  // O bug: so o fim do prazo era verificado, e dava para lancar nota de prova futura.
-  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 14, 23, 59)), "PROVA_POR_REALIZAR", "vespera");
-  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 9, 1)), "PROVA_POR_REALIZAR", "mes e meio antes");
+test("motivoLancamentoFechado: janela fechada bloqueia mesmo com a prova ja dada", () => {
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 20), false), "LANCAMENTO_FECHADO");
 });
 
-test("motivoLancamentoFechado: abre no DIA da prova, nao a hora", () => {
+test("motivoLancamentoFechado: janela fechada tem prioridade sobre a prova por realizar", () => {
+  // Com a janela fechada nao interessa quando e a prova — dizer "espere pelo dia da prova"
+  // mandaria o professor esperar por uma data que nao ia resolver nada.
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 1), false), "LANCAMENTO_FECHADO");
+});
+
+test("motivoLancamentoFechado: janela aberta nao deixa lancar antes do dia da prova", () => {
+  // PROVA_POR_REALIZAR sobreviveu a mudanca: o cliente nao pediu para o tirar.
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 14, 23, 59), true), "PROVA_POR_REALIZAR", "vespera");
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 9, 1), true), "PROVA_POR_REALIZAR", "mes e meio antes");
+});
+
+test("motivoLancamentoFechado: janela aberta abre no DIA da prova, nao a hora", () => {
   // De manha, antes das 14h da prova, ja abre — o professor corrige e lanca no proprio dia sem
   // depender de a hora estar bem preenchida.
-  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 15, 8, 0)), null, "manha do dia da prova");
-  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 15, 18, 0)), null, "depois da prova");
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 15, 8, 0), true), null, "manha do dia da prova");
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 15, 18, 0), true), null, "depois da prova");
 });
 
-test("motivoLancamentoFechado: continua a fechar no fim do prazo", () => {
-  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 18)), null, "dentro do prazo");
-  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 10, 21)), "PRAZO_EXPIRADO", "depois do prazo");
+test("motivoLancamentoFechado: janela aberta NAO fecha sozinha com o passar do tempo", () => {
+  // A garantia central da mudanca de 2026-09-02: um mes depois da prova continua aberto. Sem este
+  // teste, uma regressao que reintroduzisse um limite temporal passava despercebida.
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2026, 11, 20), true), null, "um mes depois");
+  assert.equal(motivoLancamentoFechado(PROVA, new Date(2027, 5, 1), true), null, "meio ano depois");
+});
+
+test("motivoLancamentoFechadoOuAusente: epoca ainda sem prova agendada segue a janela global", () => {
+  // Recurso/Exame Especial que o DAAC ainda nao marcou: sem Avaliacao nao ha data a validar, mas a
+  // janela continua a mandar. Antes de 2026-09-02 uma epoca sem Avaliacao nunca estava fechada.
+  assert.equal(motivoLancamentoFechadoOuAusente(null, new Date(2026, 10, 20), true), null, "aberta");
+  assert.equal(motivoLancamentoFechadoOuAusente(null, new Date(2026, 10, 20), false), "LANCAMENTO_FECHADO", "fechada");
+  // Com Avaliacao, delega em motivoLancamentoFechado.
+  assert.equal(motivoLancamentoFechadoOuAusente(PROVA, new Date(2026, 10, 1), true), "PROVA_POR_REALIZAR");
 });
 
 // --- Ordem de agendamento das provas (P1 -> P2 -> Exame -> Recurso -> Especial) ---

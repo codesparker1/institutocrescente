@@ -10,7 +10,8 @@ import { prisma } from "@/lib/prisma";
  * para funcionar também em deploys serverless/self-hosted, onde o filesystem não é partilhado
  * nem gravável. O DEV avança-a pela página /dev/relogio (src/actions/dev.ts) e o próximo acesso
  * ao dashboard dispara as reacções preguiçosas (garantirCobrancasGeradas, garantirSuspensaoAutomatica,
- * garantirNotasAutomaticasPorFalta) contra a data nova — é assim que "avançar o tempo" tem efeito real.
+ * garantirTurmasSincronizadasComPlano) contra a data nova — é assim que "avançar o tempo" tem efeito
+ * real. Os zeros por falta já não estão nesta lista: desde §2026-09-02 vêm do fecho do semestre.
  *
  * Só consultado quando SIMULATION_MODE=true. Fora disso, fazer a query por request nem sequer acontece.
  */

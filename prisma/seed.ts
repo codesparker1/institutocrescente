@@ -299,9 +299,9 @@ async function main() {
   for (const td of turmaDisciplinas) {
     const avaliacoes = await Promise.all(
       [
-        { epoca: "P1" as const, data: daysAgo(45), prazoLancamento: daysAgo(38), sala: td.salaExame },
-        { epoca: "P2" as const, data: daysAgo(20), prazoLancamento: daysAgo(13), sala: td.salaExame },
-        { epoca: "EXAME" as const, data: daysAgo(-10), prazoLancamento: daysAgo(-3), sala: td.salaExame },
+        { epoca: "P1" as const, data: daysAgo(45), sala: td.salaExame },
+        { epoca: "P2" as const, data: daysAgo(20), sala: td.salaExame },
+        { epoca: "EXAME" as const, data: daysAgo(-10), sala: td.salaExame },
       ].map((a) => prisma.avaliacao.create({ data: { ...a, turmaDisciplinaId: td.id } })),
     );
 
@@ -390,10 +390,10 @@ async function main() {
     );
     const [recursoProgI, especialProgI] = await Promise.all([
       prisma.avaliacao.create({
-        data: { turmaDisciplinaId: tdProgI.id, epoca: "RECURSO", data: daysAgo(-24), prazoLancamento: daysAgo(-17), sala: tdProgI.salaExame },
+        data: { turmaDisciplinaId: tdProgI.id, epoca: "RECURSO", data: daysAgo(-24), sala: tdProgI.salaExame },
       }),
       prisma.avaliacao.create({
-        data: { turmaDisciplinaId: tdProgI.id, epoca: "EXAME_ESPECIAL", data: daysAgo(-38), prazoLancamento: daysAgo(-31), sala: tdProgI.salaExame },
+        data: { turmaDisciplinaId: tdProgI.id, epoca: "EXAME_ESPECIAL", data: daysAgo(-38), sala: tdProgI.salaExame },
       }),
     ]);
 

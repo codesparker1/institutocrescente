@@ -67,16 +67,14 @@ export async function domingosAvaliacoesP2Ano1(ctx: CenarioCtx): Promise<void> {
  * nota baixa em P1+P2 (sem dispensa) força a cascata a passar por Exame, onde recebe nota abaixo do
  * mínimo (5) e fecha REPROVADO. `professorLabel` distingue as duas disciplinas na chamada.
  *
- * §correção 2026-08-24: a Avaliacao de P2 desta TD é criada ANTES pelo cenário da Isabel
- * (isabelCriarProvaP2EmFaltaBasesDados) com prazo JÁ EXPIRADO — é o setup do auto-zero dela. Sem
- * normalização, o input do professor fica disabled (TurmaGradebook: prazoLancamento < agora) e as
- * notas do Domingos nunca são gravadas (lancarNotaAluno devolve false em silêncio — visto na
- * corrida v2: inscrição de 2027 ficou SEM notas, sem reprovação, sem repetição). Aqui repõe o
- * prazo em aberto antes de o professor lançar; o auto-zero da Isabel já correu neste ponto
- * (marco vencimento-propinas visita o dashboard depois do prazo dela expirar).
+ * §2026-09-02: deixou de haver prazo a repor — o prazo automático por época foi substituído pelo
+ * interruptor manual global (ConfiguracaoAcademica.lancamentoNotasAberto), aberto uma vez no setup
+ * da simulação. O que esta função continua a garantir é que a Avaliacao EXISTE com data já passada:
+ * sem isso o gate PROVA_POR_REALIZAR (motivoLancamentoFechado) bloqueia o input do professor e as
+ * notas do Domingos nunca são gravadas — lancarNotaAluno devolve false em silêncio (visto na
+ * corrida v2: inscrição de 2027 ficou SEM notas, sem reprovação, sem repetição).
  */
-async function garantirPrazoAbertoDisciplinaSemestre2(ctx: CenarioCtx, epocas: ("P1" | "P2" | "EXAME")[], dataProva: Date): Promise<void> {
-  const config = await ctx.prisma.configuracaoAcademica.findUniqueOrThrow({ where: { id: "config" } });
+async function garantirAvaliacoesDisciplinaSemestre2(ctx: CenarioCtx, epocas: ("P1" | "P2" | "EXAME")[], dataProva: Date): Promise<void> {
   // §faculdade-de-verdade: a disciplina do 2º semestre muda por ano — no 2º ano é "Redes de Computadores".
   const inscricao = await ctx.prisma.inscricaoCadeira.findFirstOrThrow({
     where: {
@@ -87,24 +85,18 @@ async function garantirPrazoAbertoDisciplinaSemestre2(ctx: CenarioCtx, epocas: (
     include: { turmaDisciplina: { select: { id: true } } },
   });
   const turmaDisciplinaId = inscricao.turmaDisciplina.id;
-  const prazoPorEpoca: Record<string, number> = {
-    P1: config.diasPrazoP1,
-    P2: config.diasPrazoP2,
-    EXAME: config.diasPrazoExame,
-  };
   for (const epoca of epocas) {
-    const prazoLancamento = new Date(dataProva.getTime() + (prazoPorEpoca[epoca] ?? 5) * 24 * 60 * 60 * 1000);
     await ctx.prisma.avaliacao.upsert({
       where: { turmaDisciplinaId_epoca: { turmaDisciplinaId, epoca } },
-      update: { prazoLancamento },
-      create: { turmaDisciplinaId, epoca, data: dataProva, sala: "Lab 2", prazoLancamento },
+      update: { data: dataProva },
+      create: { turmaDisciplinaId, epoca, data: dataProva, sala: "Lab 2" },
     });
   }
 }
 
 export async function domingosAvaliacoesP1Ano2(ctx: CenarioCtx): Promise<void> {
-  // P1 de Bases de Dados ainda não existe (só a P2 da Isabel) — nasce aqui com prazo aberto.
-  await garantirPrazoAbertoDisciplinaSemestre2(ctx, ["P1"], new Date());
+  // P1 de Bases de Dados ainda não existe (só a P2 da Isabel) — nasce aqui, com data já passada.
+  await garantirAvaliacoesDisciplinaSemestre2(ctx, ["P1"], new Date());
   await paraCadaDisciplinaDoProfessor(
     ctx.browser,
     ctx.baseUrl,
@@ -131,8 +123,8 @@ export async function domingosAvaliacoesP1Ano2(ctx: CenarioCtx): Promise<void> {
 }
 
 export async function domingosAvaliacoesP2Ano2(ctx: CenarioCtx): Promise<void> {
-  // P2 da Isabel nasceu com prazo expirado (auto-zero dela) — repõe em aberto; EXAME nasce aqui.
-  await garantirPrazoAbertoDisciplinaSemestre2(ctx, ["P2", "EXAME"], new Date());
+  // A P2 já existe (criada pela Isabel); o EXAME nasce aqui. Ambas com data já passada.
+  await garantirAvaliacoesDisciplinaSemestre2(ctx, ["P2", "EXAME"], new Date());
   await paraCadaDisciplinaDoProfessor(
     ctx.browser,
     ctx.baseUrl,

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeLancarNota, requireGerirCurriculo } from "@/lib/permissions";
-import { EPOCA_LABEL, diasPrazoParaEpoca, calcularNotaFinal, extrairNotasPorEpoca, motivoLancamentoFechado } from "@/lib/avaliacao";
+import { EPOCA_LABEL, calcularNotaFinal, extrairNotasPorEpoca, motivoLancamentoFechadoOuAusente } from "@/lib/avaliacao";
 import { formatDate } from "@/lib/utils";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import { getAgora } from "@/lib/tempo";
@@ -35,16 +35,16 @@ const LancarNotasEmLoteSchema = z
  * — o professor não devia ter de sair da pauta para "agendar" o Recurso antes de poder registar
  * que um aluno já o fez. `data` = hoje (é literalmente quando a nota está a ser lançada); `sala`
  * herda de outra avaliação já existente da disciplina, ou "A confirmar" se for a primeira de todas.
- * Prazo de lançamento calculado com a mesma configuração do DAAC usada em createProvaAction.
+ *
+ * Quem chega aqui já passou pelo portão da janela de lançamento (ver lancarNotasEmLoteAction):
+ * desde §2026-09-02 uma época sem Avaliacao também obedece ao interruptor do DAAC, por isso esta
+ * função nunca corre com o lançamento fechado.
  */
 async function criarAvaliacaoEmFalta(turmaDisciplinaId: string, epoca: Epoca, salaHerdada: string) {
-  const config = await prisma.configuracaoAcademica.upsert({ where: { id: "config" }, update: {}, create: { id: "config" } });
   const agora = await getAgora();
-  const dias = diasPrazoParaEpoca(config, epoca);
-  const prazoLancamento = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + dias);
   try {
     return await prisma.avaliacao.create({
-      data: { turmaDisciplinaId, epoca, sala: salaHerdada, data: agora, prazoLancamento },
+      data: { turmaDisciplinaId, epoca, sala: salaHerdada, data: agora },
     });
   } catch (error) {
     // Corrida rara entre dois lançamentos em simultâneo para a mesma época em falta — a que
@@ -158,25 +158,29 @@ export async function lancarNotasEmLoteAction(entradas: unknown): Promise<Lancar
   }
 
   const agora = await getAgora();
+  // upsert e não findUnique: a config singleton pode ainda não existir numa instalação nova, e
+  // "não há config" não pode rebentar na cara do professor.
+  const config = await prisma.configuracaoAcademica.upsert({ where: { id: "config" }, update: {}, create: { id: "config" } });
   const avaliacoesExistentes = await prisma.avaliacao.findMany({ where: { turmaDisciplinaId } });
   const avaliacaoPorEpoca = new Map(avaliacoesExistentes.map((a) => [a.epoca, a]));
   const epocasEnvolvidas = [...new Set(entries.map((e) => e.epoca))];
 
   for (const epoca of epocasEnvolvidas) {
     const avaliacao = avaliacaoPorEpoca.get(epoca);
-    // Uma época ainda sem Avaliacao formal nunca está fechada — está a nascer agora mesmo.
-    // Com Avaliacao, a janela vai do dia da prova ao fim do prazo: sem o limite de início, dava
-    // para lançar a nota de uma prova ainda por realizar (§pedido do cliente 2026-08-28).
+    // Duas condições: a janela global do DAAC tem de estar aberta (§decisão do cliente 2026-09-02)
+    // e a prova já se tem de ter realizado (§2026-08-28). Uma época ainda sem Avaliacao formal está
+    // a nascer agora mesmo — não tem data a validar, mas OBEDECE à janela: com o lançamento fechado,
+    // o professor também não a pode fazer nascer.
     // A UI já desativa o campo; isto é a barreira que conta — um POST direto ignoraria aquela.
-    const motivoFechado = avaliacao ? motivoLancamentoFechado(avaliacao, agora) : null;
+    const motivoFechado = motivoLancamentoFechadoOuAusente(avaliacao, agora, config.lancamentoNotasAberto);
     if (!podeLancarNota(session.user, turmaDisciplina, motivoFechado === null)) {
       if (motivoFechado === "PROVA_POR_REALIZAR") {
         return {
           error: `A prova de ${EPOCA_LABEL[epoca]} ainda não se realizou (${formatDate(avaliacao!.data)}) — só pode lançar a nota a partir desse dia.`,
         };
       }
-      if (motivoFechado === "PRAZO_EXPIRADO") {
-        return { error: "Prazo de lançamento encerrado. Peça ao DAAC para lançar ou corrigir estas notas." };
+      if (motivoFechado === "LANCAMENTO_FECHADO") {
+        return { error: "O lançamento de notas está fechado. Peça ao DAAC para abrir a janela de lançamento." };
       }
       return { error: "Sem permissão para lançar notas nesta disciplina." };
     }

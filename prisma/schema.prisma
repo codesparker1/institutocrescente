@@ -326,9 +326,6 @@ model Avaliacao {
   epoca             Epoca
   data              DateTime
   sala              String?
-  /// Fechado o prazo, o PROFESSOR deixa de poder lançar/corrigir notas desta avaliação — o DAAC
-  /// ignora sempre este campo (podeLancarNota), o que já é o mecanismo de reabertura.
-  prazoLancamento   DateTime
 
   notas Nota[]
 
@@ -342,9 +339,9 @@ model Nota {
   inscricaoCadeiraId String
   inscricaoCadeira   InscricaoCadeira @relation(fields: [inscricaoCadeiraId], references: [id])
   valor              Decimal          @db.Decimal(4, 2)
-  /// True quando gerada por garantirNotasAutomaticasPorFalta (prazo de lançamento expirado sem
-  /// nota lançada para quem era esperado nessa época) — nunca escrita por uma Server Action.
-  /// Distingue um 0 real de falta de um 0 que o professor lançou de propósito.
+  /// True quando gerada pelo fecho do semestre (fecharSemestre) a quem ficou sem nota numa época
+  /// já agendada — nunca escrita por uma Server Action. Distingue um 0 por falta de um 0 que o
+  /// professor lançou de propósito. (Até §2026-09-02 vinha do prazo de lançamento a expirar.)
   automatica         Boolean          @default(false)
   lancadoEm          DateTime         @default(now())
 
@@ -557,16 +554,14 @@ model ConfiguracaoAcademica {
   /// para aulas/notas do professor; volta a 1 sozinho quando um novo ano letivo começa
   /// (garantirSuspensaoAutomatica). O DAAC continua sempre a poder editar qualquer semestre.
   semestreAtual            Int           @default(1)
-  /// Prazo de lançamento de notas (§4.3): dias corridos após a data da prova, um valor por
-  /// época — congelado na Avaliacao no momento em que é agendada (mudar aqui não reabre provas já
-  /// criadas, mesmo padrão de congelamento de regras já usado em InscricaoCadeira).
-  diasPrazoP1              Int           @default(5)
-  diasPrazoP2              Int           @default(5)
-  diasPrazoExame           Int           @default(7)
-  diasPrazoRecurso         Int           @default(5)
-  diasPrazoExameEspecial   Int           @default(5)
-  /// Marca a última corrida da atribuição automática de 0 por falta (§4.3) — evita repeti-la em cada request.
-  ultimaVerificacaoNotasEm DateTime?
+  /// Interruptor manual do DAAC/ADMIN (§decisão do cliente 2026-09-02): a true, TODOS os
+  /// professores podem lançar notas das suas disciplinas; a false, nenhum. Substitui o prazo
+  /// automático por época (diasPrazo*), que fechava sozinho N dias depois da prova.
+  /// NÃO fecha sozinho — só um clique o fecha. O DAAC/ADMIN continua a ignorá-lo (podeLancarNota).
+  lancamentoNotasAberto    Boolean       @default(true)
+  /// Desde quando está no estado atual — sem data-limite, é esta a única referência temporal.
+  /// O "quem" fica na AuditLog, que já regista o autor de cada alteração.
+  lancamentoNotasAlteradoEm DateTime?
   /// Marca a última corrida da sincronização das turmas com o plano curricular — rede de segurança
   /// diária para turmas que ficaram desalinhadas fora do fluxo normal (criadas antes de a oferta
   /// automática existir, plano alterado noutro ano letivo, importação manual).

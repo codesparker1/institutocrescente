@@ -50,7 +50,7 @@ export function EditarProvaForm({ provaId, dataIso, salaAtual, minIso, maxIso, o
         </Button>
       </div>
       <p className="text-xs text-navy-400">
-        O prazo de lançamento de notas acompanha a nova data.
+        A partir do novo dia, o professor pode lançar a nota — desde que o lançamento esteja aberto.
       </p>
       {primeiroErro ? <p className="text-xs text-red-600">{primeiroErro}</p> : null}
     </form>

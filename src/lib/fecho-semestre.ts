@@ -18,12 +18,12 @@ import type { Epoca } from "@/generated/prisma/client";
  * nota nenhuma, e a cadeira ficaria nesse estado para sempre. calcularNotaFinal só faz a cascata
  * avançar quando há nota, por isso sem um 0 real gravado o aluno nunca chega a REPROVADO.
  *
- * É o mesmo mecanismo de garantirNotasAutomaticasPorFalta (notas-automaticas.ts), mas disparado
- * pelo fim do semestre em vez do prazo de lançamento: aquele exige que a época esteja agendada e o
- * prazo tenha passado, e uma época que nunca chegou a ser agendada nunca lá cairia.
+ * Desde §2026-09-02 é a ÚNICA origem de zeros por falta: o job diário que os atribuía quando o
+ * prazo de lançamento expirava (notas-automaticas.ts) foi eliminado com o próprio prazo, porque o
+ * cliente voltou ao interruptor manual — "os zeros só no fecho do semestre".
  *
- * O 0 fica com `automatica: true`, como os outros — é o que permite distingui-lo, na pauta e no
- * histórico, de um 0 que o professor lançou de propósito.
+ * O 0 fica com `automatica: true` — é o que permite distingui-lo, na pauta e no histórico, de um 0
+ * que o professor lançou de propósito.
  *
  * Devolve quantas notas foram atribuídas.
  */

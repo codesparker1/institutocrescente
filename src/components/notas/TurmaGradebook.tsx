@@ -8,15 +8,15 @@ import { GradebookEditor } from "./GradebookEditor";
 import { AttendanceChip } from "./AttendanceChip";
 import { CreateAulaForm } from "./CreateAulaForm";
 import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, nomeProfessor, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
-import { EPOCA_ORDEM, motivoLancamentoFechado } from "@/lib/avaliacao";
+import { EPOCA_ORDEM, motivoLancamentoFechadoOuAusente } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
 interface TurmaGradebookProps {
   turmaDisciplinaId: string;
   backHref: string;
   editable: boolean;
-  /** DAAC ignora sempre o prazo de lançamento (§4.3) — false para a página do professor. */
-  podeIgnorarPrazo?: boolean;
+  /** DAAC/ADMIN ignora sempre a janela de lançamento — false para a página do professor. */
+  podeIgnorarJanela?: boolean;
   /**
    * Quando preenchido, a pauta só abre se esta TurmaDisciplina for mesmo deste professor — sem
    * isto, qualquer professor via a pauta de qualquer colega escrevendo o id no URL (as Server
@@ -29,7 +29,7 @@ export async function TurmaGradebook({
   turmaDisciplinaId,
   backHref,
   editable,
-  podeIgnorarPrazo = false,
+  podeIgnorarJanela = false,
   restringirAoProfessorId = null,
 }: TurmaGradebookProps) {
   const turmaDisciplina = await prisma.turmaDisciplina.findUnique({
@@ -71,6 +71,13 @@ export async function TurmaGradebook({
   }
 
   const agora = await getAgora();
+  // Sem config (instalação nova) a janela conta como FECHADA — o contrário do default do schema,
+  // e é deliberado: ausência de configuração é uma anomalia, não um convite a abrir tudo.
+  const configAcademica = await prisma.configuracaoAcademica.findUnique({
+    where: { id: "config" },
+    select: { lancamentoNotasAberto: true },
+  });
+  const lancamentoAberto = configAcademica?.lancamentoNotasAberto ?? false;
   const inscricoes = turmaDisciplina.inscricoes;
   const diasLetivos = [...new Set(turmaDisciplina.horarioSlots.map((s) => s.diaSemana))];
   const datasValidas = proximasDatasValidas(diasLetivos, 8, agora);
@@ -81,14 +88,15 @@ export async function TurmaGradebook({
   const aulaDeHojeJaExiste = turmaDisciplina.aulas.some((a) => toIsoDate(a.data) === hojeIsoValor);
 
   // As 5 colunas mostram-se sempre, mesmo antes de Recurso/Exame Especial terem sido formalmente
-  // agendados em Horário e Provas — sem Avaliacao ainda, a coluna não tem prazo (nunca desativada
-  // por prazo), a Avaliacao nasce sozinha na primeira nota lançada (lancarNotasEmLoteAction).
+  // agendados em Horário e Provas — a Avaliacao nasce sozinha na primeira nota lançada
+  // (lancarNotasEmLoteAction). Desde §2026-09-02 uma época sem Avaliacao também obedece à janela.
   const avaliacoesParaEditor = EPOCA_ORDEM.map((epoca) => {
     const avaliacao = avaliacaoPorEpoca.get(epoca);
-    // A janela vai do dia da prova ao fim do prazo — antes só o fim era aplicado, e dava para
-    // lançar a nota de uma prova ainda por realizar (§pedido do cliente 2026-08-28). O DAAC/ADMIN
-    // (podeIgnorarPrazo) continua sem limites: é o mecanismo de reabertura do §4.3.
-    const motivoFechado = avaliacao && !podeIgnorarPrazo ? motivoLancamentoFechado(avaliacao, agora) : null;
+    // Duas condições: a janela global do DAAC (§2026-09-02) e a prova já realizada (§2026-08-28).
+    // O DAAC/ADMIN (podeIgnorarJanela) continua sem limites — é o mecanismo de correção.
+    const motivoFechado = podeIgnorarJanela
+      ? null
+      : motivoLancamentoFechadoOuAusente(avaliacao, agora, lancamentoAberto);
     return {
       epoca,
       disabled: motivoFechado !== null,

@@ -12,8 +12,9 @@ export default async function NotasGradebookPage({ params }: NotasGradebookPageP
   if (session.user.role === "SECRETARIA") redirect("/dashboard");
 
   const { turmaId, turmaDisciplinaId } = await params;
-  // DAAC e ADMIN lançam notas sem restrições e ignoram prazos — ver podeLancarNota para a decisão
-  // do cliente (2026-08-29) que abriu isto ao ADMIN.
+  // DAAC e ADMIN lançam notas sem restrições e ignoram a janela de lançamento — ver podeLancarNota
+  // para a decisão do cliente (2026-08-29) que abriu isto ao ADMIN. É por aqui que se corrige uma
+  // nota com o lançamento fechado (§2026-09-02).
   const editable = session.user.role === "DAAC" || session.user.role === "ADMIN";
 
   return (
@@ -21,7 +22,7 @@ export default async function NotasGradebookPage({ params }: NotasGradebookPageP
       turmaDisciplinaId={turmaDisciplinaId}
       backHref={`/notas/${turmaId}`}
       editable={editable}
-      podeIgnorarPrazo={editable}
+      podeIgnorarJanela={editable}
       restringirAoProfessorId={session.user.role === "PROFESSOR" ? session.user.professorId : null}
     />
   );

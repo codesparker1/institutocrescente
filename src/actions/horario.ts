@@ -7,7 +7,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, type SessionComUser } from "@/lib/permissions";
-import { EPOCA_LABEL, diasPrazoParaEpoca, motivoAgendamentoInvalido, provaJaPassou } from "@/lib/avaliacao";
+import { EPOCA_LABEL, motivoAgendamentoInvalido, provaJaPassou } from "@/lib/avaliacao";
 import { HORA_REGEX, encontrarConflito, type SlotExistente } from "@/lib/horario";
 import { formatAnoLetivo, formatDate, fromIsoDate } from "@/lib/utils";
 import { anoLetivoCorrente, dentroDoAnoLetivo } from "@/lib/academico";
@@ -257,9 +257,6 @@ export async function createProvaAction(
     return { error: mensagem, values: extrairValores(formData, CAMPOS_PROVA) };
   }
 
-  const dias = diasPrazoParaEpoca(config, parsed.data.epoca);
-  const prazoLancamento = new Date(dataProva.getFullYear(), dataProva.getMonth(), dataProva.getDate() + dias);
-
   try {
     const prova = await prisma.avaliacao.create({
       data: {
@@ -267,7 +264,6 @@ export async function createProvaAction(
         epoca: parsed.data.epoca,
         sala: parsed.data.sala,
         data: dataProva,
-        prazoLancamento,
       },
       include: { turmaDisciplina: { include: { disciplina: true } } },
     });
@@ -393,14 +389,9 @@ export async function editarProvaAction(
     return { error: mensagem, values: extrairValores(formData, CAMPOS_EDITAR_PROVA) };
   }
 
-  // O prazo de lançamento anda com a data: é sempre "data da prova + dias da época", e deixá-lo
-  // preso à data antiga daria ao professor um prazo já expirado numa prova adiada.
-  const dias = diasPrazoParaEpoca(config, existente.epoca);
-  const prazoLancamento = new Date(dataProva.getFullYear(), dataProva.getMonth(), dataProva.getDate() + dias);
-
   const prova = await prisma.avaliacao.update({
     where: { id: parsed.data.id },
-    data: { data: dataProva, sala: parsed.data.sala, prazoLancamento },
+    data: { data: dataProva, sala: parsed.data.sala },
     include: { turmaDisciplina: { include: { disciplina: true } } },
   });
   await audit(

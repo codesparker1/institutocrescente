@@ -9,6 +9,7 @@ import { contarFechoSemestre } from "@/lib/fecho-semestre";
 import { getAgora } from "@/lib/tempo";
 import { ConfiguracaoAcademicaForm } from "./ConfiguracaoAcademicaForm";
 import { SemestreAtualCard } from "./SemestreAtualCard";
+import { LancamentoNotasCard } from "./LancamentoNotasCard";
 
 export default async function ConfiguracaoAcademicaPage() {
   const session = await auth();
@@ -43,12 +44,23 @@ export default async function ConfiguracaoAcademicaPage() {
       ? { porFechar: 0, semAvaliacaoAgendada: 0 }
       : await contarFechoSemestre(anoLetivo, 1);
 
+  // O mesmo cálculo, mas para o semestre CORRENTE (seja ele qual for) — é o que o cartão da janela
+  // de lançamento precisa. `porFechar - semAvaliacaoAgendada` = cadeiras pendentes numa época já
+  // agendada, exatamente as que um professor consegue lançar enquanto a janela estiver aberta.
+  const fechoCorrente =
+    anoLetivo === null
+      ? { porFechar: 0, semAvaliacaoAgendada: 0 }
+      : semestreAtual === 1
+        ? fecho
+        : await contarFechoSemestre(anoLetivo, semestreAtual);
+  const cadeirasPorLancar = fechoCorrente.porFechar - fechoCorrente.semAvaliacaoAgendada;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-navy-900">Configuração Académica</h1>
         <p className="text-sm text-navy-400">
-          Regras de rematrícula e retenção (§4.2), o semestre corrente, e os prazos de lançamento de notas (§4.3).
+          Regras de rematrícula e retenção (§4.2), o semestre corrente e a janela de lançamento de notas.
         </p>
       </div>
 
@@ -61,9 +73,15 @@ export default async function ConfiguracaoAcademicaPage() {
         dentroDoAnoLetivo={anoLetivo !== null}
       />
 
+      <LancamentoNotasCard
+        aberto={config?.lancamentoNotasAberto ?? true}
+        alteradoEm={config?.lancamentoNotasAlteradoEm ?? null}
+        cadeirasPorLancar={cadeirasPorLancar}
+      />
+
       <Card>
         <CardHeader
-          title="Ano letivo, rematrícula, retenção e prazos de lançamento"
+          title="Ano letivo, rematrícula e retenção"
           subtitle="Ano letivo e período de matrícula são janelas diferentes: a Secretaria só processa rematrículas dentro da janela de matrícula, mas é o fim do ano letivo que fecha o ano e repõe o semestre."
         />
         <CardBody>
@@ -74,11 +92,6 @@ export default async function ConfiguracaoAcademicaPage() {
             matriculaFim={config?.matriculaFim ? toIsoDate(config.matriculaFim) : undefined}
             anoLetivoInicio={config?.anoLetivoInicio ? toIsoDate(config.anoLetivoInicio) : undefined}
             anoLetivoFim={config?.anoLetivoFim ? toIsoDate(config.anoLetivoFim) : undefined}
-            diasPrazoP1={config?.diasPrazoP1 ?? 5}
-            diasPrazoP2={config?.diasPrazoP2 ?? 5}
-            diasPrazoExame={config?.diasPrazoExame ?? 7}
-            diasPrazoRecurso={config?.diasPrazoRecurso ?? 5}
-            diasPrazoExameEspecial={config?.diasPrazoExameEspecial ?? 5}
             anoDeReferencia={agora.getFullYear()}
           />
         </CardBody>

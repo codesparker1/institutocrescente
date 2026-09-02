@@ -21,11 +21,6 @@ const ConfiguracaoAcademicaSchema = z.object({
   matriculaFim: z.string().min(1, "Data de fim é obrigatória"),
   anoLetivoInicio: z.string().min(1, "Data de início é obrigatória"),
   anoLetivoFim: z.string().min(1, "Data de fim é obrigatória"),
-  diasPrazoP1: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
-  diasPrazoP2: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
-  diasPrazoExame: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
-  diasPrazoRecurso: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
-  diasPrazoExameEspecial: z.coerce.number("Indique os dias").int().min(0, "Mínimo 0"),
 });
 
 const CAMPOS_CONFIG_ACADEMICA = [
@@ -35,11 +30,6 @@ const CAMPOS_CONFIG_ACADEMICA = [
   "matriculaFim",
   "anoLetivoInicio",
   "anoLetivoFim",
-  "diasPrazoP1",
-  "diasPrazoP2",
-  "diasPrazoExame",
-  "diasPrazoRecurso",
-  "diasPrazoExameEspecial",
 ] as const;
 export type ConfiguracaoAcademicaState = FormState<Record<(typeof CAMPOS_CONFIG_ACADEMICA)[number], string>> & {
   success?: boolean;
@@ -57,11 +47,6 @@ export async function atualizarConfiguracaoAcademicaAction(
     matriculaFim: formData.get("matriculaFim"),
     anoLetivoInicio: formData.get("anoLetivoInicio"),
     anoLetivoFim: formData.get("anoLetivoFim"),
-    diasPrazoP1: formData.get("diasPrazoP1"),
-    diasPrazoP2: formData.get("diasPrazoP2"),
-    diasPrazoExame: formData.get("diasPrazoExame"),
-    diasPrazoRecurso: formData.get("diasPrazoRecurso"),
-    diasPrazoExameEspecial: formData.get("diasPrazoExameEspecial"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CONFIG_ACADEMICA);
 
@@ -93,11 +78,6 @@ export async function atualizarConfiguracaoAcademicaAction(
     matriculaFim,
     anoLetivoInicio,
     anoLetivoFim,
-    diasPrazoP1: parsed.data.diasPrazoP1,
-    diasPrazoP2: parsed.data.diasPrazoP2,
-    diasPrazoExame: parsed.data.diasPrazoExame,
-    diasPrazoRecurso: parsed.data.diasPrazoRecurso,
-    diasPrazoExameEspecial: parsed.data.diasPrazoExameEspecial,
     updatedPorId: session.user.id,
   };
 
@@ -179,6 +159,57 @@ export async function alterarSemestreAction(formData: FormData): Promise<void> {
   revalidatePath("/dashboard");
   revalidatePath("/notas");
   revalidatePath("/admin/turmas");
+}
+
+/**
+ * Interruptor manual do DAAC/ADMIN para a janela de lançamento de notas (§decisão do cliente
+ * 2026-09-02: "vamos retornar para um sistema manual, onde se clica para poder permitir os
+ * professores introduzir as notas, quando Daac/admin decidir"). Um único valor global — aberto,
+ * todos os professores lançam nas suas disciplinas; fechado, nenhum.
+ *
+ * Ao contrário de alterarSemestreAction, é reversível e não escreve nota nenhuma: fechar a janela
+ * não fecha cadeiras nem atribui zeros. Os zeros continuam a vir só do fecho do semestre.
+ */
+export async function alterarLancamentoNotasAction(formData: FormData): Promise<void> {
+  const session = await requireGerirCurriculo();
+  const abrir = formData.get("abrir") === "1";
+
+  const config = await prisma.configuracaoAcademica.upsert({
+    where: { id: "config" },
+    update: {},
+    create: { id: "config" },
+  });
+  // Clicar no botão do estado atual não gera auditoria nem revalidações — mesmo no-op de
+  // alterarSemestreAction.
+  if (config.lancamentoNotasAberto === abrir) return;
+
+  const agora = await getAgora();
+  await prisma.configuracaoAcademica.update({
+    where: { id: "config" },
+    data: { lancamentoNotasAberto: abrir, lancamentoNotasAlteradoEm: agora, updatedPorId: session.user.id },
+  });
+
+  await registrarAuditoria({
+    userId: session.user.id,
+    userName: session.user.name ?? session.user.email ?? "Utilizador",
+    userRole: session.user.role,
+    action: abrir
+      ? "Abriu o lançamento de notas — todos os professores passam a poder lançar notas das suas disciplinas"
+      : "Fechou o lançamento de notas — nenhum professor consegue lançar ou corrigir notas",
+    entityType: "ConfiguracaoAcademica",
+    entityId: "config",
+    valorAnterior: config.lancamentoNotasAberto ? "Aberto" : "Fechado",
+    valorNovo: abrir ? "Aberto" : "Fechado",
+  });
+
+  revalidatePath("/admin/academico/configuracao");
+  revalidatePath("/professor");
+  revalidatePath("/notas");
+  revalidatePath("/dashboard");
+  // O efeito visível está DENTRO da pauta, não só nas listas — sem revalidar as rotas dinâmicas, o
+  // professor continuava a ver os campos no estado antigo até ao próximo pedido não-cache.
+  revalidatePath("/professor/[turmaDisciplinaId]", "page");
+  revalidatePath("/notas/[turmaId]/[turmaDisciplinaId]", "page");
 }
 
 export interface ProcessarRematriculaState {
