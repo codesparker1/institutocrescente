@@ -25,6 +25,9 @@ export default async function ProfessorDisciplinasPage() {
   // ficava vazia, como se o professor não leccionasse nada.
   const anoLetivo = anoLetivoCorrente(agora, config);
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
+  // Default false quando não há config, como em TurmaGradebook: config ausente é anomalia, e o
+  // modo de falha seguro é prometer menos, não mais.
+  const lancamentoAberto = config?.lancamentoNotasAberto ?? false;
   // "Alunos" tem de contar o roster real da disciplina (InscricaoCadeira ativa, §4.2) — não
   // turma._count.matriculas, que só conta quem está matriculado NESTA turma/coorte. Um repetente
   // aparece na pauta desta disciplina através de InscricaoCadeira mesmo com a Matricula noutra
@@ -42,8 +45,19 @@ export default async function ProfessorDisciplinasPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-navy-900">Minhas Disciplinas</h1>
-        <p className="text-sm text-navy-400">Selecione uma disciplina para lançar notas e frequência.</p>
+        {/* A frase prometia "lançar notas" mesmo com a janela de lançamento fechada — o professor
+            abria uma pauta atrás da outra até perceber. Diz o que é possível agora. */}
+        <p className="text-sm text-navy-400">
+          Selecione uma disciplina para {lancamentoAberto ? "lançar notas e frequência" : "marcar frequência"}.
+        </p>
       </div>
+
+      {!lancamentoAberto && turmaDisciplinas.length > 0 ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          O lançamento de notas está fechado neste momento — é o DAAC que o abre e fecha. Pode consultar as pautas e
+          marcar presenças; para lançar ou corrigir uma nota, peça ao DAAC.
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader

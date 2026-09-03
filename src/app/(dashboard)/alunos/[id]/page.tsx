@@ -177,6 +177,12 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   const saldoPropinasDevendo = estadoFinanceiro.meses
     .filter((m) => m.estadoVisual === "DEVENDO")
     .reduce((soma, m) => soma + (m.valorDevido - m.valorPago), 0);
+  // A MESMA condição do DesistenciaForm (ATIVO ou TRANCADO + permissão) — se divergir, a página
+  // explica uma ação que o formulário não mostra, ou cala-se sobre uma que mostra.
+  const podeMarcarDesistenciaAqui =
+    (aluno.status === "ATIVO" || aluno.status === "TRANCADO") &&
+    Boolean(session?.user && podeMarcarDesistencia(session.user));
+
   const podeRematricular =
     motivoRematriculaIndisponivel({
       status: aluno.status,
@@ -364,18 +370,29 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">
                 Segunda licenciatura / mudança de curso
               </p>
-              <p className="mb-2 text-xs text-navy-400">Sem aproveitamento de créditos — entra sempre no 1º ano do curso novo.</p>
+              {/* Só quando há para onde mudar: sem outro curso, o MudarCursoForm diz "Sem outro
+                  curso cadastrado" e explicar as regras de uma mudança impossível é ruído. */}
+              {outrosCursos.length > 0 ? (
+                <p className="mb-2 text-xs text-navy-400">
+                  Sem aproveitamento de créditos — entra sempre no 1º ano do curso novo.
+                </p>
+              ) : null}
               <MudarCursoForm alunoId={aluno.id} cursos={outrosCursos} />
             </div>
           ) : null}
 
           <div className="border-t border-navy-50 pt-4">
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Desistência</p>
-            <p className="mb-2 text-xs text-navy-400">
-              {aluno.status === "DESISTENTE"
-                ? "Aluno desistente — reativação exclusiva da ADMIN."
-                : "Só para alunos ATIVOS (ADMIN/DAAC). A dívida mantém-se; o regresso exige reativação da ADMIN."}
-            </p>
+            {/* A explicação só quando há mesmo o que fazer. Antes dizia "Só para alunos ATIVOS",
+                o que era falso (o formulário aceita TRANCADO — é o estado natural de quem desiste),
+                e para um DESISTENTE repetia "reativação exclusiva da ADMIN" mesmo à ADMIN, que via
+                a frase e o botão de reativar por baixo dela. Quando não há ação, é o próprio
+                DesistenciaForm que diz porquê. */}
+            {podeMarcarDesistenciaAqui ? (
+              <p className="mb-2 text-xs text-navy-400">
+                A dívida mantém-se; o regresso exige reativação da ADMIN.
+              </p>
+            ) : null}
             <DesistenciaForm
               alunoId={aluno.id}
               status={aluno.status}
@@ -481,7 +498,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             </p>
           ) : null}
 
-          {podeRepetir ? (
+          {/* `cadeirasDisponiveisParaCreditar.length` também: o CreditarCadeiraForm devolve null
+              quando não há cadeiras a creditar, e sem esta guarda ficava o título e o separador
+              por cima de coisa nenhuma. */}
+          {podeRepetir && cadeirasDisponiveisParaCreditar.length > 0 ? (
             <div className="border-t border-navy-50 pt-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
                 Aproveitamento (aluno transferido)

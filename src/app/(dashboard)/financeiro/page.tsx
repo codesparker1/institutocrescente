@@ -32,7 +32,18 @@ export default async function MinhasPropinasPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Mensalidades" subtitle="Só a secretaria pode confirmar pagamentos." />
+        {/* O subtítulo dizia "Só a secretaria pode confirmar pagamentos" a TODA a gente — mas esta
+            página é só do aluno (o redirect acima garante-o), e ele nunca teve botão nenhum para
+            confirmar seja o que for. Era a resposta a uma pergunta que ninguém aqui fez. Diz-se
+            agora o que lhe interessa, e só quando é o caso. */}
+        <CardHeader
+          title="Mensalidades"
+          subtitle={
+            estadoFinanceiro.saldoEmDivida > 0
+              ? "Para regularizar, dirija-se à secretaria."
+              : "Sem mensalidades por pagar."
+          }
+        />
         <CardBody className="flex flex-col gap-4">
           <PropinasMensais meses={estadoFinanceiro.meses} multas={estadoFinanceiro.multas} editable={false} />
         </CardBody>
