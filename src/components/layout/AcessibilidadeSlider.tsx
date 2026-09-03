@@ -9,12 +9,12 @@ export function AcessibilidadeSlider() {
 
   return (
     <div className="mt-auto flex flex-col gap-2 border-t border-navy-800 px-3 pt-4">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-navy-400">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-texto-suave">
         <Type size={14} />
         Tamanho · Registo de Pagamentos
       </div>
       <div className="flex items-center gap-2 px-1 pb-1">
-        <span className="text-xs text-navy-400">A</span>
+        <span className="text-xs text-texto-suave">A</span>
         <input
           type="range"
           min={ESCALA_MIN}
@@ -25,7 +25,7 @@ export function AcessibilidadeSlider() {
           className="h-1.5 flex-1 cursor-pointer accent-gold-400"
           aria-label="Tamanho do texto do Registo de Pagamentos"
         />
-        <span className="text-base text-navy-400">A</span>
+        <span className="text-base text-texto-suave">A</span>
       </div>
     </div>
   );

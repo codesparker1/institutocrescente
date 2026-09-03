@@ -16,17 +16,17 @@ export function CreateStaffForm() {
     return (
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-3 rounded-lg bg-navy-50 px-4 py-3">
-          <CheckCircle2 className="mt-0.5 shrink-0 text-navy-700" size={18} />
-          <p className="text-sm font-medium text-navy-700">{state.success.nome} adicionado(a) com sucesso.</p>
+          <CheckCircle2 className="mt-0.5 shrink-0 text-texto" size={18} />
+          <p className="text-sm font-medium text-texto">{state.success.nome} adicionado(a) com sucesso.</p>
         </div>
         <div className="flex items-start gap-3 rounded-lg border border-gold-300 bg-gold-50 px-4 py-3">
           <KeyRound className="mt-0.5 shrink-0 text-gold-600" size={18} />
           <div className="text-sm">
-            <p className="font-semibold text-navy-800">Credenciais de acesso</p>
-            <p className="mt-1 text-navy-600">
+            <p className="font-semibold text-texto">Credenciais de acesso</p>
+            <p className="mt-1 text-texto">
               Email: <span className="font-mono">{state.success.email}</span>
             </p>
-            <p className="text-navy-600">
+            <p className="text-texto">
               Senha inicial: <span className="font-mono font-semibold">{state.success.senhaTemporaria}</span> (obrigatório
               trocar no primeiro login)
             </p>

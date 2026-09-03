@@ -49,8 +49,8 @@ export default async function AdminReclamacoesPage({ searchParams }: AdminReclam
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Reclamações e Sugestões</h1>
-        <p className="text-sm text-navy-400">Mensagens enviadas por qualquer utilizador (aluno, professor, secretaria ou admin) sobre o sistema.</p>
+        <h1 className="text-xl font-bold text-texto">Reclamações e Sugestões</h1>
+        <p className="text-sm text-texto-suave">Mensagens enviadas por qualquer utilizador (aluno, professor, secretaria ou admin) sobre o sistema.</p>
       </div>
 
       <Card>
@@ -79,9 +79,9 @@ export default async function AdminReclamacoesPage({ searchParams }: AdminReclam
               <div key={r.id} className="rounded-lg border border-navy-50 px-4 py-3">
                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-navy-900">{r.assunto}</span>
+                    <span className="text-sm font-semibold text-texto">{r.assunto}</span>
                     <Badge tone="neutral">{CATEGORIA_LABEL[r.categoria]}</Badge>
-                    <span className="text-xs text-navy-400">
+                    <span className="text-xs text-texto-suave">
                       {r.aluno ? (
                         <>
                           {r.aluno.nome} · {r.aluno.numeroEstudante}
@@ -97,8 +97,8 @@ export default async function AdminReclamacoesPage({ searchParams }: AdminReclam
                   </div>
                   <Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
                 </div>
-                <p className="whitespace-pre-wrap text-sm text-navy-600">{r.mensagem}</p>
-                <p className="mt-2 text-xs text-navy-300">{formatDateTime(r.createdAt)}</p>
+                <p className="whitespace-pre-wrap text-sm text-texto">{r.mensagem}</p>
+                <p className="mt-2 text-xs text-texto-suave">{formatDateTime(r.createdAt)}</p>
                 <AtualizarReclamacaoForm reclamacaoId={r.id} statusAtual={r.status} respostaAtual={r.resposta} />
               </div>
             ))}

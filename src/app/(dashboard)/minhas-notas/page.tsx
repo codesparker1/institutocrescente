@@ -22,8 +22,8 @@ export default async function MinhasNotasPage() {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-xl font-bold text-navy-900">Minhas Notas</h1>
-          <p className="text-sm text-navy-400">As suas notas, organizadas por ano do curso e semestre.</p>
+          <h1 className="text-xl font-bold text-texto">Minhas Notas</h1>
+          <p className="text-sm text-texto-suave">As suas notas, organizadas por ano do curso e semestre.</p>
         </div>
         <AvisoNotasBloqueadas
           saldoEmDivida={bloqueio.saldoEmDivida}
@@ -122,13 +122,13 @@ export default async function MinhasNotasPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Minhas Notas</h1>
-        <p className="text-sm text-navy-400">As suas notas, organizadas por ano do curso e semestre.</p>
+        <h1 className="text-xl font-bold text-texto">Minhas Notas</h1>
+        <p className="text-sm text-texto-suave">As suas notas, organizadas por ano do curso e semestre.</p>
       </div>
 
       {previewPorSemestre.size > 0 ? (
         <div className="flex flex-col gap-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-suave">
             {aluno!.curso} · {aluno!.anoCurricular}º Ano (previsão — turma ainda por criar)
           </h2>
           {[...previewPorSemestre.keys()]
@@ -147,7 +147,7 @@ export default async function MinhasNotasPage() {
                     <Tbody>
                       {cadeiras.map((cadeira) => (
                         <Tr key={cadeira.id}>
-                          <Td className="font-medium text-navy-900">{cadeira.disciplina.nome}</Td>
+                          <Td className="font-medium text-texto">{cadeira.disciplina.nome}</Td>
                         </Tr>
                       ))}
                     </Tbody>
@@ -165,7 +165,7 @@ export default async function MinhasNotasPage() {
           const semestres = [...grupo.inscricoesPorSemestre.keys()].sort((a, b) => a - b);
           return (
             <div key={grupo.label} className="flex flex-col gap-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">{grupo.label}</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-suave">{grupo.label}</h2>
 
               {semestres.map((semestre) => {
                 const inscricoesSemestre = grupo.inscricoesPorSemestre.get(semestre)!;
@@ -202,7 +202,7 @@ export default async function MinhasNotasPage() {
                             const resultado = calcularEstado(inscricao);
                             return (
                               <Tr key={inscricao.id} className={!inscricao.ativa ? "opacity-60" : undefined}>
-                                <Td className="font-medium text-navy-900">
+                                <Td className="font-medium text-texto">
                                   {inscricao.turmaDisciplina.disciplina.nome}
                                   {inscricao.tentativa > 1 ? (
                                     <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
@@ -210,7 +210,7 @@ export default async function MinhasNotasPage() {
                                     </span>
                                   ) : null}
                                   {!inscricao.ativa ? (
-                                    <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">
+                                    <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-texto-suave">
                                       Histórico
                                     </span>
                                   ) : null}
@@ -228,7 +228,7 @@ export default async function MinhasNotasPage() {
                                 ))}
                                 {/* Média de frequência (P1+P2)/2 — é dela que sai a dispensa, por
                                     isso fica ao lado das notas que a produzem, não no fim. */}
-                                <Td className="text-center font-medium text-navy-800">
+                                <Td className="text-center font-medium text-texto">
                                   {resultado.notaFrequencia !== null ? resultado.notaFrequencia.toFixed(1) : "—"}
                                 </Td>
                                 <Td>
@@ -238,7 +238,7 @@ export default async function MinhasNotasPage() {
                                     {rotuloEstado(resultado.estado, fechado)}
                                   </Badge>
                                 </Td>
-                                <Td className="text-center font-semibold text-navy-900">
+                                <Td className="text-center font-semibold text-texto">
                                   {resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}
                                 </Td>
                               </Tr>
@@ -250,7 +250,7 @@ export default async function MinhasNotasPage() {
                     {/* Legenda só quando há mesmo um zero automático — um asterisco sem explicação
                         não diz nada a quem o vê pela primeira vez. */}
                     {inscricoesSemestre.some((i) => i.notas.some((n) => n.automatica)) ? (
-                      <p className="px-4 pb-3 text-xs text-navy-400">
+                      <p className="px-4 pb-3 text-xs text-texto-suave">
                         <span className="text-red-600">*</span> Nota lançada automaticamente a 0 — o prazo de
                         lançamento expirou sem nota entregue.
                       </p>

@@ -34,7 +34,7 @@ export function ReclamacaoForm() {
           rows={5}
           defaultValue={state.values?.mensagem}
           placeholder="Descreva com detalhe — quanto mais contexto, mais fácil é ajudar."
-          className="rounded-lg border border-navy-100 bg-white px-3 py-2 text-sm text-navy-900 placeholder:text-navy-300 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
+          className="rounded-lg border border-navy-100 bg-white px-3 py-2 text-sm text-texto placeholder:text-navy-300 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
         />
       </Field>
 

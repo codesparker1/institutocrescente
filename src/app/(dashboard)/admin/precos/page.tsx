@@ -26,8 +26,8 @@ export default async function AdminPrecosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Preços de Propina</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Preços de Propina</h1>
+        <p className="text-sm text-texto-suave">
           Preço mensal por categoria de estudante e ano curricular — igual em todos os cursos.
         </p>
       </div>
@@ -47,7 +47,7 @@ export default async function AdminPrecosPage() {
             <Tbody>
               {anos.map((ano) => (
                 <Tr key={ano}>
-                  <Td className="font-medium text-navy-900">{ano}º Ano</Td>
+                  <Td className="font-medium text-texto">{ano}º Ano</Td>
                   {CATEGORIAS.map((categoria) => (
                     <Td key={categoria}>
                       <PrecoPropinaCell categoria={categoria} anoCurricular={ano} valorInicial={precoPorChave.get(`${categoria}:${ano}`) ?? null} />

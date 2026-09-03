@@ -44,10 +44,10 @@ export default async function ProfessorDisciplinasPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Minhas Disciplinas</h1>
+        <h1 className="text-xl font-bold text-texto">Minhas Disciplinas</h1>
         {/* A frase prometia "lançar notas" mesmo com a janela de lançamento fechada — o professor
             abria uma pauta atrás da outra até perceber. Diz o que é possível agora. */}
-        <p className="text-sm text-navy-400">
+        <p className="text-sm text-texto-suave">
           Selecione uma disciplina para {lancamentoAberto ? "lançar notas e frequência" : "marcar frequência"}.
         </p>
       </div>
@@ -91,7 +91,7 @@ export default async function ProfessorDisciplinasPage() {
               {turmaDisciplinas.map((td) => (
                 <Tr key={td.id}>
                   <Td>
-                    <Link href={`/professor/${td.id}`} className="font-medium text-navy-900 hover:text-navy-600">
+                    <Link href={`/professor/${td.id}`} className="font-medium text-texto hover:text-navy-600">
                       {td.disciplina.nome}
                     </Link>
                   </Td>

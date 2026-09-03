@@ -19,8 +19,8 @@ export default async function ContaPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Minha Conta</h1>
-        <p className="text-sm text-navy-400">Altere o seu email, telefone ou senha.</p>
+        <h1 className="text-xl font-bold text-texto">Minha Conta</h1>
+        <p className="text-sm text-texto-suave">Altere o seu email, telefone ou senha.</p>
       </div>
 
       <Card>

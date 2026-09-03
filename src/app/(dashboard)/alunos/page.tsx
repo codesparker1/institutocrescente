@@ -112,8 +112,8 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-navy-900">Gestão de Matrícula</h1>
-          <p className="text-sm text-navy-400">Matrículas e gestão do percurso académico.</p>
+          <h1 className="text-xl font-bold text-texto">Gestão de Matrícula</h1>
+          <p className="text-sm text-texto-suave">Matrículas e gestão do percurso académico.</p>
         </div>
         {podeMatricular ? (
           <div className="flex flex-col items-end gap-1">
@@ -128,7 +128,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                 Nova matrícula
               </Button>
             </Link>
-            {avisoJanela ? <p className="text-xs text-navy-400">{avisoJanela}</p> : null}
+            {avisoJanela ? <p className="text-xs text-texto-suave">{avisoJanela}</p> : null}
           </div>
         ) : null}
       </div>
@@ -195,7 +195,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                   <Tr key={aluno.id}>
                     <Td className="font-mono text-xs">{aluno.numeroEstudante}</Td>
                     <Td>
-                      <Link href={`/alunos/${aluno.id}`} className="font-medium text-navy-900 hover:text-navy-600">
+                      <Link href={`/alunos/${aluno.id}`} className="font-medium text-texto hover:text-navy-600">
                         {aluno.nome}
                       </Link>
                     </Td>
@@ -220,20 +220,20 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                 href={hrefParaPagina(paginaValida - 1)}
                 aria-disabled={paginaValida <= 1}
                 className={`flex items-center gap-1 rounded-lg border border-navy-100 px-3 py-1.5 text-sm font-medium ${
-                  paginaValida <= 1 ? "pointer-events-none text-navy-200" : "text-navy-600 hover:bg-navy-50"
+                  paginaValida <= 1 ? "pointer-events-none text-texto-suave" : "text-texto hover:bg-navy-50"
                 }`}
               >
                 <ChevronLeft size={16} />
                 Anterior
               </Link>
-              <span className="text-sm text-navy-400">
+              <span className="text-sm text-texto-suave">
                 Página {paginaValida} de {totalPaginas}
               </span>
               <Link
                 href={hrefParaPagina(paginaValida + 1)}
                 aria-disabled={paginaValida >= totalPaginas}
                 className={`flex items-center gap-1 rounded-lg border border-navy-100 px-3 py-1.5 text-sm font-medium ${
-                  paginaValida >= totalPaginas ? "pointer-events-none text-navy-200" : "text-navy-600 hover:bg-navy-50"
+                  paginaValida >= totalPaginas ? "pointer-events-none text-texto-suave" : "text-texto hover:bg-navy-50"
                 }`}
               >
                 Seguinte

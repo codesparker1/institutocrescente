@@ -63,14 +63,14 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/notas" className="inline-flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700">
+        <Link href="/notas" className="inline-flex items-center gap-1.5 text-sm text-texto hover:text-navy-700">
           <ArrowLeft size={16} />
           Voltar para Turmas
         </Link>
-        <h1 className="mt-2 text-xl font-bold text-navy-900">
+        <h1 className="mt-2 text-xl font-bold text-texto">
           {turma.curso.nome} - {turma.anoCurricular}º Ano
         </h1>
-        <p className="text-sm text-navy-400">
+        <p className="text-sm text-texto-suave">
           {PERIODO_LABEL[turma.periodo]} · {semestre}º Semestre
           {semestre === semestreAtual ? " (a decorrer)" : ""}
         </p>
@@ -83,7 +83,7 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
           action={
             <Link
               href={`/notas/${turma.id}?semestre=${semestre === 1 ? 2 : 1}`}
-              className="rounded-md px-2 py-1 text-xs font-medium text-navy-400 hover:bg-navy-50 hover:text-navy-700"
+              className="rounded-md px-2 py-1 text-xs font-medium text-texto-suave hover:bg-navy-50 hover:text-navy-700"
             >
               Ver {semestre === 1 ? 2 : 1}º semestre
             </Link>
@@ -110,11 +110,11 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
               {turma.turmaDisciplinas.map((td) => (
                 <Tr key={td.id}>
                   <Td>
-                    <Link href={`/notas/${turma.id}/${td.id}`} className="font-medium text-navy-900 hover:text-navy-600">
+                    <Link href={`/notas/${turma.id}/${td.id}`} className="font-medium text-texto hover:text-navy-600">
                       {td.disciplina.nome}
                     </Link>
                   </Td>
-                  <Td className={td.professor ? undefined : "text-navy-400 italic"}>{nomeProfessor(td.professor)}</Td>
+                  <Td className={td.professor ? undefined : "text-texto-suave italic"}>{nomeProfessor(td.professor)}</Td>
                   <Td>{td._count.avaliacoes}</Td>
                 </Tr>
               ))}

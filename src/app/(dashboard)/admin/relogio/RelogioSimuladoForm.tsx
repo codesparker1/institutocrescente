@@ -49,7 +49,7 @@ export function RelogioSimuladoForm() {
             <button
               type="submit"
               disabled={isPending}
-              className="rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-700 hover:bg-navy-50 disabled:opacity-60"
+              className="rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-texto hover:bg-navy-50 disabled:opacity-60"
             >
               {atalho.label}
             </button>

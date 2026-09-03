@@ -60,7 +60,7 @@ export function CreateHorarioSlotForm({ disciplinas }: CreateHorarioSlotFormProp
           ))}
         </Select>
         <TimeSelect name="horaInicio" defaultValue={state.values?.horaInicio || "08:00"} required />
-        <span className="text-xs text-navy-400">até</span>
+        <span className="text-xs text-texto-suave">até</span>
         <TimeSelect name="horaFim" defaultValue={state.values?.horaFim || "10:00"} required />
         <Input name="sala" placeholder="Sala" required className="w-24 text-xs" defaultValue={state.values?.sala} />
         <Button type="submit" variant="ghost" className="text-xs" disabled={isPending}>

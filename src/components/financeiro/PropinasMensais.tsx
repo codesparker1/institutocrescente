@@ -37,7 +37,7 @@ export function PropinasMensais({
   podeReverter = true,
 }: PropinasMensaisProps) {
   if (meses.length === 0) {
-    return <p className="text-sm text-navy-400">Sem mensalidades registadas.</p>;
+    return <p className="text-sm text-texto-suave">Sem mensalidades registadas.</p>;
   }
 
   const multaPorMes = new Map(
@@ -54,8 +54,8 @@ export function PropinasMensais({
         return (
           <div key={mes.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="w-28 text-sm font-medium text-navy-800">{mesReferenciaLabel(mes.mesReferencia)}</span>
-              <span className="text-xs text-navy-400">{formatCurrency(valorTotal)}</span>
+              <span className="w-28 text-sm font-medium text-texto">{mesReferenciaLabel(mes.mesReferencia)}</span>
+              <span className="text-xs text-texto-suave">{formatCurrency(valorTotal)}</span>
               {multa ? (
                 <Badge tone="warning">
                   Inclui multa por atraso ({formatCurrency(multa.valorDevido)}, {multa.status === "PAGO" ? "paga" : "pendente"})
@@ -66,16 +66,16 @@ export function PropinasMensais({
 
             <div className="flex items-center gap-3">
               {mes.status === "PAGO" && mes.dataPagamento ? (
-                <span className="text-xs text-navy-400">Pago em {formatDate(mes.dataPagamento)}</span>
+                <span className="text-xs text-texto-suave">Pago em {formatDate(mes.dataPagamento)}</span>
               ) : null}
 
               {editable && onToggleSelecionado && mes.status === "PENDENTE" ? (
-                <label className="flex items-center gap-2 text-xs font-medium text-navy-600">
+                <label className="flex items-center gap-2 text-xs font-medium text-texto">
                   <input
                     type="checkbox"
                     checked={selecionados?.has(mes.id) ?? false}
                     onChange={() => onToggleSelecionado(mes.id, valorSelecao)}
-                    className="h-4 w-4 rounded border-navy-200 text-navy-700 focus:ring-navy-500"
+                    className="h-4 w-4 rounded border-navy-200 text-texto focus:ring-navy-500"
                   />
                   Selecionar
                 </label>

@@ -46,7 +46,7 @@ export function DesistenciaForm({ alunoId, status, podeMarcar, podeReativar }: D
         }}
       >
         <input type="hidden" name="alunoId" value={alunoId} />
-        <label htmlFor={`motivo-${alunoId}`} className="text-xs font-medium text-navy-600">
+        <label htmlFor={`motivo-${alunoId}`} className="text-xs font-medium text-texto">
           Motivo da desistência (obrigatório)
         </label>
         <textarea
@@ -108,7 +108,7 @@ export function DesistenciaForm({ alunoId, status, podeMarcar, podeReativar }: D
   }
 
   if (status === "DESISTENTE" && !podeReativar) {
-    return <p className="text-xs text-navy-400">Aluno desistente — a reativação é um poder exclusivo da ADMIN.</p>;
+    return <p className="text-xs text-texto-suave">Aluno desistente — a reativação é um poder exclusivo da ADMIN.</p>;
   }
 
   return null;

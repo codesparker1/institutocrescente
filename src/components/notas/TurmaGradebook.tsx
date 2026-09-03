@@ -116,12 +116,12 @@ export async function TurmaGradebook({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700">
+        <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-texto hover:text-navy-700">
           <ArrowLeft size={16} />
           Voltar
         </Link>
-        <h1 className="mt-2 text-xl font-bold text-navy-900">{turmaDisciplina.disciplina.nome}</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="mt-2 text-xl font-bold text-texto">{turmaDisciplina.disciplina.nome}</h1>
+        <p className="text-sm text-texto-suave">
           {turmaDisciplina.turma.curso.nome} · {turmaDisciplina.turma.anoCurricular}º Ano ·{" "}
           {PERIODO_LABEL[turmaDisciplina.turma.periodo]} · {turmaDisciplina.semestre}º Semestre ·{" "}
           {nomeProfessor(turmaDisciplina.professor)}
@@ -137,7 +137,7 @@ export async function TurmaGradebook({
               href={`/api/pauta/${turmaDisciplina.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-navy-400 hover:bg-navy-50 hover:text-navy-700"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-texto-suave hover:bg-navy-50 hover:text-navy-700"
               aria-label="Imprimir pauta"
               title="Imprimir pauta"
             >
@@ -173,10 +173,10 @@ export async function TurmaGradebook({
               return (
                 <div key={aula.id} className="rounded-lg border border-navy-50 px-4 py-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-medium text-navy-700">
+                    <span className="text-sm font-medium text-texto">
                       {formatDate(aula.data)} {aula.tema ? `· ${aula.tema}` : ""}
                     </span>
-                    <span className="text-xs text-navy-400">
+                    <span className="text-xs text-texto-suave">
                       {presentes}/{ativas.length} presentes
                       {inativasComRegisto > 0 ? ` · ${inativasComRegisto} inativo(s)` : ""}
                     </span>
@@ -200,7 +200,7 @@ export async function TurmaGradebook({
 
           {editable ? (
             datasValidas.length === 0 ? (
-              <p className="border-t border-navy-50 pt-4 text-xs text-navy-400">
+              <p className="border-t border-navy-50 pt-4 text-xs text-texto-suave">
                 Defina o horário semanal desta disciplina em Horário e Provas antes de adicionar aulas.
               </p>
             ) : !hojeEhDiaDeAula ? (
@@ -209,7 +209,7 @@ export async function TurmaGradebook({
                 {proximoDiaLabel ? ` Aguarde o próximo dia de aula: ${proximoDiaLabel}.` : ""}
               </p>
             ) : aulaDeHojeJaExiste ? (
-              <p className="border-t border-navy-50 pt-4 text-xs text-navy-400">A aula de hoje já foi registada abaixo.</p>
+              <p className="border-t border-navy-50 pt-4 text-xs text-texto-suave">A aula de hoje já foi registada abaixo.</p>
             ) : (
               <div className="flex flex-col gap-3 border-t border-navy-50 pt-4">
                 <p className="text-xs font-medium text-emerald-700">Hoje ({DIA_SEMANA_LABEL[hoje]}) é dia de aula desta disciplina.</p>

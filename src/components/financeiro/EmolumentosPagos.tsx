@@ -9,7 +9,7 @@ interface EmolumentosPagosProps {
 
 export function EmolumentosPagos({ emolumentos, editable = false }: EmolumentosPagosProps) {
   if (emolumentos.length === 0) {
-    return <p className="text-sm text-navy-400">Sem emolumentos pagos registados.</p>;
+    return <p className="text-sm text-texto-suave">Sem emolumentos pagos registados.</p>;
   }
 
   return (
@@ -17,11 +17,11 @@ export function EmolumentosPagos({ emolumentos, editable = false }: EmolumentosP
       {emolumentos.map((e) => (
         <div key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
           <div>
-            <p className="text-sm font-medium text-navy-800">{e.nome}</p>
-            <p className="text-xs text-navy-400">Pago em {formatDate(e.dataPagamento)}</p>
+            <p className="text-sm font-medium text-texto">{e.nome}</p>
+            <p className="text-xs text-texto-suave">Pago em {formatDate(e.dataPagamento)}</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-navy-900">{formatCurrency(e.valor)}</span>
+            <span className="text-sm font-semibold text-texto">{formatCurrency(e.valor)}</span>
             {editable ? (
               <form action={removerPagamentoEmolumentoAction}>
                 <input type="hidden" name="cobrancaId" value={e.id} />

@@ -15,8 +15,8 @@ export default async function MinhasPropinasPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Minhas Propinas</h1>
-        <p className="text-sm text-navy-400">Histórico completo das suas mensalidades.</p>
+        <h1 className="text-xl font-bold text-texto">Minhas Propinas</h1>
+        <p className="text-sm text-texto-suave">Histórico completo das suas mensalidades.</p>
       </div>
 
       <Card>
@@ -55,8 +55,8 @@ export default async function MinhasPropinasPage() {
 function InfoStat({ label, value, destaque }: { label: string; value: string; destaque?: boolean }) {
   return (
     <div className="rounded-lg border border-navy-50 px-3 py-2">
-      <p className="text-xs text-navy-400">{label}</p>
-      <p className={`text-lg font-bold ${destaque ? "text-red-600" : "text-navy-900"}`}>{value}</p>
+      <p className="text-xs text-texto-suave">{label}</p>
+      <p className={`text-lg font-bold ${destaque ? "text-red-600" : "text-texto"}`}>{value}</p>
     </div>
   );
 }

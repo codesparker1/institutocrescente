@@ -18,8 +18,8 @@ export default async function CatalogoEmolumentosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Catálogo de Emolumentos</h1>
-        <p className="text-sm text-navy-400">Declarações, certidões e outros serviços. Peça e pague na secretaria.</p>
+        <h1 className="text-xl font-bold text-texto">Catálogo de Emolumentos</h1>
+        <p className="text-sm text-texto-suave">Declarações, certidões e outros serviços. Peça e pague na secretaria.</p>
       </div>
 
       <Card>

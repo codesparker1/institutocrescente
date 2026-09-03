@@ -174,7 +174,7 @@ export function PagamentosSecretariaPanel({
       {tab === "propinas" ? (
         <div className="flex flex-col gap-4">
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-texto-suave">
               Mensalidades (selecione as pendentes para confirmar em conjunto)
             </p>
             <PropinasMensais
@@ -194,7 +194,7 @@ export function PagamentosSecretariaPanel({
             // mensalidade, a multa, ou ambas junta-as no mesmo lote (§pedido do cliente 2026-08-18).
             estado.multas.length > 0 ? (
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-texto-suave">
                   Multas por atraso (selecione as pendentes para confirmar em conjunto)
                 </p>
                 <MultasPendentes
@@ -209,7 +209,7 @@ export function PagamentosSecretariaPanel({
             ) : null
           ) : multasOrfas.length > 0 ? (
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-texto-suave">
                 Outras multas (sem mensalidade correspondente no mesmo mês)
               </p>
               {/* Só ADMIN paga uma multa órfã isolada (§pedido do cliente 2026-08-18) — a
@@ -221,11 +221,11 @@ export function PagamentosSecretariaPanel({
       ) : (
         <div className="flex flex-col gap-4">
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-texto-suave">
               Catálogo (selecione os serviços pedidos)
             </p>
             {catalogoEmolumentos.length === 0 ? (
-              <p className="text-sm text-navy-400">Nenhum emolumento ativo no catálogo.</p>
+              <p className="text-sm text-texto-suave">Nenhum emolumento ativo no catálogo.</p>
             ) : (
               <div className="flex flex-col divide-y divide-navy-50">
                 {catalogoEmolumentos.map((e) => (
@@ -235,18 +235,18 @@ export function PagamentosSecretariaPanel({
                         type="checkbox"
                         checked={selecionadosEmolumentos.has(e.id)}
                         onChange={() => toggleSelecionadoEmolumento(e.id)}
-                        className="h-4 w-4 rounded border-navy-200 text-navy-700 focus:ring-navy-500"
+                        className="h-4 w-4 rounded border-navy-200 text-texto focus:ring-navy-500"
                       />
-                      <span className="font-medium text-navy-800">{e.nome}</span>
+                      <span className="font-medium text-texto">{e.nome}</span>
                     </div>
-                    <span className="text-xs text-navy-400">{formatCurrency(e.valor)}</span>
+                    <span className="text-xs text-texto-suave">{formatCurrency(e.valor)}</span>
                   </label>
                 ))}
               </div>
             )}
           </div>
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">Histórico</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-texto-suave">Histórico</p>
             <EmolumentosPagos emolumentos={emolumentosPagos} editable />
           </div>
         </div>
@@ -254,7 +254,7 @@ export function PagamentosSecretariaPanel({
 
       {totalItens > 0 ? (
         <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-navy-100 bg-navy-50 px-4 py-3">
-          <span className="text-sm font-medium text-navy-800">
+          <span className="text-sm font-medium text-texto">
             {totalItens} selecionado{totalItens > 1 ? "s" : ""} · {formatCurrency(totalSelecionado)}
           </span>
           <button
@@ -280,7 +280,7 @@ function TabButton({ label, active, onClick }: { label: string; active: boolean;
       onClick={onClick}
       className={cn(
         "rounded-t-lg px-4 py-2 text-sm font-semibold transition-colors",
-        active ? "bg-navy-700 text-gold-100" : "text-navy-400 hover:bg-navy-50 hover:text-navy-700",
+        active ? "bg-navy-700 text-gold-100" : "text-texto-suave hover:bg-navy-50 hover:text-navy-700",
       )}
     >
       {label}

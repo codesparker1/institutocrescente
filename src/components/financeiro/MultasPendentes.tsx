@@ -28,29 +28,29 @@ export function MultasPendentes({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Multas por atraso</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-texto-suave">Multas por atraso</p>
       <div className="flex flex-col divide-y divide-navy-50">
         {multas.map((multa) => (
           <div key={multa.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-navy-800">
+              <span className="text-sm font-medium text-texto">
                 {multa.mesReferencia ? mesReferenciaLabel(multa.mesReferencia) : (multa.descricao ?? "Multa")}
               </span>
-              <span className="text-xs text-navy-400">{formatCurrency(multa.valorDevido)}</span>
+              <span className="text-xs text-texto-suave">{formatCurrency(multa.valorDevido)}</span>
             </div>
 
             <div className="flex items-center gap-3">
               {multa.status === "PAGO" && multa.dataPagamento ? (
-                <span className="text-xs text-navy-400">Pago em {formatDate(multa.dataPagamento)}</span>
+                <span className="text-xs text-texto-suave">Pago em {formatDate(multa.dataPagamento)}</span>
               ) : null}
 
               {editable && onToggleSelecionado && multa.status === "PENDENTE" ? (
-                <label className="flex items-center gap-2 text-xs font-medium text-navy-600">
+                <label className="flex items-center gap-2 text-xs font-medium text-texto">
                   <input
                     type="checkbox"
                     checked={selecionados?.has(multa.id) ?? false}
                     onChange={() => onToggleSelecionado(multa.id, multa.valorDevido)}
-                    className="h-4 w-4 rounded border-navy-200 text-navy-700 focus:ring-navy-500"
+                    className="h-4 w-4 rounded border-navy-200 text-texto focus:ring-navy-500"
                   />
                   Selecionar
                 </label>

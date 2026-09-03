@@ -31,7 +31,7 @@ export function ContaForm({ emailAtual, telefoneAtual, emailObrigatorio, telefon
       </Field>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="telefone" className="text-sm font-medium text-navy-700">
+        <label htmlFor="telefone" className="text-sm font-medium text-texto">
           Telefone
         </label>
         <PhoneInput
@@ -47,11 +47,11 @@ export function ContaForm({ emailAtual, telefoneAtual, emailObrigatorio, telefon
         <Field label="Senha atual" htmlFor="senhaAtual" error={state.fieldErrors?.senhaAtual}>
           <Input id="senhaAtual" name="senhaAtual" type="password" required autoComplete="current-password" />
         </Field>
-        <p className="mt-1 text-xs text-navy-400">Necessária para confirmar qualquer alteração nesta página.</p>
+        <p className="mt-1 text-xs text-texto-suave">Necessária para confirmar qualquer alteração nesta página.</p>
       </div>
 
       <div className="border-t border-navy-50 pt-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-navy-400">Alterar senha (opcional)</p>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-texto-suave">Alterar senha (opcional)</p>
         <div className="flex flex-col gap-4">
           <Field label="Nova senha" htmlFor="novaSenha" error={state.fieldErrors?.novaSenha}>
             <Input id="novaSenha" name="novaSenha" type="password" autoComplete="new-password" />

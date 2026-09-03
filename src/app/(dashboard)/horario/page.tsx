@@ -270,7 +270,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
         />
       ) : (
         <>
-          <p className="text-sm font-medium text-navy-700">
+          <p className="text-sm font-medium text-texto">
             {turma.curso.nome} · {turma.anoCurricular}º Ano · {PERIODO_LABEL[turma.periodo]} · {semestre}º Semestre
           </p>
           {semestre !== semestreAtual ? (
@@ -314,19 +314,19 @@ function HorarioHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Horário</h1>
-        <p className="text-sm text-navy-400">{subtitle}</p>
+        <h1 className="text-xl font-bold text-texto">Horário</h1>
+        <p className="text-sm text-texto-suave">{subtitle}</p>
       </div>
       <div className="flex overflow-hidden rounded-lg border border-navy-100">
         <a
           href={`?${aulasQuery.toString()}`}
-          className={`px-4 py-1.5 text-sm font-medium ${view === "aulas" ? "bg-navy-700 text-gold-100" : "bg-white text-navy-500 hover:bg-navy-50"}`}
+          className={`px-4 py-1.5 text-sm font-medium ${view === "aulas" ? "bg-navy-700 text-gold-100" : "bg-white text-texto hover:bg-navy-50"}`}
         >
           Aulas
         </a>
         <a
           href={`?${provasQuery.toString()}`}
-          className={`px-4 py-1.5 text-sm font-medium ${view === "provas" ? "bg-navy-700 text-gold-100" : "bg-white text-navy-500 hover:bg-navy-50"}`}
+          className={`px-4 py-1.5 text-sm font-medium ${view === "provas" ? "bg-navy-700 text-gold-100" : "bg-white text-texto hover:bg-navy-50"}`}
         >
           Provas
         </a>

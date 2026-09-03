@@ -37,7 +37,7 @@ export function AtualizarReclamacaoForm({ reclamacaoId, statusAtual, respostaAtu
         rows={2}
         defaultValue={respostaAtual ?? ""}
         placeholder="Resposta ao aluno (opcional)"
-        className="rounded-lg border border-navy-100 bg-white px-3 py-2 text-xs text-navy-900 placeholder:text-navy-300 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
+        className="rounded-lg border border-navy-100 bg-white px-3 py-2 text-xs text-texto placeholder:text-navy-300 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
       />
       {state.error ? <p className="text-xs text-red-600">{state.error}</p> : null}
     </form>

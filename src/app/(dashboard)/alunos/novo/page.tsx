@@ -39,17 +39,17 @@ export default async function NovoAlunoPage() {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <Link href="/alunos" className="inline-flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700">
+          <Link href="/alunos" className="inline-flex items-center gap-1.5 text-sm text-texto hover:text-navy-700">
             <ArrowLeft size={16} />
             Voltar para Alunos
           </Link>
-          <h1 className="mt-2 text-xl font-bold text-navy-900">Nova Matrícula</h1>
+          <h1 className="mt-2 text-xl font-bold text-texto">Nova Matrícula</h1>
         </div>
 
         <Card>
           <CardBody>
-            <p className="flex items-start gap-3 text-sm text-navy-700">
-              <Lock size={20} className="mt-0.5 shrink-0 text-navy-400" />
+            <p className="flex items-start gap-3 text-sm text-texto">
+              <Lock size={20} className="mt-0.5 shrink-0 text-texto-suave" />
               {aviso}
             </p>
           </CardBody>
@@ -68,11 +68,11 @@ export default async function NovoAlunoPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/alunos" className="inline-flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700">
+        <Link href="/alunos" className="inline-flex items-center gap-1.5 text-sm text-texto hover:text-navy-700">
           <ArrowLeft size={16} />
           Voltar para Alunos
         </Link>
-        <h1 className="mt-2 text-xl font-bold text-navy-900">Nova Matrícula</h1>
+        <h1 className="mt-2 text-xl font-bold text-texto">Nova Matrícula</h1>
       </div>
 
       <NovoAlunoForm turmas={turmaOptions} anoDeReferencia={agora.getFullYear()} />

@@ -33,8 +33,8 @@ export async function SecretariaDashboard({ nome, email }: SecretariaDashboardPr
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Página Inicial</h1>
-        <p className="text-sm text-navy-400">Resumo da situação financeira dos alunos.</p>
+        <h1 className="text-xl font-bold text-texto">Página Inicial</h1>
+        <p className="text-sm text-texto-suave">Resumo da situação financeira dos alunos.</p>
       </div>
 
       <ProfileCard
@@ -59,8 +59,8 @@ export async function SecretariaDashboard({ nome, email }: SecretariaDashboardPr
               <Wallet size={20} />
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-navy-400">Gerir</p>
-              <p className="text-lg font-bold text-navy-900">Registo de Propinas</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-texto-suave">Gerir</p>
+              <p className="text-lg font-bold text-texto">Registo de Propinas</p>
             </div>
           </Card>
         </Link>
@@ -71,8 +71,8 @@ export async function SecretariaDashboard({ nome, email }: SecretariaDashboardPr
               <Users size={20} />
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-navy-400">Ver</p>
-              <p className="text-lg font-bold text-navy-900">Alunos</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-texto-suave">Ver</p>
+              <p className="text-lg font-bold text-texto">Alunos</p>
             </div>
           </Card>
         </Link>

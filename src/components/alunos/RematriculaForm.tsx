@@ -60,7 +60,7 @@ export function RematriculaForm({
             : motivo === "COM_DIVIDA"
               ? `${formatCurrency(saldoPropinasDevendo)} em mensalidades por pagar — confirme os pagamentos em Situação Financeira primeiro. (As multas não bloqueiam.)`
               : "Fora do período de matrícula.";
-    return <p className="text-xs text-navy-400">{texto}</p>;
+    return <p className="text-xs text-texto-suave">{texto}</p>;
   }
 
   return (

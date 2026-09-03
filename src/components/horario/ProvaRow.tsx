@@ -52,7 +52,7 @@ export function ProvaRow({
     <div className={cn("rounded-lg border border-navy-50", passada && "opacity-50")}>
       <div className="flex items-center justify-between px-4 py-2.5 text-sm">
         <div>
-          <p className={cn("font-medium", passada ? "text-navy-500" : "text-navy-800")}>
+          <p className={cn("font-medium", passada ? "text-texto" : "text-texto")}>
             {EPOCA_LABEL[epoca]} · {disciplinaNome}
             {/* Aqui a lista fica cronológica (é o que interessa numa época de provas) —
                 a repetição assinala-se com etiqueta, não separando em duas listas. */}
@@ -60,7 +60,7 @@ export function ProvaRow({
               <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">repetição</span>
             ) : null}
           </p>
-          <p className="text-xs text-navy-400">
+          <p className="text-xs text-texto-suave">
             {cursoAnoLabel ? `${cursoAnoLabel} · ` : ""}
             {sala ?? "Sala a confirmar"}
           </p>
@@ -70,7 +70,7 @@ export function ProvaRow({
           {canPrint ? (
             passada ? (
               <span
-                className="cursor-not-allowed rounded-md p-1 text-navy-200"
+                className="cursor-not-allowed rounded-md p-1 text-texto-suave"
                 aria-label="Prova já dada — lista de presença indisponível"
                 title="Prova já dada — já não é possível imprimir a lista de presença"
               >
@@ -81,7 +81,7 @@ export function ProvaRow({
                 href={`/api/lista-presenca/${id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
+                className="rounded-md p-1 text-texto-suave hover:bg-navy-50 hover:text-navy-600"
                 aria-label="Imprimir lista de presença"
                 title="Imprimir lista de presença"
               >
@@ -94,7 +94,7 @@ export function ProvaRow({
               <button
                 type="button"
                 onClick={() => setAEditar((aberto) => !aberto)}
-                className="rounded-md p-1 text-navy-300 hover:bg-navy-50 hover:text-navy-600"
+                className="rounded-md p-1 text-texto-suave hover:bg-navy-50 hover:text-navy-600"
                 aria-label="Remarcar prova"
                 aria-expanded={aEditar}
                 title="Remarcar prova"
@@ -103,7 +103,7 @@ export function ProvaRow({
               </button>
             ) : (
               <span
-                className="cursor-not-allowed rounded-md p-1 text-navy-200"
+                className="cursor-not-allowed rounded-md p-1 text-texto-suave"
                 aria-label="Prova já dada — já não pode ser remarcada"
                 title="Prova já dada — já não pode ser remarcada"
               >

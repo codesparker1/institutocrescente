@@ -16,6 +16,15 @@
   --color-navy-900: #101036;
   --color-navy-950: #0a0a24;
 
+  /* Texto sobre fundo claro (§pedido do cliente 2026-09-03: "transformar as escritas azuis em
+     preto, para serem mais visíveis"). Os tons navy claros passavam o critério WCAG — o navy-400
+     dá 6.65:1 sobre branco, acima do mínimo de 4.5 — mas azul-arroxeado saturado lê-se mal em
+     monitores fracos ou com pouco brilho, que é a condição real de uso.
+     Os tokens navy-* NÃO foram redefinidos de propósito: servem também fundos (bg-navy-700),
+     bordas (border-navy-50) e a sidebar, e mexer neles pintaria a app inteira. */
+  --color-texto: #000000;
+  --color-texto-suave: #1a1a1a;
+
   --color-gold-50: #fbf6ea;
   --color-gold-100: #f4e8c9;
   --color-gold-200: #ead197;
@@ -45,6 +54,9 @@
   --color-navy-800: var(--color-navy-800);
   --color-navy-900: var(--color-navy-900);
   --color-navy-950: var(--color-navy-950);
+
+  --color-texto: var(--color-texto);
+  --color-texto-suave: var(--color-texto-suave);
 
   --color-gold-50: var(--color-gold-50);
   --color-gold-100: var(--color-gold-100);

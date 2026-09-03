@@ -11,8 +11,8 @@ export default async function AdminCursosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Cursos</h1>
-        <p className="text-sm text-navy-400">Gestão académica — cursos oferecidos pelo ISPC.</p>
+        <h1 className="text-xl font-bold text-texto">Cursos</h1>
+        <p className="text-sm text-texto-suave">Gestão académica — cursos oferecidos pelo ISPC.</p>
       </div>
 
       <Card>
@@ -35,7 +35,7 @@ export default async function AdminCursosPage() {
               <Tbody>
                 {cursos.map((curso) => (
                   <Tr key={curso.id}>
-                    <Td className="font-medium text-navy-900">{curso.nome}</Td>
+                    <Td className="font-medium text-texto">{curso.nome}</Td>
                     <Td>{curso.codigo}</Td>
                     <Td>{curso.duracaoAnos} anos</Td>
                     <Td className="text-right">

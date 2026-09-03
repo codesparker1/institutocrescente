@@ -11,8 +11,8 @@ export default async function AdminProfessoresPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Professores</h1>
-        <p className="text-sm text-navy-400">Utilizadores — corpo docente do ISPC.</p>
+        <h1 className="text-xl font-bold text-texto">Professores</h1>
+        <p className="text-sm text-texto-suave">Utilizadores — corpo docente do ISPC.</p>
       </div>
 
       <Card>
@@ -35,7 +35,7 @@ export default async function AdminProfessoresPage() {
               <Tbody>
                 {professores.map((professor) => (
                   <Tr key={professor.id}>
-                    <Td className="font-medium text-navy-900">{professor.nome}</Td>
+                    <Td className="font-medium text-texto">{professor.nome}</Td>
                     <Td>{professor.email}</Td>
                     <Td>{professor.especialidade}</Td>
                     <Td className="text-right">

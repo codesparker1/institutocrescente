@@ -254,7 +254,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/alunos" className="inline-flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700">
+        <Link href="/alunos" className="inline-flex items-center gap-1.5 text-sm text-texto hover:text-navy-700">
           <ArrowLeft size={16} />
           Voltar para Alunos
         </Link>
@@ -262,8 +262,8 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-navy-900">{aluno.nome}</h1>
-          <p className="text-sm text-navy-400">
+          <h1 className="text-xl font-bold text-texto">{aluno.nome}</h1>
+          <p className="text-sm text-texto-suave">
             {aluno.numeroEstudante} · {aluno.curso} · {aluno.anoCurricular}º Ano
           </p>
           {podeEditarDadosPessoais ? (
@@ -285,7 +285,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             <InfoRow label="Género" value={aluno.genero} />
             <InfoRow label="Ano de ingresso" value={String(aluno.anoIngresso)} />
             <div className="flex items-center justify-between border-b border-navy-50 pb-2 last:border-0 last:pb-0">
-              <span className="text-navy-400">Categoria</span>
+              <span className="text-texto-suave">Categoria</span>
               <CategoriaEstudanteForm alunoId={aluno.id} categoria={aluno.categoria} editable={podeEditarCategoria} />
             </div>
             <InfoRow label="Registado em" value={formatDate(aluno.createdAt)} />
@@ -300,7 +300,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             <CardBody className="flex flex-col gap-2">
               {aluno.matriculas.map((matricula) => (
                 <div key={matricula.id} className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-navy-900">
+                  <p className="text-sm font-medium text-texto">
                     {matricula.turma.curso.nome} · {matricula.turma.anoCurricular}º Ano ·{" "}
                     {PERIODO_LABEL[matricula.turma.periodo]} · {formatAnoLetivo(matricula.turma.anoLetivo)}
                   </p>
@@ -344,13 +344,13 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         <div className="flex flex-col gap-5">
           {podeEditarCategoria ? (
             <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Rematrícula</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-texto-suave">Rematrícula</p>
               {/* A explicação do mecanismo só aparece quando há mesmo botão para carregar
                   (§pedido do cliente 2026-09-03: "só ter informação quando uma condição é
                   encontrada"). Quando não há, o próprio RematriculaForm diz o que falta — dizer
                   as duas coisas seria explicar como funciona algo que não se pode fazer. */}
               {podeRematricular ? (
-                <p className="mb-2 text-xs text-navy-400">
+                <p className="mb-2 text-xs text-texto-suave">
                   Avança de ano (ou retém) a partir das notas — as cadeiras reprovadas são inscritas automaticamente.
                 </p>
               ) : null}
@@ -367,13 +367,13 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 
           {podeEditarCategoria ? (
             <div className="border-t border-navy-50 pt-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-texto-suave">
                 Segunda licenciatura / mudança de curso
               </p>
               {/* Só quando há para onde mudar: sem outro curso, o MudarCursoForm diz "Sem outro
                   curso cadastrado" e explicar as regras de uma mudança impossível é ruído. */}
               {outrosCursos.length > 0 ? (
-                <p className="mb-2 text-xs text-navy-400">
+                <p className="mb-2 text-xs text-texto-suave">
                   Sem aproveitamento de créditos — entra sempre no 1º ano do curso novo.
                 </p>
               ) : null}
@@ -382,14 +382,14 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           ) : null}
 
           <div className="border-t border-navy-50 pt-4">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Desistência</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-texto-suave">Desistência</p>
             {/* A explicação só quando há mesmo o que fazer. Antes dizia "Só para alunos ATIVOS",
                 o que era falso (o formulário aceita TRANCADO — é o estado natural de quem desiste),
                 e para um DESISTENTE repetia "reativação exclusiva da ADMIN" mesmo à ADMIN, que via
                 a frase e o botão de reativar por baixo dela. Quando não há ação, é o próprio
                 DesistenciaForm que diz porquê. */}
             {podeMarcarDesistenciaAqui ? (
-              <p className="mb-2 text-xs text-navy-400">
+              <p className="mb-2 text-xs text-texto-suave">
                 A dívida mantém-se; o regresso exige reativação da ADMIN.
               </p>
             ) : null}
@@ -418,10 +418,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                 <div key={`${grupo.anoLetivo}-${grupo.anoCurricular}`} className="flex flex-col gap-3">
                   {/* O que se repetia em cada linha (ano letivo, curso, ano) sobe para aqui, uma vez. */}
                   <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-navy-100 pb-2">
-                    <h3 className="text-sm font-semibold text-navy-900">
+                    <h3 className="text-sm font-semibold text-texto">
                       {formatAnoLetivo(grupo.anoLetivo)} · {grupo.cursoNome} · {grupo.anoCurricular}º Ano
                     </h3>
-                    <span className="text-xs text-navy-400">
+                    <span className="text-xs text-texto-suave">
                       {aprovadas} de {doGrupo.length} aprovada(s)
                     </span>
                   </div>
@@ -430,7 +430,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                     const doSemestre = grupo.porSemestre.get(semestre)!;
                     return (
                       <div key={semestre} className="flex flex-col gap-1">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-texto-suave">
                           {semestre}º Semestre
                         </p>
                         <div className="overflow-x-auto">
@@ -492,7 +492,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           {/* Legenda só quando há mesmo um zero automático — um asterisco sem explicação não diz
               nada a quem o vê pela primeira vez. */}
           {inscricoes.some((i) => i.notas.some((n) => n.automatica)) ? (
-            <p className="text-xs text-navy-400">
+            <p className="text-xs text-texto-suave">
               <span className="text-red-600">*</span> Nota lançada automaticamente a 0 — o prazo de lançamento
               expirou sem nota entregue.
             </p>
@@ -503,7 +503,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
               por cima de coisa nenhuma. */}
           {podeRepetir && cadeirasDisponiveisParaCreditar.length > 0 ? (
             <div className="border-t border-navy-50 pt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-texto-suave">
                 Aproveitamento (aluno transferido)
               </p>
               <CreditarCadeiraForm alunoId={aluno.id} cadeirasDisponiveis={cadeirasDisponiveisParaCreditar} />
@@ -516,11 +516,11 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
               isso passa a último e recolhido, em vez de parecer o fluxo principal. */}
           {podeRepetir && cadeirasAtivas.length > 0 ? (
             <details className="group border-t border-navy-50 pt-4">
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-navy-400 hover:text-navy-600">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-texto-suave hover:text-navy-600">
                 <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
                 Inscrever numa repetição manualmente
               </summary>
-              <p className="mb-2 mt-2 text-xs text-navy-400">
+              <p className="mb-2 mt-2 text-xs text-texto-suave">
                 Normalmente não é preciso: a rematrícula inscreve sozinha as cadeiras reprovadas. Use isto só para corrigir
                 uma repetição que falhou, ou para inscrever fora da janela de matrículas.
               </p>
@@ -554,7 +554,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             <Tbody>
               {cobrancasComEstado.map((cobranca) => (
                 <Tr key={cobranca.id}>
-                  <Td className="font-medium text-navy-900">{COBRANCA_TIPO_LABEL[cobranca.tipo]}</Td>
+                  <Td className="font-medium text-texto">{COBRANCA_TIPO_LABEL[cobranca.tipo]}</Td>
                   <Td>{cobranca.mesReferencia ? formatDate(cobranca.mesReferencia) : (cobranca.descricao ?? "—")}</Td>
                   <Td>{formatCurrency(Number(cobranca.valorPago) > 0 ? Number(cobranca.valorPago) : Number(cobranca.valorDevido))}</Td>
                   <Td>
@@ -575,8 +575,8 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between border-b border-navy-50 pb-2 last:border-0 last:pb-0">
-      <span className="text-navy-400">{label}</span>
-      <span className="font-medium text-navy-800">{value}</span>
+      <span className="text-texto-suave">{label}</span>
+      <span className="font-medium text-texto">{value}</span>
     </div>
   );
 }

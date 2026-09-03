@@ -47,7 +47,7 @@ export function RepeticaoForm({ alunoId, cadeirasAtivas, ofertas }: RepeticaoFor
       <input type="hidden" name="cadeiraCurricularId" value={cadeiraSelecionada} />
 
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-navy-500">Cadeira</label>
+        <label className="text-xs font-medium text-texto">Cadeira</label>
         <Select value={cadeiraSelecionada} onChange={(e) => setCadeiraSelecionada(e.target.value)}>
           {cadeirasUnicas.map((c) => (
             <option key={c.cadeiraCurricularId} value={c.cadeiraCurricularId}>
@@ -58,7 +58,7 @@ export function RepeticaoForm({ alunoId, cadeirasAtivas, ofertas }: RepeticaoFor
       </div>
 
       <div className="flex flex-col gap-1 sm:col-span-2">
-        <label className="text-xs font-medium text-navy-500">Turma de destino</label>
+        <label className="text-xs font-medium text-texto">Turma de destino</label>
         <Select name="turmaDisciplinaId" required disabled={ofertasDaCadeira.length === 0}>
           {ofertasDaCadeira.length === 0 ? (
             <option value="">Sem outras turmas a lecionar esta cadeira</option>

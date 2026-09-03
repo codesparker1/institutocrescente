@@ -69,8 +69,8 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Página Inicial</h1>
-        <p className="text-sm text-navy-400">Olá, {professor.nome.split(" ")[0]}. Aqui está o resumo da sua atividade docente.</p>
+        <h1 className="text-xl font-bold text-texto">Página Inicial</h1>
+        <p className="text-sm text-texto-suave">Olá, {professor.nome.split(" ")[0]}. Aqui está o resumo da sua atividade docente.</p>
       </div>
 
       <ProfileCard
@@ -108,8 +108,8 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
               <GraduationCap size={20} />
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-navy-400">Ver</p>
-              <p className="text-lg font-bold text-navy-900">Minhas Disciplinas</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-texto-suave">Ver</p>
+              <p className="text-lg font-bold text-texto">Minhas Disciplinas</p>
             </div>
           </Card>
         </Link>
@@ -120,8 +120,8 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
               <CalendarClock size={20} />
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-navy-400">Ver</p>
-              <p className="text-lg font-bold text-navy-900">Meu Horário</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-texto-suave">Ver</p>
+              <p className="text-lg font-bold text-texto">Meu Horário</p>
             </div>
           </Card>
         </Link>
@@ -133,7 +133,7 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
             title="Próximas aulas"
             subtitle="Resumo do horário semanal"
             action={
-              <Link href="/horario" className="text-navy-300 hover:text-navy-500" aria-label="Ver horário completo">
+              <Link href="/horario" className="text-texto-suave hover:text-navy-500" aria-label="Ver horário completo">
                 <CalendarClock size={18} />
               </Link>
             }
@@ -151,8 +151,8 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
               {proximasAulas.map((slot) => (
                 <div key={slot.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                   <div>
-                    <p className="font-medium text-navy-800">{slot.disciplinaNome}</p>
-                    <p className="text-xs text-navy-400">
+                    <p className="font-medium text-texto">{slot.disciplinaNome}</p>
+                    <p className="text-xs text-texto-suave">
                       {DIA_SEMANA_LABEL[slot.diaSemana]} · {slot.horaInicio}–{slot.horaFim} · {slot.sala}
                     </p>
                   </div>
@@ -177,10 +177,10 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
               {proximasProvas.map((prova) => (
                 <div key={prova.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                   <div>
-                    <p className="font-medium text-navy-800">
+                    <p className="font-medium text-texto">
                       {EPOCA_LABEL[prova.epoca]} · {prova.disciplinaNome}
                     </p>
-                    <p className="text-xs text-navy-400">{prova.sala ?? "Sala a confirmar"}</p>
+                    <p className="text-xs text-texto-suave">{prova.sala ?? "Sala a confirmar"}</p>
                   </div>
                   <Badge tone={provaJaPassou(prova.data, agora) ? "neutral" : "info"}>{formatDate(prova.data)}</Badge>
                 </div>

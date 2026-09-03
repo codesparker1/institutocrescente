@@ -30,7 +30,7 @@ export function CreditarCadeiraForm({ alunoId, cadeirasDisponiveis }: CreditarCa
 
   if (!aberto) {
     return (
-      <button type="button" onClick={() => setAberto(true)} className="text-xs font-medium text-navy-500 hover:text-navy-700 hover:underline">
+      <button type="button" onClick={() => setAberto(true)} className="text-xs font-medium text-texto hover:text-navy-700 hover:underline">
         Creditar cadeira de outra instituição
       </button>
     );
@@ -41,7 +41,7 @@ export function CreditarCadeiraForm({ alunoId, cadeirasDisponiveis }: CreditarCa
       <input type="hidden" name="alunoId" value={alunoId} />
 
       <div className="flex flex-col gap-1 sm:col-span-2">
-        <label className="text-xs font-medium text-navy-500">Cadeira</label>
+        <label className="text-xs font-medium text-texto">Cadeira</label>
         <Select name="cadeiraCurricularId" required defaultValue={cadeirasDisponiveis[0]?.id}>
           {cadeirasDisponiveis.map((c) => (
             <option key={c.id} value={c.id}>
@@ -52,12 +52,12 @@ export function CreditarCadeiraForm({ alunoId, cadeirasDisponiveis }: CreditarCa
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-navy-500">Nota</label>
+        <label className="text-xs font-medium text-texto">Nota</label>
         <Input type="number" name="notaCreditada" min={0} max={20} step={0.1} required />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-navy-500">Instituição de origem</label>
+        <label className="text-xs font-medium text-texto">Instituição de origem</label>
         <Input type="text" name="instituicaoOrigem" placeholder="Opcional" />
       </div>
 

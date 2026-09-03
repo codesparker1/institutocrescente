@@ -28,7 +28,7 @@ export function PhoneInput({ id, name, required, defaultValue, className }: Phon
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <span className="shrink-0 rounded-lg border border-navy-100 bg-navy-50 px-3 py-2 text-sm text-navy-500">
+      <span className="shrink-0 rounded-lg border border-navy-100 bg-navy-50 px-3 py-2 text-sm text-texto">
         +244
       </span>
       <input
@@ -41,7 +41,7 @@ export function PhoneInput({ id, name, required, defaultValue, className }: Phon
         onChange={handleChange}
         placeholder="9XX XXX XXX"
         maxLength={11}
-        className="min-w-0 flex-1 rounded-lg border border-navy-100 bg-white px-3 py-2 text-sm text-navy-900 placeholder:text-navy-300 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
+        className="min-w-0 flex-1 rounded-lg border border-navy-100 bg-white px-3 py-2 text-sm text-texto placeholder:text-navy-300 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100"
       />
     </div>
   );

@@ -15,8 +15,8 @@ export default async function RegistoPropinasPage() {
     <AcessibilidadeZoom>
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-navy-900">Registo de Propinas</h1>
-          <p className="mt-1 text-base text-navy-500">
+          <h1 className="text-2xl font-bold text-texto">Registo de Propinas</h1>
+          <p className="mt-1 text-base text-texto">
             Pesquise um aluno pelo nome para confirmar pagamentos em lote e emitir o recibo, ou reverter um pagamento já confirmado.
           </p>
         </div>

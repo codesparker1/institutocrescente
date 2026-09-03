@@ -69,14 +69,14 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/admin/turmas" className="inline-flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700">
+        <Link href="/admin/turmas" className="inline-flex items-center gap-1.5 text-sm text-texto hover:text-navy-700">
           <ArrowLeft size={16} />
           Voltar para Turmas
         </Link>
-        <h1 className="mt-2 text-xl font-bold text-navy-900">
+        <h1 className="mt-2 text-xl font-bold text-texto">
           {turma.curso.nome} - {turma.anoCurricular}º Ano
         </h1>
-        <p className="text-sm text-navy-400">
+        <p className="text-sm text-texto-suave">
           {PERIODO_LABEL[turma.periodo]} · {formatAnoLetivo(turma.anoLetivo)} · {semestre}º Semestre
           {semestre === semestreAtual ? " (a decorrer)" : ""}
         </p>
@@ -93,7 +93,7 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
           action={
             <Link
               href={`/admin/turmas/${turma.id}?semestre=${outroSemestre}`}
-              className="rounded-md px-2 py-1 text-xs font-medium text-navy-400 hover:bg-navy-50 hover:text-navy-700"
+              className="rounded-md px-2 py-1 text-xs font-medium text-texto-suave hover:bg-navy-50 hover:text-navy-700"
             >
               Ver {outroSemestre}º semestre
             </Link>
@@ -111,7 +111,7 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
           ) : null}
 
           {cadeirasCurriculares.length === 0 ? (
-            <p className="text-sm text-navy-400">
+            <p className="text-sm text-texto-suave">
               Este curso não tem cadeiras do {semestre}º semestre para o {turma.anoCurricular}º ano no plano curricular.
               Defina-as primeiro em{" "}
               <Link href="/admin/curriculo" className="underline hover:text-navy-600">
@@ -120,7 +120,7 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
               .
             </p>
           ) : cadeirasDisponiveis.length === 0 ? (
-            <p className="text-sm text-navy-400">
+            <p className="text-sm text-texto-suave">
               Todas as cadeiras do {semestre}º semestre já foram atribuídas a esta turma.
             </p>
           ) : (
@@ -149,7 +149,7 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
               <Tbody>
                 {turma.turmaDisciplinas.map((td) => (
                   <Tr key={td.id}>
-                    <Td className="font-medium text-navy-900">{td.disciplina.nome}</Td>
+                    <Td className="font-medium text-texto">{td.disciplina.nome}</Td>
                     <Td>
                       <EditarProfessorTurmaDisciplina
                         turmaDisciplinaId={td.id}
@@ -169,7 +169,7 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
             </Table>
           )}
 
-          <p className="text-xs text-navy-400">
+          <p className="text-xs text-texto-suave">
             Cada semestre mostra-se em separado. Pode atribuir professores em qualquer um deles, mas o horário semanal
             e as provas só se marcam no semestre a decorrer, em{" "}
             <Link href="/horario" className="underline hover:text-navy-600">

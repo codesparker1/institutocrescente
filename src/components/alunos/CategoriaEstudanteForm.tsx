@@ -23,7 +23,7 @@ export function CategoriaEstudanteForm({ alunoId, categoria, editable }: Categor
   const [state, formAction, isPending] = useActionState(atualizarCategoriaEstudanteAction, initialState);
 
   if (!editable) {
-    return <span className="font-medium text-navy-800">{CATEGORIA_LABEL[categoria]}</span>;
+    return <span className="font-medium text-texto">{CATEGORIA_LABEL[categoria]}</span>;
   }
 
   return (

@@ -17,8 +17,8 @@ export default async function RelogioSimuladoPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Relógio Simulado</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Relógio Simulado</h1>
+        <p className="text-sm text-texto-suave">
           Avança a data usada por todo o sistema (propinas, multas, suspensão automática, prazos de lançamento) sem esperar o
           tempo real passar. Só visível com SIMULATION_MODE=true — nunca afeta produção fora deste modo.
         </p>
@@ -27,7 +27,7 @@ export default async function RelogioSimuladoPage() {
       <Card>
         <CardHeader title="Data simulada corrente" subtitle="É esta data que getAgora() devolve a todo o sistema enquanto SIMULATION_MODE=true." />
         <CardBody>
-          <p className="text-2xl font-bold text-navy-900">{formatDateTime(agora)}</p>
+          <p className="text-2xl font-bold text-texto">{formatDateTime(agora)}</p>
         </CardBody>
       </Card>
 

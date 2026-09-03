@@ -15,7 +15,7 @@ export function Logo({ size = 40, className, showWordmark = true, priority }: Lo
       {showWordmark ? (
         <div className="leading-tight">
           <div className="text-lg font-extrabold tracking-wide text-gold-400">ISPC</div>
-          <div className="text-[10px] uppercase tracking-wider text-navy-200">
+          <div className="text-[10px] uppercase tracking-wider text-texto-suave">
             Instituto Superior Politécnico Crescente
           </div>
         </div>

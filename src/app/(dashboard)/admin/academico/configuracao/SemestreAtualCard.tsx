@@ -99,8 +99,8 @@ export function SemestreAtualCard({
                     semestre === semestreAtual
                       ? "border-navy-700 bg-navy-700 text-gold-100"
                       : bloqueado
-                        ? "cursor-not-allowed border-navy-50 bg-navy-50 text-navy-300"
-                        : "border-navy-100 bg-white text-navy-500 hover:border-navy-300 hover:text-navy-700",
+                        ? "cursor-not-allowed border-navy-50 bg-navy-50 text-texto-suave"
+                        : "border-navy-100 bg-white text-texto hover:border-navy-300 hover:text-navy-700",
                   )}
                 >
                   {semestre}º Semestre
@@ -114,7 +114,7 @@ export function SemestreAtualCard({
         </div>
 
         {semestreAtual === 1 && cadeirasPorFechar > 0 ? (
-          <p className="text-xs text-navy-500">
+          <p className="text-xs text-texto">
             Ao passar ao 2º semestre, <strong>{cadeirasPorFechar} cadeira(s)</strong> com notas por lançar levam 0 nas
             épocas em falta.
             {semAvaliacaoAgendada > 0 ? (
@@ -129,7 +129,7 @@ export function SemestreAtualCard({
         ) : null}
 
         {voltarBloqueado ? (
-          <p className="text-xs text-navy-400">
+          <p className="text-xs text-texto-suave">
             O 1º semestre já foi fechado neste ano letivo. Volta a ficar disponível no início do próximo ano letivo.
           </p>
         ) : null}

@@ -17,9 +17,9 @@ export function StatCard({ label, value, icon, hint }: StatCardProps) {
         </div>
       ) : null}
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-navy-400">{label}</p>
-        <p className="text-2xl font-bold text-navy-900">{value}</p>
-        {hint ? <p className="text-xs text-navy-400">{hint}</p> : null}
+        <p className="text-xs font-medium uppercase tracking-wide text-texto-suave">{label}</p>
+        <p className="text-2xl font-bold text-texto">{value}</p>
+        {hint ? <p className="text-xs text-texto-suave">{hint}</p> : null}
       </div>
     </Card>
   );

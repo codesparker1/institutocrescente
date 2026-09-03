@@ -20,14 +20,14 @@ export function ProfileCard({ nome, cargo, campos }: ProfileCardProps) {
       </div>
       <div className="flex flex-1 flex-wrap items-center justify-between gap-x-8 gap-y-2">
         <div>
-          <p className="text-lg font-bold text-navy-900">{nome}</p>
+          <p className="text-lg font-bold text-texto">{nome}</p>
           <p className="text-sm font-medium text-gold-600">{cargo}</p>
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-1">
           {campos.map((campo) => (
             <div key={campo.label}>
-              <p className="text-xs uppercase tracking-wide text-navy-400">{campo.label}</p>
-              <p className="text-sm font-medium text-navy-800">{campo.value}</p>
+              <p className="text-xs uppercase tracking-wide text-texto-suave">{campo.label}</p>
+              <p className="text-sm font-medium text-texto">{campo.value}</p>
             </div>
           ))}
         </div>

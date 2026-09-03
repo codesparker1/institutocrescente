@@ -30,7 +30,7 @@ export function ConfiguracaoForm({
       action={formAction}
       className="flex flex-col gap-4 max-w-md"
     >
-      <label className="flex items-center gap-2 text-sm font-medium text-navy-700">
+      <label className="flex items-center gap-2 text-sm font-medium text-texto">
         <input
           type="checkbox"
           name="bloqueioAtivo"
@@ -86,7 +86,7 @@ export function ConfiguracaoForm({
           step="0.01"
           defaultValue={state.values?.valorMultaRematriculaTardia ?? valorMultaRematriculaTardia}
         />
-        <p className="mt-1 text-xs text-navy-400">
+        <p className="mt-1 text-xs text-texto-suave">
           Cobrada (uma vez, como multa órfã) quando a ADMIN rematrícula um aluno fora do período de matrícula.
           0 = desligada. Não bloqueia o aluno — só a propina bloqueia.
         </p>

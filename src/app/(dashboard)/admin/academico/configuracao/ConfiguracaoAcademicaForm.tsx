@@ -53,7 +53,7 @@ export function ConfiguracaoAcademicaForm({
       </Field>
 
       <div className="flex flex-col gap-1 border-t border-navy-50 pt-4">
-        <span className="text-sm font-medium text-navy-700">Início do ano letivo</span>
+        <span className="text-sm font-medium text-texto">Início do ano letivo</span>
         <DateSelect
           name="anoLetivoInicio"
           minYear={anoDeReferencia - 1}
@@ -64,7 +64,7 @@ export function ConfiguracaoAcademicaForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-navy-700">Fim do ano letivo</span>
+        <span className="text-sm font-medium text-texto">Fim do ano letivo</span>
         <DateSelect
           name="anoLetivoFim"
           minYear={anoDeReferencia - 1}
@@ -74,14 +74,14 @@ export function ConfiguracaoAcademicaForm({
         {state.fieldErrors?.anoLetivoFim ? (
           <p className="text-xs text-red-600">{state.fieldErrors.anoLetivoFim}</p>
         ) : (
-          <p className="text-xs text-navy-400">
+          <p className="text-xs text-texto-suave">
             É esta data, não o fim da matrícula, que fecha o ano letivo: repõe o semestre para 1º e suspende quem não rematriculou.
           </p>
         )}
       </div>
 
       <div className="flex flex-col gap-1 border-t border-navy-50 pt-4">
-        <span className="text-sm font-medium text-navy-700">Início do período de matrícula</span>
+        <span className="text-sm font-medium text-texto">Início do período de matrícula</span>
         <DateSelect
           name="matriculaInicio"
           minYear={anoDeReferencia - 1}
@@ -92,7 +92,7 @@ export function ConfiguracaoAcademicaForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-navy-700">Fim do período de matrícula</span>
+        <span className="text-sm font-medium text-texto">Fim do período de matrícula</span>
         <DateSelect
           name="matriculaFim"
           minYear={anoDeReferencia - 1}

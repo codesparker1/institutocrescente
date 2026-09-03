@@ -38,10 +38,10 @@ export function AttendanceChip({ frequenciaId, nome, presenteInicial, disabled, 
       className={cn(
         "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
         inativa
-          ? "border-navy-100 bg-navy-50 text-navy-300"
+          ? "border-navy-100 bg-navy-50 text-texto-suave"
           : presente
             ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-            : "border-navy-100 bg-white text-navy-400 hover:bg-navy-50",
+            : "border-navy-100 bg-white text-texto-suave hover:bg-navy-50",
       )}
     >
       {nome}

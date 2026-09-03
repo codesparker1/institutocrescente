@@ -5,7 +5,7 @@ export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectEl
   return (
     <select
       className={cn(
-        "rounded-lg border border-navy-100 bg-white px-3 py-2 text-sm text-navy-900 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100",
+        "rounded-lg border border-navy-100 bg-white px-3 py-2 text-sm text-texto focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100",
         className,
       )}
       {...rest}

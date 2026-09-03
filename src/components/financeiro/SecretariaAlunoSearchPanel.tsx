@@ -97,7 +97,7 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
       <CardBody className="flex flex-col gap-4">
         <div className="relative grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
           <div className="relative">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-navy-300" />
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-texto-suave" />
             <Input
               value={query}
               onChange={(e) => {
@@ -113,7 +113,7 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
               name="pesquisa-aluno-secretaria"
             />
             {isSearching ? (
-              <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-navy-300" />
+              <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-texto-suave" />
             ) : null}
           </div>
 
@@ -153,8 +153,8 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
                   onClick={() => carregarEstado(aluno)}
                   className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-navy-50"
                 >
-                  <span className="font-medium text-navy-900">{aluno.nome}</span>
-                  <span className="shrink-0 text-xs text-navy-400">
+                  <span className="font-medium text-texto">{aluno.nome}</span>
+                  <span className="shrink-0 text-xs text-texto-suave">
                     {aluno.numeroEstudante} · {aluno.curso} · {aluno.anoCurricular}º Ano
                   </span>
                 </button>
@@ -167,8 +167,8 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
           <div className="grid grid-cols-1 gap-4 border-t border-navy-50 pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <div className="flex flex-col gap-3">
               <div>
-                <p className="text-lg font-bold text-navy-900">{aSelecionado.nome}</p>
-                <p className="text-xs text-navy-400">{aSelecionado.numeroEstudante}</p>
+                <p className="text-lg font-bold text-texto">{aSelecionado.nome}</p>
+                <p className="text-xs text-texto-suave">{aSelecionado.numeroEstudante}</p>
               </div>
               <div className="flex flex-col gap-1.5 text-sm">
                 <InfoRow label="Curso" value={aSelecionado.curso} />
@@ -182,7 +182,7 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
                     estado.saldoEmDivida > 0 ? "border-red-100 bg-red-50" : "border-emerald-100 bg-emerald-50",
                   )}
                 >
-                  <p className="text-xs text-navy-400">Dívida</p>
+                  <p className="text-xs text-texto-suave">Dívida</p>
                   <p
                     className={cn(
                       "text-lg font-bold",
@@ -196,7 +196,7 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
               <button
                 type="button"
                 onClick={novaPesquisa}
-                className="self-start text-xs font-medium text-navy-400 hover:text-navy-600"
+                className="self-start text-xs font-medium text-texto-suave hover:text-navy-600"
               >
                 Nova pesquisa
               </button>
@@ -204,7 +204,7 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
 
             <div>
               {!estado || isLoadingEstado ? (
-                <p className="text-sm text-navy-400">A carregar...</p>
+                <p className="text-sm text-texto-suave">A carregar...</p>
               ) : (
                 <PagamentosSecretariaPanel
                   alunoId={aSelecionado.id}
@@ -225,8 +225,8 @@ export function SecretariaAlunoSearchPanel({ cursos }: SecretariaAlunoSearchPane
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-navy-400">{label}</span>
-      <span className="font-medium text-navy-800">{value}</span>
+      <span className="text-texto-suave">{label}</span>
+      <span className="font-medium text-texto">{value}</span>
     </div>
   );
 }

@@ -52,7 +52,7 @@ export function LancamentoNotasCard({ aberto, alteradoEm, cadeirasPorLancar }: L
                     ? abrir
                       ? "border-emerald-600 bg-emerald-600 text-white"
                       : "border-navy-700 bg-navy-700 text-gold-100"
-                    : "border-navy-100 bg-white text-navy-500 hover:border-navy-300 hover:text-navy-700",
+                    : "border-navy-100 bg-white text-texto hover:border-navy-300 hover:text-navy-700",
                 )}
               >
                 {abrir ? "Aberto" : "Fechado"}
@@ -62,7 +62,7 @@ export function LancamentoNotasCard({ aberto, alteradoEm, cadeirasPorLancar }: L
           ))}
         </div>
 
-        <p className="text-xs text-navy-500">
+        <p className="text-xs text-texto">
           {aberto ? (
             <>
               Os professores podem lançar notas

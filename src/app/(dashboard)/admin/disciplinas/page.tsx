@@ -56,8 +56,8 @@ export default async function AdminDisciplinasPage({ searchParams }: AdminDiscip
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Disciplinas</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Disciplinas</h1>
+        <p className="text-sm text-texto-suave">
           Gestão académica — a mesma disciplina pode entrar no plano de vários cursos, sem ser duplicada.
         </p>
       </div>
@@ -111,14 +111,14 @@ export default async function AdminDisciplinasPage({ searchParams }: AdminDiscip
               <Tbody>
                 {disciplinas.map((disciplina) => (
                   <Tr key={disciplina.id}>
-                    <Td className="font-medium text-navy-900">{disciplina.nome}</Td>
+                    <Td className="font-medium text-texto">{disciplina.nome}</Td>
                     <Td>{disciplina.codigo}</Td>
                     <Td>{disciplina.curso.nome}</Td>
                     <Td>
                       {disciplina.cadeirasCurriculares.length === 0 ? (
-                        <span className="text-navy-300">Nenhum</span>
+                        <span className="text-texto-suave">Nenhum</span>
                       ) : (
-                        <span className={disciplina.cadeirasCurriculares.length > 1 ? "font-medium text-navy-900" : ""}>
+                        <span className={disciplina.cadeirasCurriculares.length > 1 ? "font-medium text-texto" : ""}>
                           {disciplina.cadeirasCurriculares.map((c) => c.curso.nome).join(", ")}
                         </span>
                       )}

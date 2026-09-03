@@ -23,9 +23,9 @@ export function CatalogoEmolumentos({ emolumentos }: CatalogoEmolumentosProps) {
       <Tbody>
         {emolumentos.map((e) => (
           <Tr key={e.id}>
-            <Td className="font-medium text-navy-900">{e.nome}</Td>
-            <Td className="text-navy-400">{e.descricao ?? "—"}</Td>
-            <Td className="font-semibold text-navy-900">{formatCurrency(e.valor)}</Td>
+            <Td className="font-medium text-texto">{e.nome}</Td>
+            <Td className="text-texto-suave">{e.descricao ?? "—"}</Td>
+            <Td className="font-semibold text-texto">{formatCurrency(e.valor)}</Td>
           </Tr>
         ))}
       </Tbody>

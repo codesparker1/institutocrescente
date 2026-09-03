@@ -20,7 +20,7 @@ export function NavItem({ href, label, icon }: NavItemProps) {
       href={href}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-        isActive ? "bg-navy-800 text-gold-300" : "text-navy-300 hover:bg-navy-900 hover:text-gold-200",
+        isActive ? "bg-navy-800 text-gold-300" : "text-texto-suave hover:bg-navy-900 hover:text-gold-200",
       )}
     >
       {icon}

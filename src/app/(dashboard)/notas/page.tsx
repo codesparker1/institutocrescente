@@ -80,8 +80,8 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Notas e Frequência</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Notas e Frequência</h1>
+        <p className="text-sm text-texto-suave">
           {professorId
             ? "As turmas onde lecciona. Selecione uma para ver as suas disciplinas."
             : "Selecione uma turma para ver as suas disciplinas."}
@@ -93,7 +93,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
         <CardBody className="flex flex-col gap-4">
           <form className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-navy-500">Curso</label>
+              <label className="text-xs font-medium text-texto">Curso</label>
               <Select name="cursoId" defaultValue={cursoId ?? ""} className="w-56">
                 <option value="">Todos</option>
                 {cursosDisponiveis.map((c) => (
@@ -104,7 +104,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-navy-500">Ano curricular</label>
+              <label className="text-xs font-medium text-texto">Ano curricular</label>
               <Select name="anoCurricular" defaultValue={anoCurricular ?? ""} className="w-36">
                 <option value="">Todos</option>
                 {anosCurricularesDisponiveis.map((ano) => (
@@ -115,7 +115,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-navy-500">Período</label>
+              <label className="text-xs font-medium text-texto">Período</label>
               <Select name="periodo" defaultValue={periodo ?? ""} className="w-40">
                 <option value="">Todos</option>
                 {PERIODOS.map((p) => (
@@ -126,7 +126,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-navy-500">Ano letivo</label>
+              <label className="text-xs font-medium text-texto">Ano letivo</label>
               <Select name="anoLetivo" defaultValue={filtroAnoLetivo} className="w-44">
                 {anosLetivosDisponiveis.map((ano) => (
                   <option key={ano} value={String(ano)}>
@@ -145,7 +145,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
             </button>
             <Link
               href="/notas"
-              className="rounded-lg border border-navy-100 px-4 py-2 text-sm font-semibold text-navy-600 hover:bg-navy-50"
+              className="rounded-lg border border-navy-100 px-4 py-2 text-sm font-semibold text-texto hover:bg-navy-50"
             >
               Limpar
             </Link>
@@ -175,7 +175,7 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
                 {turmas.map((turma) => (
                   <Tr key={turma.id}>
                     <Td>
-                      <Link href={`/notas/${turma.id}`} className="font-medium text-navy-900 hover:text-navy-600">
+                      <Link href={`/notas/${turma.id}`} className="font-medium text-texto hover:text-navy-600">
                         {turma.curso.nome}
                       </Link>
                     </Td>

@@ -46,8 +46,8 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Registo de Auditoria</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Registo de Auditoria</h1>
+        <p className="text-sm text-texto-suave">
           Registo de todas as ações realizadas no sistema — utilizador, papel, ação e endereço IP.
         </p>
       </div>
@@ -105,24 +105,24 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
               <Tbody>
                 {logs.map((log) => (
                   <Tr key={log.id}>
-                    <Td className="whitespace-nowrap text-xs text-navy-400">
+                    <Td className="whitespace-nowrap text-xs text-texto-suave">
                       <span>{formatDateTime(log.createdAt)}</span>
-                      <span className="block text-navy-300">{formatRelativeTime(log.createdAt, agora)}</span>
+                      <span className="block text-texto-suave">{formatRelativeTime(log.createdAt, agora)}</span>
                     </Td>
-                    <Td className="font-medium text-navy-900">{log.userName}</Td>
+                    <Td className="font-medium text-texto">{log.userName}</Td>
                     <Td>
                       <Badge tone={ROLE_TONE[log.userRole]}>{log.userRole}</Badge>
                     </Td>
                     <Td>
                       {log.action}
                       {log.valorAnterior !== null || log.valorNovo !== null ? (
-                        <span className="mt-0.5 block font-mono text-xs text-navy-400">
+                        <span className="mt-0.5 block font-mono text-xs text-texto-suave">
                           {log.valorAnterior ?? "—"} → {log.valorNovo ?? "—"}
                         </span>
                       ) : null}
                     </Td>
-                    <Td className="text-navy-400">{log.entityType}</Td>
-                    <Td className="font-mono text-xs text-navy-400">{log.ipAddress ?? "—"}</Td>
+                    <Td className="text-texto-suave">{log.entityType}</Td>
+                    <Td className="font-mono text-xs text-texto-suave">{log.ipAddress ?? "—"}</Td>
                   </Tr>
                 ))}
               </Tbody>

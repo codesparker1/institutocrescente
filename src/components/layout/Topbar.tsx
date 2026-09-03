@@ -33,7 +33,7 @@ export function Topbar({ name, role, dataSistema, simulationMode, onMenuClick }:
       <button
         type="button"
         onClick={onMenuClick}
-        className="rounded-lg border border-navy-100 p-2 text-navy-600 hover:bg-navy-50 md:hidden"
+        className="rounded-lg border border-navy-100 p-2 text-texto hover:bg-navy-50 md:hidden"
         aria-label="Abrir menu"
       >
         <Menu size={20} />
@@ -43,7 +43,7 @@ export function Topbar({ name, role, dataSistema, simulationMode, onMenuClick }:
           className={
             simulationMode
               ? "flex items-center gap-1.5 rounded-lg border border-gold-300 bg-gold-50 px-3 py-1.5 text-xs font-semibold text-gold-700"
-              : "flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600"
+              : "flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-texto"
           }
           title={simulationMode ? "Data simulada — o relógio do sistema está sob controlo do modo de simulação" : "Data do sistema"}
         >
@@ -52,12 +52,12 @@ export function Topbar({ name, role, dataSistema, simulationMode, onMenuClick }:
           {simulationMode ? <span className="hidden sm:inline">· simulado</span> : null}
         </div>
         <div className="text-right">
-          <p className="text-sm font-semibold text-navy-900">{name}</p>
-          <p className="text-xs text-navy-400">{ROLE_LABEL[role]}</p>
+          <p className="text-sm font-semibold text-texto">{name}</p>
+          <p className="text-xs text-texto-suave">{ROLE_LABEL[role]}</p>
         </div>
         <Link
           href="/conta"
-          className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50"
+          className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-texto hover:bg-navy-50"
           aria-label="Minha Conta"
           title="Minha Conta"
         >
@@ -67,7 +67,7 @@ export function Topbar({ name, role, dataSistema, simulationMode, onMenuClick }:
         <form action={logoutAction}>
           <button
             type="submit"
-            className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-navy-600 hover:bg-navy-50"
+            className="flex items-center gap-1.5 rounded-lg border border-navy-100 px-3 py-1.5 text-xs font-semibold text-texto hover:bg-navy-50"
           >
             <LogOut size={14} />
             Sair

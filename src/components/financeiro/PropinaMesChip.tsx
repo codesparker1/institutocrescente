@@ -63,7 +63,7 @@ export function PropinaMesChip({ propinaId, pago, disabled, estadoVisual, onAtua
             ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
             : estadoVisual === "DEVENDO"
               ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-              : "border-navy-100 bg-white text-navy-400 hover:bg-navy-50",
+              : "border-navy-100 bg-white text-texto-suave hover:bg-navy-50",
         )}
       >
         {pago ? "Pago" : estadoVisual === "DEVENDO" ? "Devendo" : "Pendente"}

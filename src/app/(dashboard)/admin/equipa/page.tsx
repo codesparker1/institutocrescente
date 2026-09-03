@@ -16,8 +16,8 @@ export default async function AdminEquipaPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Equipa (DAAC, Secretaria e Dev)</h1>
-        <p className="text-sm text-navy-400">Contas de staff do DAAC, da Secretaria e do Dev — exclusivo do ADMIN.</p>
+        <h1 className="text-xl font-bold text-texto">Equipa (DAAC, Secretaria e Dev)</h1>
+        <p className="text-sm text-texto-suave">Contas de staff do DAAC, da Secretaria e do Dev — exclusivo do ADMIN.</p>
       </div>
 
       <Card>
@@ -41,7 +41,7 @@ export default async function AdminEquipaPage() {
               <Tbody>
                 {staff.map((user) => (
                   <Tr key={user.id}>
-                    <Td className="font-medium text-navy-900">{user.name}</Td>
+                    <Td className="font-medium text-texto">{user.name}</Td>
                     <Td>{user.email}</Td>
                     <Td>
                       <Badge tone={user.role === "DAAC" ? "info" : user.role === "DEV" ? "warning" : "neutral"}>{user.role}</Badge>

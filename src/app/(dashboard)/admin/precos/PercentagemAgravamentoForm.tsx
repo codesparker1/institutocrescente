@@ -28,7 +28,7 @@ export function PercentagemAgravamentoForm({ valorInicial }: PercentagemAgravame
         }}
         className="w-32"
       />
-      <span className="text-sm text-navy-500">% por cadeira em repetição</span>
+      <span className="text-sm text-texto">% por cadeira em repetição</span>
       {state.error ? <p className="text-xs text-red-600">{state.error}</p> : null}
     </form>
   );

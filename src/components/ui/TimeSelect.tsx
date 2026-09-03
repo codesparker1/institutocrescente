@@ -14,7 +14,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
 const MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 
 const selectClassName =
-  "rounded-lg border border-navy-100 bg-white px-2 py-2 text-xs text-navy-900 focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100";
+  "rounded-lg border border-navy-100 bg-white px-2 py-2 text-xs text-texto focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100";
 
 export function TimeSelect({ name, defaultValue = "08:00", required, className }: TimeSelectProps) {
   const [initialHour, initialMinute] = defaultValue.split(":");
@@ -35,7 +35,7 @@ export function TimeSelect({ name, defaultValue = "08:00", required, className }
           </option>
         ))}
       </select>
-      <span className="text-navy-400">:</span>
+      <span className="text-texto-suave">:</span>
       <select
         aria-label="Minuto"
         className={selectClassName}

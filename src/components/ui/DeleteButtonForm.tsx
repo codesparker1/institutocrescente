@@ -43,7 +43,7 @@ export function DeleteButtonForm({ action, id, variant = "icon", className }: De
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md p-1.5 text-navy-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-md p-1.5 text-texto-suave hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label="Remover"
         >
           <Trash2 size={15} />

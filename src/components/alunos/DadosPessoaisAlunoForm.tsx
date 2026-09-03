@@ -32,18 +32,18 @@ export function DadosPessoaisAlunoForm({ alunoId, nome, numeroEstudante }: Dados
     <form action={formAction} className="flex flex-col gap-2 rounded-lg border border-navy-100 p-3">
       <input type="hidden" name="alunoId" value={alunoId} />
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-navy-500">Nome</label>
+        <label className="text-xs font-medium text-texto">Nome</label>
         <Input name="nome" defaultValue={nome} required className="text-sm" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-navy-500">Nº de estudante</label>
+        <label className="text-xs font-medium text-texto">Nº de estudante</label>
         <Input name="numeroEstudante" defaultValue={numeroEstudante} required className="text-sm" />
       </div>
       <div className="flex gap-2">
         <Button type="submit" variant="secondary" disabled={isPending} className="px-3 py-1.5 text-xs">
           {isPending ? "A guardar..." : "Guardar"}
         </Button>
-        <button type="button" onClick={() => setAberto(false)} className="text-xs text-navy-400 hover:text-navy-600">
+        <button type="button" onClick={() => setAberto(false)} className="text-xs text-texto-suave hover:text-navy-600">
           cancelar
         </button>
       </div>

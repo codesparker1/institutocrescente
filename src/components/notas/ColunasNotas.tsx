@@ -56,10 +56,10 @@ export function notaDaEpoca(
  * aquele zero não foi uma prova feita).
  */
 export function CelulaNota({ nota }: { nota: NotaDeEpoca | null }) {
-  if (!nota) return <Td className="text-center text-navy-200">{""}</Td>;
-  if (nota.valor === null) return <Td className="text-center text-navy-300">—</Td>;
+  if (!nota) return <Td className="text-center text-texto-suave">{""}</Td>;
+  if (nota.valor === null) return <Td className="text-center text-texto-suave">—</Td>;
   return (
-    <Td className={`text-center font-medium ${nota.automatica ? "text-red-600" : "text-navy-800"}`}>
+    <Td className={`text-center font-medium ${nota.automatica ? "text-red-600" : "text-texto"}`}>
       <span title={nota.automatica ? "0 automático — prazo de lançamento expirado sem nota entregue" : undefined}>
         {nota.valor.toFixed(1)}
         {nota.automatica ? "*" : ""}

@@ -16,20 +16,20 @@ export function CreateProfessorForm() {
     return (
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-3 rounded-lg bg-navy-50 px-4 py-3">
-          <CheckCircle2 className="mt-0.5 shrink-0 text-navy-700" size={18} />
-          <p className="text-sm font-medium text-navy-700">{state.success.nome} adicionado com sucesso.</p>
+          <CheckCircle2 className="mt-0.5 shrink-0 text-texto" size={18} />
+          <p className="text-sm font-medium text-texto">{state.success.nome} adicionado com sucesso.</p>
         </div>
         <div className="flex items-start gap-3 rounded-lg border border-gold-300 bg-gold-50 px-4 py-3">
           <KeyRound className="mt-0.5 shrink-0 text-gold-600" size={18} />
           <div className="text-sm">
-            <p className="font-semibold text-navy-800">Credenciais de acesso (mostradas apenas agora)</p>
-            <p className="mt-1 text-navy-600">
+            <p className="font-semibold text-texto">Credenciais de acesso (mostradas apenas agora)</p>
+            <p className="mt-1 text-texto">
               Email: <span className="font-mono">{state.success.email}</span>
             </p>
-            <p className="text-navy-600">
+            <p className="text-texto">
               Senha temporária: <span className="font-mono font-semibold">{state.success.senhaTemporaria}</span>
             </p>
-            <p className="mt-2 text-xs text-navy-400">
+            <p className="mt-2 text-xs text-texto-suave">
               Anote e comunique esta senha ao professor agora — não será possível consultá-la de novo depois de sair
               desta página.
             </p>

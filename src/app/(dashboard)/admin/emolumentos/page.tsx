@@ -13,8 +13,8 @@ export default async function AdminEmolumentosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Emolumentos</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Emolumentos</h1>
+        <p className="text-sm text-texto-suave">
           Catálogo de declarações, certidões e outros serviços — visível aos alunos para solicitação.
         </p>
       </div>
@@ -40,8 +40,8 @@ export default async function AdminEmolumentosPage() {
               <Tbody>
                 {emolumentos.map((emolumento) => (
                   <Tr key={emolumento.id}>
-                    <Td className="font-medium text-navy-900">{emolumento.nome}</Td>
-                    <Td className="text-navy-400">{emolumento.descricao ?? "—"}</Td>
+                    <Td className="font-medium text-texto">{emolumento.nome}</Td>
+                    <Td className="text-texto-suave">{emolumento.descricao ?? "—"}</Td>
                     <Td>
                       <EditarValorEmolumento emolumentoId={emolumento.id} valor={Number(emolumento.valor)} />
                     </Td>

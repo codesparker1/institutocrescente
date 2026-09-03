@@ -71,13 +71,13 @@ export function CreateProvaForm({ disciplinas, minIso, maxIso, anoLetivoLabel }:
           ))}
         </Select>
         {/* Um único valor, não um seletor: a época é determinada pela cascata, não escolhida. */}
-        <div className="flex h-9 items-center rounded-lg border border-navy-100 bg-navy-50 px-3 text-xs font-medium text-navy-600">
+        <div className="flex h-9 items-center rounded-lg border border-navy-100 bg-navy-50 px-3 text-xs font-medium text-texto">
           {proxima ? EPOCA_LABEL[proxima] : "Todas as épocas agendadas"}
         </div>
         {proxima ? <input type="hidden" name="epoca" value={proxima} /> : null}
         {/* O ano não se escolhe — é o do ano letivo a decorrer, decidido pelo sistema. Mostrar como
             texto tira uma decisão errada de cima do utilizador em vez de a validar depois. */}
-        <div className="flex h-9 items-center rounded-lg border border-navy-100 bg-navy-50 px-3 text-xs font-medium text-navy-500">
+        <div className="flex h-9 items-center rounded-lg border border-navy-100 bg-navy-50 px-3 text-xs font-medium text-texto">
           {anoLetivoLabel}
         </div>
         <DateSelectIntervalo name="data" minIso={minIso} maxIso={maxIso} defaultValue={state.values?.data} />
@@ -87,7 +87,7 @@ export function CreateProvaForm({ disciplinas, minIso, maxIso, anoLetivoLabel }:
         </Button>
       </form>
       {proxima && proxima !== "P1" ? (
-        <p className="text-xs text-navy-400">
+        <p className="text-xs text-texto-suave">
           As épocas seguem a ordem P1 → P2 → Exame → Recurso → Exame Especial, e cada uma tem de ser marcada para
           depois da anterior.
         </p>

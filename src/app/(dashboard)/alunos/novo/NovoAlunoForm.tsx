@@ -36,18 +36,18 @@ export function NovoAlunoForm({ turmas, anoDeReferencia }: NovoAlunoFormProps) {
         <CardHeader title="Aluno matriculado com sucesso" />
         <CardBody className="flex flex-col gap-4">
           <div className="flex items-start gap-3 rounded-lg bg-navy-50 px-4 py-3">
-            <CheckCircle2 className="mt-0.5 shrink-0 text-navy-700" size={18} />
-            <div className="text-sm text-navy-700">
+            <CheckCircle2 className="mt-0.5 shrink-0 text-texto" size={18} />
+            <div className="text-sm text-texto">
               <p className="font-medium">{state.success.nome}</p>
-              <p className="text-navy-500">Nº de estudante: {state.success.numeroEstudante}</p>
+              <p className="text-texto">Nº de estudante: {state.success.numeroEstudante}</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3 rounded-lg border border-gold-300 bg-gold-50 px-4 py-3">
             <KeyRound className="mt-0.5 shrink-0 text-gold-600" size={18} />
             <div className="text-sm">
-              <p className="font-semibold text-navy-800">Credenciais de acesso (mostradas apenas agora)</p>
-              <p className="mt-1 text-navy-600">
+              <p className="font-semibold text-texto">Credenciais de acesso (mostradas apenas agora)</p>
+              <p className="mt-1 text-texto">
                 Login: <span className="font-mono">{state.success.numeroEstudante}</span>
                 {state.success.email ? (
                   <>
@@ -56,10 +56,10 @@ export function NovoAlunoForm({ turmas, anoDeReferencia }: NovoAlunoFormProps) {
                   </>
                 ) : null}
               </p>
-              <p className="text-navy-600">
+              <p className="text-texto">
                 Senha temporária: <span className="font-mono font-semibold">{state.success.senhaTemporaria}</span>
               </p>
-              <p className="mt-2 text-xs text-navy-400">
+              <p className="mt-2 text-xs text-texto-suave">
                 Anote e comunique esta senha ao aluno agora — não será possível consultá-la de novo depois de sair
                 desta página.
               </p>
@@ -67,7 +67,7 @@ export function NovoAlunoForm({ turmas, anoDeReferencia }: NovoAlunoFormProps) {
           </div>
 
           {state.success.anosAnterioresInscritos.length > 0 ? (
-            <div className="rounded-lg bg-navy-50 px-4 py-3 text-sm text-navy-700">
+            <div className="rounded-lg bg-navy-50 px-4 py-3 text-sm text-texto">
               Entrada direta: o aluno foi também inscrito nas cadeiras do{" "}
               {state.success.anosAnterioresInscritos.join("º, ")}º Ano, a par do ano de entrada.
             </div>

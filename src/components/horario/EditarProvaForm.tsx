@@ -45,11 +45,11 @@ export function EditarProvaForm({ provaId, dataIso, salaAtual, minIso, maxIso, o
         <Button type="submit" variant="ghost" className="text-xs" disabled={isPending}>
           {isPending ? "A guardar..." : "Guardar"}
         </Button>
-        <Button type="button" variant="ghost" className="text-xs text-navy-400" onClick={onFechar}>
+        <Button type="button" variant="ghost" className="text-xs text-texto-suave" onClick={onFechar}>
           Cancelar
         </Button>
       </div>
-      <p className="text-xs text-navy-400">
+      <p className="text-xs text-texto-suave">
         A partir do novo dia, o professor pode lançar a nota — desde que o lançamento esteja aberto.
       </p>
       {primeiroErro ? <p className="text-xs text-red-600">{primeiroErro}</p> : null}

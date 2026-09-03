@@ -47,8 +47,8 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Turmas</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Turmas</h1>
+        <p className="text-sm text-texto-suave">
           Gestão académica — uma turma é uma coorte: Curso + Ano curricular + Período. As disciplinas são atribuídas dentro de cada turma.
           Ao fim do ano letivo, a turma do ano seguinte é criada automaticamente com as mesmas disciplinas, mas <strong>sem professor e sem sala</strong> —
           essas atribuem-se de novo no início de cada ano. A turma antiga fica como histórico.
@@ -62,7 +62,7 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
 
           <form className="flex items-end gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-navy-500">Ano letivo</label>
+              <label className="text-xs font-medium text-texto">Ano letivo</label>
               <Select name="anoLetivo" defaultValue={filtroAtivo} className="w-48">
                 {anoAtual !== null ? <option value={String(anoAtual)}>{formatAnoLetivo(anoAtual)} (atual)</option> : null}
                 {anosLetivos
@@ -99,7 +99,7 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
                 {turmas.map((turma) => (
                   <Tr key={turma.id}>
                     <Td>
-                      <Link href={`/admin/turmas/${turma.id}`} className="font-medium text-navy-900 hover:text-navy-600">
+                      <Link href={`/admin/turmas/${turma.id}`} className="font-medium text-texto hover:text-navy-600">
                         {turma.curso.nome}
                       </Link>
                     </Td>
@@ -110,7 +110,7 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
                     <Td>
                       {formatAnoLetivo(turma.anoLetivo)}
                       {turma.anoLetivo !== anoAtual ? (
-                        <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">Histórico</span>
+                        <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-texto-suave">Histórico</span>
                       ) : null}
                     </Td>
                     <Td>{turma._count.turmaDisciplinas}</Td>

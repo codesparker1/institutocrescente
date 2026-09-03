@@ -70,7 +70,7 @@ export function LinhaPercursoEditavel({
   const formId = `nota-historica-${inscricaoCadeiraId}`;
 
   const celulaDisciplina = (
-    <Td className="font-medium text-navy-900">
+    <Td className="font-medium text-texto">
       {disciplinaNome}
       {tentativa > 1 ? (
         <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
@@ -78,7 +78,7 @@ export function LinhaPercursoEditavel({
         </span>
       ) : null}
       {!ativa ? (
-        <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-400">Anterior</span>
+        <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-texto-suave">Anterior</span>
       ) : null}
       {creditada ? (
         <span
@@ -98,19 +98,19 @@ export function LinhaPercursoEditavel({
         {COLUNAS_EPOCA.map((coluna) => (
           <CelulaNota key={coluna.epoca} nota={notasPorEpoca[coluna.epoca]} />
         ))}
-        <Td className="text-center text-navy-800">{notaFrequencia !== null ? notaFrequencia.toFixed(1) : "—"}</Td>
-        <Td className="text-center font-semibold text-navy-900">{notaFinal !== null ? notaFinal.toFixed(1) : "—"}</Td>
+        <Td className="text-center text-texto">{notaFrequencia !== null ? notaFrequencia.toFixed(1) : "—"}</Td>
+        <Td className="text-center font-semibold text-texto">{notaFinal !== null ? notaFinal.toFixed(1) : "—"}</Td>
         <Td>
           {/* Num semestre encerrado "Em curso"/"Em recurso" mentiriam — ver rotuloEstado. */}
           <Badge tone={toneEstado(estado, semestreEncerrado)}>{rotuloEstado(estado, semestreEncerrado)}</Badge>
         </Td>
-        <Td className={temProfessor ? "text-xs" : "text-xs text-navy-400 italic"}>{professorNome}</Td>
+        <Td className={temProfessor ? "text-xs" : "text-xs text-texto-suave italic"}>{professorNome}</Td>
         {editavel ? (
           <Td>
             <button
               type="button"
               onClick={() => setAberto(true)}
-              className="text-xs font-medium text-navy-500 hover:text-navy-700 hover:underline"
+              className="text-xs font-medium text-texto hover:text-navy-700 hover:underline"
             >
               editar
             </button>
@@ -142,10 +142,10 @@ export function LinhaPercursoEditavel({
         ))}
         {/* Média e Final saem do cálculo, não se editam — ficam vazias enquanto se edita, para não
             mostrar um valor que já não corresponde ao que está nos campos. */}
-        <Td className="text-center text-navy-300">—</Td>
-        <Td className="text-center text-navy-300">—</Td>
-        <Td className="text-xs text-navy-400">a editar</Td>
-        <Td className={temProfessor ? "text-xs" : "text-xs text-navy-400 italic"}>{professorNome}</Td>
+        <Td className="text-center text-texto-suave">—</Td>
+        <Td className="text-center text-texto-suave">—</Td>
+        <Td className="text-xs text-texto-suave">a editar</Td>
+        <Td className={temProfessor ? "text-xs" : "text-xs text-texto-suave italic"}>{professorNome}</Td>
         <Td>
           <div className="flex items-center gap-2">
             <Button form={formId} type="submit" variant="secondary" disabled={isPending} className="px-2.5 py-1 text-xs">
@@ -154,7 +154,7 @@ export function LinhaPercursoEditavel({
             <button
               type="button"
               onClick={() => setAberto(false)}
-              className="text-xs text-navy-400 hover:text-navy-600"
+              className="text-xs text-texto-suave hover:text-navy-600"
             >
               cancelar
             </button>

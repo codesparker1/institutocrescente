@@ -58,8 +58,8 @@ export default async function ConfiguracaoAcademicaPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Configuração Académica</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Configuração Académica</h1>
+        <p className="text-sm text-texto-suave">
           Regras de rematrícula e retenção (§4.2), o semestre corrente e a janela de lançamento de notas.
         </p>
       </div>

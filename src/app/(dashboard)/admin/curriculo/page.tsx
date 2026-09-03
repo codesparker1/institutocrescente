@@ -52,8 +52,8 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Plano Curricular</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Plano Curricular</h1>
+        <p className="text-sm text-texto-suave">
           Define em que ano e semestre de cada curso se leciona cada disciplina — a cadeira curricular.
         </p>
       </div>
@@ -62,7 +62,7 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
         <CardBody>
           <form className="flex items-end gap-3">
             <div className="flex-1 sm:max-w-xs">
-              <label className="mb-1 block text-xs font-medium text-navy-500">Curso</label>
+              <label className="mb-1 block text-xs font-medium text-texto">Curso</label>
               <Select name="cursoId" defaultValue={cursoId}>
                 {cursos.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -88,7 +88,7 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
           <CardHeader title={curso.nome} subtitle={`${cadeiras.length} cadeira(s) no plano curricular`} />
           <CardBody className="flex flex-col gap-4">
             {disciplinasDisponiveis.length === 0 ? (
-              <p className="text-sm text-navy-400">
+              <p className="text-sm text-texto-suave">
                 {disciplinas.length === 0 ? (
                   <>
                     Ainda não há disciplinas no sistema. Crie-as primeiro em{" "}
@@ -132,10 +132,10 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                 <Tbody>
                   {cadeiras.map((cadeira) => (
                     <Tr key={cadeira.id}>
-                      <Td className="font-medium text-navy-900">
+                      <Td className="font-medium text-texto">
                         {cadeira.disciplina.nome}
                         {cadeira.disciplina.cursoId !== cursoId ? (
-                          <span className="ml-2 rounded bg-navy-50 px-1.5 py-0.5 text-xs font-normal text-navy-500">
+                          <span className="ml-2 rounded bg-navy-50 px-1.5 py-0.5 text-xs font-normal text-texto">
                             de {cadeira.disciplina.curso.nome}
                           </span>
                         ) : null}

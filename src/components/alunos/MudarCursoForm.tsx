@@ -21,7 +21,7 @@ export function MudarCursoForm({ alunoId, cursos }: MudarCursoFormProps) {
   const [state, formAction, isPending] = useActionState(iniciarNovoCursoAction, initialState);
 
   if (cursos.length === 0) {
-    return <p className="text-xs text-navy-400">Sem outro curso cadastrado.</p>;
+    return <p className="text-xs text-texto-suave">Sem outro curso cadastrado.</p>;
   }
 
   return (

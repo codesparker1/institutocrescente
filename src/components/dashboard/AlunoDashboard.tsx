@@ -98,8 +98,8 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Página Inicial</h1>
-        <p className="text-sm text-navy-400">Olá, {aluno.nome.split(" ")[0]}. Aqui está o resumo do seu percurso académico.</p>
+        <h1 className="text-xl font-bold text-texto">Página Inicial</h1>
+        <p className="text-sm text-texto-suave">Olá, {aluno.nome.split(" ")[0]}. Aqui está o resumo do seu percurso académico.</p>
       </div>
 
       {/* Bug 3 (sessão 2026-08-23): aluno TRANCADO precisa de saber QUE o problema é a matrícula,
@@ -172,7 +172,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
             title="Próximas aulas"
             subtitle="Resumo do horário semanal"
             action={
-              <Link href="/horario" className="text-navy-300 hover:text-navy-500" aria-label="Ver horário completo">
+              <Link href="/horario" className="text-texto-suave hover:text-navy-500" aria-label="Ver horário completo">
                 <CalendarClock size={18} />
               </Link>
             }
@@ -184,8 +184,8 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
               {proximasAulas.map((slot) => (
                 <div key={slot.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                   <div>
-                    <p className="font-medium text-navy-800">{slot.disciplinaNome}</p>
-                    <p className="text-xs text-navy-400">
+                    <p className="font-medium text-texto">{slot.disciplinaNome}</p>
+                    <p className="text-xs text-texto-suave">
                       {DIA_SEMANA_LABEL[slot.diaSemana]} · {slot.horaInicio}–{slot.horaFim} · {slot.sala}
                     </p>
                   </div>
@@ -204,10 +204,10 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
               {proximasProvas.map((prova) => (
                 <div key={prova.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                   <div>
-                    <p className="font-medium text-navy-800">
+                    <p className="font-medium text-texto">
                       {EPOCA_LABEL[prova.epoca]} · {prova.disciplinaNome}
                     </p>
-                    <p className="text-xs text-navy-400">{prova.sala ?? "Sala a confirmar"}</p>
+                    <p className="text-xs text-texto-suave">{prova.sala ?? "Sala a confirmar"}</p>
                   </div>
                   <Badge tone={provaJaPassou(prova.data, agora) ? "neutral" : "info"}>{formatDate(prova.data)}</Badge>
                 </div>
@@ -226,12 +226,12 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
             {inscricoes.map((inscricao) => (
               <div key={inscricao.id} className="flex items-center justify-between rounded-lg border border-navy-50 px-3 py-2 text-sm">
                 <div>
-                  <p className="font-medium text-navy-800">{inscricao.turmaDisciplina.disciplina.nome}</p>
-                  <p className="text-xs text-navy-400">
+                  <p className="font-medium text-texto">{inscricao.turmaDisciplina.disciplina.nome}</p>
+                  <p className="text-xs text-texto-suave">
                     {nomeProfessor(inscricao.turmaDisciplina.professor)} · {PERIODO_LABEL[inscricao.turmaDisciplina.turma.periodo]}
                   </p>
                 </div>
-                <span className="text-xs text-navy-400">
+                <span className="text-xs text-texto-suave">
                   {bloqueio.bloqueado
                     ? "—"
                     : inscricao.notas.length === 0

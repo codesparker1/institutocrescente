@@ -98,11 +98,11 @@ export function RegistoPagamentosBusca({ cursos, isAdmin }: RegistoPagamentosBus
     <div className="flex flex-col gap-6">
       <Card className="border-2">
         <CardBody className="p-6">
-          <label htmlFor="busca-registo-pagamentos" className="mb-2 block text-lg font-semibold text-navy-800">
+          <label htmlFor="busca-registo-pagamentos" className="mb-2 block text-lg font-semibold text-texto">
             Nome do aluno
           </label>
           <div className="relative">
-            <Search size={22} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-navy-300" />
+            <Search size={22} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-texto-suave" />
             <input
               id="busca-registo-pagamentos"
               value={query}
@@ -115,10 +115,10 @@ export function RegistoPagamentosBusca({ cursos, isAdmin }: RegistoPagamentosBus
               }}
               placeholder="Escreva o nome do aluno..."
               autoComplete="off"
-              className="w-full rounded-xl border-2 border-navy-200 bg-white py-4 pl-12 pr-12 text-xl text-navy-900 placeholder:text-navy-300 focus:border-navy-500 focus:outline-none focus:ring-4 focus:ring-navy-100"
+              className="w-full rounded-xl border-2 border-navy-200 bg-white py-4 pl-12 pr-12 text-xl text-texto placeholder:text-navy-300 focus:border-navy-500 focus:outline-none focus:ring-4 focus:ring-navy-100"
             />
             {isSearching ? (
-              <Loader2 size={22} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-navy-300" />
+              <Loader2 size={22} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-texto-suave" />
             ) : null}
           </div>
 
@@ -170,15 +170,15 @@ export function RegistoPagamentosBusca({ cursos, isAdmin }: RegistoPagamentosBus
                   onClick={() => carregarHistorico(aluno)}
                   className="flex flex-col items-start gap-1 px-5 py-3 text-left hover:bg-navy-50 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <span className="text-lg font-semibold text-navy-900">{aluno.nome}</span>
-                  <span className="text-base text-navy-500">
+                  <span className="text-lg font-semibold text-texto">{aluno.nome}</span>
+                  <span className="text-base text-texto">
                     {aluno.numeroEstudante} · {aluno.curso} · {aluno.anoCurricular}º Ano
                   </span>
                 </button>
               ))}
             </div>
           ) : query.trim().length >= 2 && !isSearching && !aSelecionado ? (
-            <p className="mt-3 text-base text-navy-400">Nenhum aluno encontrado.</p>
+            <p className="mt-3 text-base text-texto-suave">Nenhum aluno encontrado.</p>
           ) : null}
         </CardBody>
       </Card>
@@ -187,19 +187,19 @@ export function RegistoPagamentosBusca({ cursos, isAdmin }: RegistoPagamentosBus
         <Card className="border-2">
           <div className="flex items-start justify-between gap-4 border-b-2 border-navy-50 px-6 py-5">
             <div>
-              <h2 className="text-xl font-bold text-navy-900">{aSelecionado.nome}</h2>
-              <p className="mt-0.5 text-base text-navy-500">
+              <h2 className="text-xl font-bold text-texto">{aSelecionado.nome}</h2>
+              <p className="mt-0.5 text-base text-texto">
                 {aSelecionado.numeroEstudante} · {aSelecionado.curso} · {aSelecionado.anoCurricular}º Ano
               </p>
             </div>
-            <button type="button" onClick={novaPesquisa} className="shrink-0 text-base font-medium text-navy-400 hover:text-navy-600">
+            <button type="button" onClick={novaPesquisa} className="shrink-0 text-base font-medium text-texto-suave hover:text-navy-600">
               Nova pesquisa
             </button>
           </div>
 
           <CardBody className="flex flex-col gap-5 p-6">
             {!estado || isLoadingEstado ? (
-              <p className="text-base text-navy-400">A carregar histórico de pagamentos...</p>
+              <p className="text-base text-texto-suave">A carregar histórico de pagamentos...</p>
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -231,8 +231,8 @@ export function RegistoPagamentosBusca({ cursos, isAdmin }: RegistoPagamentosBus
 function InfoStatAcessivel({ label, value, destaque }: { label: string; value: string; destaque?: boolean }) {
   return (
     <div className="rounded-xl border-2 border-navy-100 px-5 py-3">
-      <p className="text-base text-navy-500">{label}</p>
-      <p className={cn("text-2xl font-bold", destaque ? "text-red-600" : "text-navy-900")}>{value}</p>
+      <p className="text-base text-texto">{label}</p>
+      <p className={cn("text-2xl font-bold", destaque ? "text-red-600" : "text-texto")}>{value}</p>
     </div>
   );
 }

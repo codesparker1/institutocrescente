@@ -90,8 +90,8 @@ export async function AdminDashboard({ nome, email, role }: AdminDashboardProps)
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Página Inicial</h1>
-        <p className="text-sm text-navy-400">Resumo do sistema de gestão académica do ISPC.</p>
+        <h1 className="text-xl font-bold text-texto">Página Inicial</h1>
+        <p className="text-sm text-texto-suave">Resumo do sistema de gestão académica do ISPC.</p>
       </div>
 
       <ProfileCard
@@ -115,7 +115,7 @@ export async function AdminDashboard({ nome, email, role }: AdminDashboardProps)
             <ul className="divide-y divide-navy-50">
               {pendencias.map((pendencia) => (
                 <li key={pendencia.href + pendencia.accao} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
-                  <p className="text-sm text-navy-700">{pendencia.texto}</p>
+                  <p className="text-sm text-texto">{pendencia.texto}</p>
                   <Link
                     href={pendencia.href}
                     className="rounded-lg bg-navy-700 px-3 py-1.5 text-xs font-semibold text-gold-100 hover:bg-navy-800"
@@ -136,19 +136,19 @@ export async function AdminDashboard({ nome, email, role }: AdminDashboardProps)
       </div>
 
       <Card>
-        <CardHeader title="Atividade recente" subtitle="Últimos registos de auditoria" action={<ScrollText size={18} className="text-navy-300" />} />
+        <CardHeader title="Atividade recente" subtitle="Últimos registos de auditoria" action={<ScrollText size={18} className="text-texto-suave" />} />
         <CardBody className="px-0 py-0">
           {ultimasAuditorias.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-navy-400">Sem atividade registada ainda.</p>
+            <p className="px-5 py-6 text-sm text-texto-suave">Sem atividade registada ainda.</p>
           ) : (
             <ul className="divide-y divide-navy-50">
               {ultimasAuditorias.map((log) => (
                 <li key={log.id} className="flex items-center justify-between px-5 py-3 text-sm">
                   <div>
-                    <span className="font-medium text-navy-800">{log.userName}</span>{" "}
-                    <span className="text-navy-500">{log.action}</span>
+                    <span className="font-medium text-texto">{log.userName}</span>{" "}
+                    <span className="text-texto">{log.action}</span>
                   </div>
-                  <span className="text-xs text-navy-400">{formatDate(log.createdAt)}</span>
+                  <span className="text-xs text-texto-suave">{formatDate(log.createdAt)}</span>
                 </li>
               ))}
             </ul>

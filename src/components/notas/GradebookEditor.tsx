@@ -149,7 +149,7 @@ export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, edi
     <div className="flex flex-col gap-3">
       {editable ? (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-navy-100 bg-navy-50/60 px-4 py-2.5">
-          <p className="text-xs text-navy-500">
+          <p className="text-xs text-texto">
             {edicoes.size === 0
               ? "Edite as notas e clique em Guardar — só as células alteradas são enviadas."
               : `${edicoes.size} nota(s) por gravar.`}
@@ -219,7 +219,7 @@ export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, edi
                     onChange={(e) => handleChange(inscricao.id, avaliacao.epoca, e.target.value)}
                     className={cn(
                       "w-16 rounded-md border px-2 py-1 text-center text-sm focus:border-navy-400 focus:outline-none focus:ring-2 focus:ring-navy-100",
-                      desativado ? "cursor-not-allowed bg-navy-50 text-navy-300 border-navy-100" : "border-navy-100",
+                      desativado ? "cursor-not-allowed bg-navy-50 text-texto-suave border-navy-100" : "border-navy-100",
                       ehAutomatica && "border-red-300 bg-red-50 text-red-700",
                       edicoes.has(chave(inscricao.id, avaliacao.epoca)) && "border-gold-400 bg-gold-50",
                     )}
@@ -230,19 +230,19 @@ export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, edi
 
             return (
               <Tr key={inscricao.id}>
-                <Td className="font-medium text-navy-900">
+                <Td className="font-medium text-texto">
                   {inscricao.alunoNome}
                   {inscricao.tentativa > 1 ? (
                     <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">{inscricao.tentativa}ª tentativa</span>
                   ) : null}
                 </Td>
                 {antesDoExame.map(celula)}
-                {mostrarMedia ? <Td className="font-medium text-navy-600">{media !== null ? media.toFixed(1) : "—"}</Td> : null}
+                {mostrarMedia ? <Td className="font-medium text-texto">{media !== null ? media.toFixed(1) : "—"}</Td> : null}
                 {desdeExame.map(celula)}
                 <Td>
                   <Badge tone={ESTADO_TONE[resultado.estado]}>{ESTADO_LABEL[resultado.estado]}</Badge>
                 </Td>
-                <Td className="font-semibold text-navy-900">{resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}</Td>
+                <Td className="font-semibold text-texto">{resultado.notaFinal !== null ? resultado.notaFinal.toFixed(1) : "—"}</Td>
               </Tr>
             );
           })}

@@ -91,8 +91,8 @@ export async function ScheduleGrid({
         {editable && janela ? (
           <Card>
             <CardBody>
-              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Agendar prova</p>
-              <p className="mb-3 text-xs text-navy-400">
+              <p className="text-xs font-semibold uppercase tracking-wide text-texto-suave">Agendar prova</p>
+              <p className="mb-3 text-xs text-texto-suave">
                 Só datas de hoje em diante e dentro do ano letivo {janela.anoLetivoLabel}. O prazo de lançamento de
                 notas é calculado automaticamente a partir da data da prova, conforme os dias configurados pelo DAAC em
                 Configuração Académica.
@@ -128,7 +128,7 @@ export async function ScheduleGrid({
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline gap-2">
             <h2 className="text-sm font-semibold text-gold-700">Cadeiras em repetição</h2>
-            <p className="text-xs text-navy-400">
+            <p className="text-xs text-texto-suave">
               De anos anteriores — as horas podem coincidir com as aulas do seu ano.
             </p>
           </div>
@@ -137,14 +137,14 @@ export async function ScheduleGrid({
       ) : null}
 
       {emRepeticao.length > 0 ? (
-        <h2 className="text-sm font-semibold text-navy-700">Ano corrente</h2>
+        <h2 className="text-sm font-semibold text-texto">Ano corrente</h2>
       ) : null}
       <GrelhaSemanal turmaDisciplinas={doAnoCorrente} editable={editable} />
 
       {editable ? (
         <Card>
           <CardBody>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-navy-400">Adicionar aula ao horário</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-texto-suave">Adicionar aula ao horário</p>
             <CreateHorarioSlotForm
               disciplinas={turmaDisciplinas.map((td) => ({ id: td.id, nome: td.disciplina.nome }))}
             />
@@ -177,23 +177,23 @@ function GrelhaSemanal({
             <div
               className={cn(
                 "border-b px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide",
-                destaque ? "border-gold-200 bg-gold-50 text-gold-700" : "border-navy-50 text-navy-500",
+                destaque ? "border-gold-200 bg-gold-50 text-gold-700" : "border-navy-50 text-texto",
               )}
             >
               {DIA_SEMANA_LABEL[dia]}
             </div>
             <CardBody className="flex flex-1 flex-col gap-2 px-2 py-2">
               {slotsDoDia.length === 0 ? (
-                <p className="px-2 py-3 text-center text-xs text-navy-300">—</p>
+                <p className="px-2 py-3 text-center text-xs text-texto-suave">—</p>
               ) : (
                 slotsDoDia.map((slot) => (
                   <div key={slot.id} className={cn("rounded-md px-2 py-1.5 text-xs", destaque ? "bg-gold-50" : "bg-navy-50")}>
-                    <p className="font-medium text-navy-800">{slot.disciplina.nome}</p>
-                    <p className="text-navy-500">
+                    <p className="font-medium text-texto">{slot.disciplina.nome}</p>
+                    <p className="text-texto">
                       {slot.horaInicio}–{slot.horaFim}
                     </p>
-                    <p className="text-navy-400">{slot.sala}</p>
-                    {slot.cursoAnoLabel ? <p className="text-navy-300">{slot.cursoAnoLabel}</p> : null}
+                    <p className="text-texto-suave">{slot.sala}</p>
+                    {slot.cursoAnoLabel ? <p className="text-texto-suave">{slot.cursoAnoLabel}</p> : null}
                     {editable ? (
                       <DeleteButtonForm action={deleteHorarioSlotAction} id={slot.id} variant="link" className="mt-1" />
                     ) : null}

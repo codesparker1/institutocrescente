@@ -19,8 +19,8 @@ export default async function ConfiguracaoFinanceiraPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold text-navy-900">Configuração Financeira</h1>
-        <p className="text-sm text-navy-400">
+        <h1 className="text-xl font-bold text-texto">Configuração Financeira</h1>
+        <p className="text-sm text-texto-suave">
           Controla o vencimento e a multa por propinas em atraso, e o bloqueio de acesso às notas. Valores
           confirmados com o diretor (dia 10, sem tolerância, multa fixa) — continuam editáveis aqui.
         </p>
