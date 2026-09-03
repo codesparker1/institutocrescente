@@ -4,7 +4,7 @@
  * (elegível para avançar de ano ou retido), separada da leitura/escrita à BD para poder ser
  * testada isoladamente, mesmo padrão de src/lib/avaliacao.ts e src/lib/divida.ts.
  */
-import type { RegraRetencao } from "@/generated/prisma/client";
+import type { AlunoStatus, RegraRetencao } from "@/generated/prisma/client";
 
 export type ResultadoRematricula = "AVANCA" | "RETIDO";
 
@@ -124,6 +124,38 @@ export function datasDoAnoLetivoSeguinte(config: {
     matriculaInicio: config.matriculaInicio ? maisUmAno(config.matriculaInicio) : null,
     matriculaFim: config.matriculaFim ? maisUmAno(config.matriculaFim) : null,
   };
+}
+
+/**
+ * Porque é que a rematrícula não está disponível — ou `null` se estiver. As mesmas condições que
+ * processarRematriculaAction verifica, por ordem de "quão definitivo é": o estado do aluno não se
+ * resolve na página dele, a dívida resolve-se no cartão financeiro acima, a janela resolve-se
+ * esperando.
+ *
+ * §pedido do cliente 2026-09-03 ("só ter informação quando uma condição é encontrada"): antes o
+ * cartão explicava sempre o mecanismo e oferecia o botão a toda a gente — um FORMADO ou DESISTENTE
+ * só descobria a recusa depois de carregar. Vive aqui, e não no componente, para a página e o
+ * formulário não terem duas cópias da mesma regra a divergir em silêncio.
+ *
+ * A Server Action continua a verificar tudo outra vez: isto é a primeira barreira, não a única.
+ *
+ * ATIVO e TRANCADO não dão motivo nenhum — TRANCADO é precisamente quem a rematrícula reativa.
+ */
+export function motivoRematriculaIndisponivel(input: {
+  status: AlunoStatus;
+  temMatriculaAnterior: boolean;
+  /** Propinas DEVENDO (vencidas além da tolerância). As multas nunca bloqueiam (§2026-08). */
+  saldoPropinasDevendo: number;
+  dentroDaJanela: boolean;
+  /** ADMIN rematricula fora da janela (§3.5); a Secretaria não. */
+  podeForaDaJanela: boolean;
+}): "FORMADO" | "DESISTENTE" | "SEM_MATRICULA" | "COM_DIVIDA" | "FORA_DA_JANELA" | null {
+  if (input.status === "FORMADO") return "FORMADO";
+  if (input.status === "DESISTENTE") return "DESISTENTE";
+  if (!input.temMatriculaAnterior) return "SEM_MATRICULA";
+  if (input.saldoPropinasDevendo > 0) return "COM_DIVIDA";
+  if (!input.dentroDaJanela && !input.podeForaDaJanela) return "FORA_DA_JANELA";
+  return null;
 }
 
 /**

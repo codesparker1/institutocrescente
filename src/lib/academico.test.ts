@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, semestreFechado } from "./academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, motivoRematriculaIndisponivel, semestreFechado } from "./academico";
 
 test("reprovações dentro do limite avança de ano", () => {
   const r = decidirRematricula({ reprovacoes: 2, limiteReprovacoes: 2, anoCurricular: 1 });
@@ -132,6 +132,44 @@ test("datasDoAnoLetivoSeguinte: o intervalo novo e reconhecido por anoLetivoCorr
   const novo = datasDoAnoLetivoSeguinte(antigo);
   assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), novo), 2027, "Outubro de 2027 cai no ano novo");
   assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), antigo), null, "e nao no antigo");
+});
+
+const REMATRICULA_OK = {
+  status: "ATIVO" as const,
+  temMatriculaAnterior: true,
+  saldoPropinasDevendo: 0,
+  dentroDaJanela: true,
+  podeForaDaJanela: false,
+};
+
+test("motivoRematriculaIndisponivel: aluno ATIVO na janela e sem divida pode rematricular", () => {
+  assert.equal(motivoRematriculaIndisponivel(REMATRICULA_OK), null);
+});
+
+test("motivoRematriculaIndisponivel: TRANCADO pode — e precisamente quem a rematricula reativa", () => {
+  assert.equal(motivoRematriculaIndisponivel({ ...REMATRICULA_OK, status: "TRANCADO" }), null);
+});
+
+test("motivoRematriculaIndisponivel: FORMADO e DESISTENTE nao podem", () => {
+  assert.equal(motivoRematriculaIndisponivel({ ...REMATRICULA_OK, status: "FORMADO" }), "FORMADO");
+  assert.equal(motivoRematriculaIndisponivel({ ...REMATRICULA_OK, status: "DESISTENTE" }), "DESISTENTE");
+});
+
+test("motivoRematriculaIndisponivel: propina em divida bloqueia, e e dita antes da janela", () => {
+  // A ordem importa para a UI: quem deve dinheiro E esta fora da janela deve ler "pague primeiro",
+  // que e o que consegue resolver, e nao "fora do periodo", que so o manda esperar.
+  const comDivida = { ...REMATRICULA_OK, saldoPropinasDevendo: 85000, dentroDaJanela: false };
+  assert.equal(motivoRematriculaIndisponivel(comDivida), "COM_DIVIDA");
+});
+
+test("motivoRematriculaIndisponivel: fora da janela bloqueia a Secretaria mas nao a ADMIN", () => {
+  const fora = { ...REMATRICULA_OK, dentroDaJanela: false };
+  assert.equal(motivoRematriculaIndisponivel(fora), "FORA_DA_JANELA");
+  assert.equal(motivoRematriculaIndisponivel({ ...fora, podeForaDaJanela: true }), null, "ADMIN passa (§3.5)");
+});
+
+test("motivoRematriculaIndisponivel: sem matricula anterior e Nova Matricula, nao rematricula", () => {
+  assert.equal(motivoRematriculaIndisponivel({ ...REMATRICULA_OK, temMatriculaAnterior: false }), "SEM_MATRICULA");
 });
 
 test("trabalhoDeFimDeAno: entre o fim do ano letivo e o fim das matriculas, NAO suspende", () => {

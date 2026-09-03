@@ -19,7 +19,7 @@ import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
 import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo, nomeProfessor } from "@/lib/utils";
-import { anoLetivoCorrente, semestreFechado } from "@/lib/academico";
+import { anoLetivoCorrente, motivoRematriculaIndisponivel, semestreFechado } from "@/lib/academico";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
@@ -169,6 +169,22 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   const reprovacoesAnoCorrente = inscricoes.filter(
     (i) => i.ativa && resultadoDaInscricao(i).estado === "REPROVADO",
   ).length;
+
+  // As mesmas condições que processarRematriculaAction verifica, calculadas aqui para o cartão
+  // poder dizer o que falta em vez de oferecer um botão que vai recusar. DEVENDO (vencida além da
+  // tolerância), não qualquer PENDENTE: gerarPropinasAnoLetivo pré-gera o ano letivo inteiro e a
+  // maioria dos meses ainda nem venceu — ver a nota na própria action.
+  const saldoPropinasDevendo = estadoFinanceiro.meses
+    .filter((m) => m.estadoVisual === "DEVENDO")
+    .reduce((soma, m) => soma + (m.valorDevido - m.valorPago), 0);
+  const podeRematricular =
+    motivoRematriculaIndisponivel({
+      status: aluno.status,
+      temMatriculaAnterior: aluno.matriculas.length > 0,
+      saldoPropinasDevendo,
+      dentroDaJanela,
+      podeForaDaJanela: session?.user?.role === "ADMIN",
+    }) === null;
 
   // Segunda licenciatura / mudança de curso (Fase 8c) — cursos além do atual do aluno.
   // select: MudarCursoForm (Client Component) só precisa de id/nome — Curso.valorPropina é
@@ -323,10 +339,23 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           {podeEditarCategoria ? (
             <div>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">Rematrícula</p>
-              <p className="mb-2 text-xs text-navy-400">
-                Avança de ano (ou retém) a partir das notas — as cadeiras reprovadas são inscritas automaticamente.
-              </p>
-              <RematriculaForm alunoId={aluno.id} dentroDaJanela={dentroDaJanela} podeForaDaJanela={session?.user?.role === "ADMIN"} />
+              {/* A explicação do mecanismo só aparece quando há mesmo botão para carregar
+                  (§pedido do cliente 2026-09-03: "só ter informação quando uma condição é
+                  encontrada"). Quando não há, o próprio RematriculaForm diz o que falta — dizer
+                  as duas coisas seria explicar como funciona algo que não se pode fazer. */}
+              {podeRematricular ? (
+                <p className="mb-2 text-xs text-navy-400">
+                  Avança de ano (ou retém) a partir das notas — as cadeiras reprovadas são inscritas automaticamente.
+                </p>
+              ) : null}
+              <RematriculaForm
+                alunoId={aluno.id}
+                dentroDaJanela={dentroDaJanela}
+                podeForaDaJanela={session?.user?.role === "ADMIN"}
+                status={aluno.status}
+                saldoPropinasDevendo={saldoPropinasDevendo}
+                temMatriculaAnterior={aluno.matriculas.length > 0}
+              />
             </div>
           ) : null}
 
