@@ -82,6 +82,50 @@ test("datasDoAnoLetivoSeguinte: as mesmas datas, um ano a frente", () => {
   assert.equal(seguinte.anoLetivoFim.getDate(), 31, "continua dia 31");
 });
 
+test("datasDoAnoLetivoSeguinte: a janela de matricula avanca com o ano letivo", () => {
+  // §2026-09-03: so o ano letivo avancava, e a janela de matricula ficava no ano que acabou — a
+  // Secretaria nao conseguia rematricular ninguem, exatamente na altura de o fazer.
+  const seguinte = datasDoAnoLetivoSeguinte({
+    anoLetivoInicio: new Date(2026, 8, 1),
+    anoLetivoFim: new Date(2027, 6, 31),
+    matriculaInicio: new Date(2026, 7, 1),
+    matriculaFim: new Date(2026, 8, 30),
+  });
+  assert.equal(seguinte.matriculaInicio?.getFullYear(), 2027);
+  assert.equal(seguinte.matriculaInicio?.getMonth(), 7, "continua Agosto");
+  assert.equal(seguinte.matriculaFim?.getFullYear(), 2027);
+  assert.equal(seguinte.matriculaFim?.getDate(), 30, "continua dia 30");
+});
+
+test("datasDoAnoLetivoSeguinte: a janela de matricula nova cobre o inicio do ano letivo novo", () => {
+  // A propriedade que interessa de verdade: depois do rollover, a Secretaria consegue rematricular.
+  // E a mesma verificacao que processarRematriculaAction faz (agora >= inicio && agora <= fim).
+  const seguinte = datasDoAnoLetivoSeguinte({
+    anoLetivoInicio: new Date(2026, 8, 1),
+    anoLetivoFim: new Date(2027, 6, 31),
+    matriculaInicio: new Date(2026, 7, 1),
+    matriculaFim: new Date(2026, 8, 30),
+  });
+  const durante = new Date(2027, 7, 15); // Agosto de 2027, quando as rematriculas se fazem
+  assert.ok(
+    seguinte.matriculaInicio! <= durante && durante <= seguinte.matriculaFim!,
+    "Agosto de 2027 cai dentro da janela nova",
+  );
+});
+
+test("datasDoAnoLetivoSeguinte: matricula por preencher fica por preencher", () => {
+  // Avancar um null inventaria uma janela que o DAAC nunca definiu — as datas de matricula sao
+  // opcionais no schema, ao contrario das do ano letivo.
+  const seguinte = datasDoAnoLetivoSeguinte({
+    anoLetivoInicio: new Date(2026, 8, 1),
+    anoLetivoFim: new Date(2027, 6, 31),
+    matriculaInicio: null,
+    matriculaFim: null,
+  });
+  assert.equal(seguinte.matriculaInicio, null);
+  assert.equal(seguinte.matriculaFim, null);
+});
+
 test("datasDoAnoLetivoSeguinte: o intervalo novo e reconhecido por anoLetivoCorrente", () => {
   // A propriedade que interessa: depois do rollover o sistema volta a ter um ano letivo a decorrer.
   const antigo = { anoLetivoInicio: new Date(2026, 8, 1), anoLetivoFim: new Date(2027, 6, 31) };

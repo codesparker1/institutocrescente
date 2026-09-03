@@ -366,7 +366,7 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   // rolloverTurmas: o job corre no primeiro acesso depois do fim do ano letivo, e essa data pode
   // cair em qualquer altura do ano civil.
   // Fixados fora do closure: dentro de after() o TypeScript já não vê o guarda de null acima.
-  const { anoLetivoInicio, anoLetivoFim } = config;
+  const { anoLetivoInicio, anoLetivoFim, matriculaInicio, matriculaFim } = config;
   const anoLetivoNovo = anoLetivoInicio.getFullYear() + 1;
 
   after(async () => {
@@ -376,9 +376,13 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
     // anoLetivoCorrente devolvia null, o Horário bloqueava e o sistema ficava parado à espera que
     // alguém fosse mexer nas datas — precisamente quando as matrículas abrem e é preciso marcar os
     // horários. O DAAC ajusta depois se as datas reais do ano novo forem outras.
+    //
+    // §2026-09-03: a janela de MATRÍCULA avança junto. Antes ficava no ano que acabou, e a
+    // Secretaria não conseguia rematricular ninguém ("fora do período de matrícula") no momento
+    // exato em que era suposto fazê-lo — só a ADMIN passava, por ter podeForaDaJanela.
     await prisma.configuracaoAcademica.update({
       where: { id: "config" },
-      data: datasDoAnoLetivoSeguinte({ anoLetivoInicio, anoLetivoFim }),
+      data: datasDoAnoLetivoSeguinte({ anoLetivoInicio, anoLetivoFim, matriculaInicio, matriculaFim }),
     });
   });
 }

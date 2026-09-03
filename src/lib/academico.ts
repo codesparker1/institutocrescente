@@ -84,14 +84,23 @@ export function semestreFechado(
 }
 
 /**
- * As datas do ano letivo seguinte: as mesmas, um ano à frente. Um ano letivo que ia de 1/Set/2026 a
- * 31/Jul/2027 passa a 1/Set/2027 – 31/Jul/2028.
+ * As datas do ano seguinte: as mesmas, um ano à frente. Um ano letivo que ia de 1/Set/2026 a
+ * 31/Jul/2027 passa a 1/Set/2027 – 31/Jul/2028, e a janela de matrícula acompanha.
  *
  * Existe porque, sem isto, quando o ano letivo acabava a configuração continuava a apontar para o
  * ano velho: anoLetivoCorrente devolvia null, o Horário bloqueava e o sistema ficava parado até
  * alguém ir mexer nas datas à mão — logo no momento em que as matrículas abrem e é preciso marcar
  * os horários. O DAAC corrige depois se as datas reais forem outras; o que não pode é o sistema
  * ficar de rastos à espera disso.
+ *
+ * §2026-09-03: as datas de MATRÍCULA passaram a avançar também. Antes só o ano letivo avançava, e
+ * a janela de matrícula ficava inteira no passado — processarRematriculaAction recusava toda a
+ * rematrícula ("fora do período"), exatamente na altura de rematricular. Só a ADMIN passava, por
+ * ter podeForaDaJanela; a Secretaria, que é quem faz este trabalho, ficava bloqueada.
+ *
+ * As de matrícula são opcionais no schema (ao contrário das do ano letivo, que o rollover só corre
+ * tendo): por preencher, ficam por preencher — avançar um null inventaria uma janela que o DAAC
+ * nunca definiu.
  *
  * O dia é preservado tal como está: 29/Fev daria 1/Mar no ano seguinte (o Date normaliza), e é o
  * comportamento certo — nenhum ano letivo começa a 29 de Fevereiro por acaso, e forçar 28 seria
@@ -100,11 +109,20 @@ export function semestreFechado(
 export function datasDoAnoLetivoSeguinte(config: {
   anoLetivoInicio: Date;
   anoLetivoFim: Date;
-}): { anoLetivoInicio: Date; anoLetivoFim: Date } {
+  matriculaInicio?: Date | null;
+  matriculaFim?: Date | null;
+}): {
+  anoLetivoInicio: Date;
+  anoLetivoFim: Date;
+  matriculaInicio: Date | null;
+  matriculaFim: Date | null;
+} {
   const maisUmAno = (d: Date) => new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
   return {
     anoLetivoInicio: maisUmAno(config.anoLetivoInicio),
     anoLetivoFim: maisUmAno(config.anoLetivoFim),
+    matriculaInicio: config.matriculaInicio ? maisUmAno(config.matriculaInicio) : null,
+    matriculaFim: config.matriculaFim ? maisUmAno(config.matriculaFim) : null,
   };
 }
 
