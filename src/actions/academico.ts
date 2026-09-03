@@ -127,6 +127,18 @@ export async function alterarSemestreAction(formData: FormData): Promise<void> {
     );
   }
 
+  // §2026-09-03: avançar para o 2º FORA do ano letivo deixou de ser possível. Entre anos letivos
+  // (férias) `anoLetivo` é null, e a mudança passava sem fechar nada — o fecho a zeros abaixo está
+  // guardado por `anoLetivo !== null`. O resultado era um ano letivo novo a arrancar já no 2º
+  // semestre: aconteceu nesta instalação, e os alunos iam ver as disciplinas do 2º semestre no dia
+  // em que o ano começasse. O rollover repõe 1 quando o ano acaba, mas corre uma vez só — um
+  // clique posterior ficava até ao fim do ano letivo seguinte, sem nada que o corrigisse.
+  if (novoSemestre === 2 && anoLetivo === null) {
+    throw new Error(
+      "Não há nenhum ano letivo a decorrer. O semestre só avança dentro do ano letivo — quando o novo ano começar, o sistema arranca no 1º semestre.",
+    );
+  }
+
   // Avançar 1º → 2º fecha o 1º: as cadeiras que ficaram com notas por lançar apuram o resultado com
   // 0 nas épocas em falta, em vez de ficarem "Em curso" para sempre.
   let notasAtribuidas = 0;

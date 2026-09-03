@@ -62,6 +62,17 @@ test("dentroDoAnoLetivo: recusa datas fora, aceita as fronteiras", () => {
   assert.equal(dentroDoAnoLetivo(new Date(2026, 5, 1), ANO_LETIVO), false, "ano letivo anterior");
 });
 
+test("dentroDoAnoLetivo: ferias entre anos letivos ficam FORA", () => {
+  // §2026-09-03, o bug do semestre preso no 2o: entre o fim de um ano letivo e o inicio do
+  // seguinte, `anoLetivoCorrente` e null e nenhuma mudanca de semestre faz sentido — nem avancar
+  // para o 2o (alterarSemestreAction recusa), nem deixar la um 2o de um ano ja acabado
+  // (garantirSuspensaoAutomatica repoe a 1). Esta e a fronteira que as duas regras usam.
+  const config = { anoLetivoInicio: new Date(2027, 9, 23), anoLetivoFim: new Date(2028, 5, 14) };
+  assert.equal(dentroDoAnoLetivo(new Date(2027, 8, 4), config), false, "Setembro, antes do inicio");
+  assert.equal(dentroDoAnoLetivo(new Date(2028, 7, 1), config), false, "Agosto, depois do fim");
+  assert.equal(dentroDoAnoLetivo(new Date(2027, 10, 5), config), true, "Novembro, a decorrer");
+});
+
 test("dentroDoAnoLetivo: sem configuracao nao bloqueia nada", () => {
   // Config por preencher nao pode impedir o DAAC de trabalhar — a fronteira e opcional no schema.
   assert.equal(dentroDoAnoLetivo(new Date(2030, 0, 1), null), true);

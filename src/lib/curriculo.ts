@@ -6,7 +6,7 @@ import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import type { Periodo, Prisma } from "@/generated/prisma/client";
 type Decimal = Prisma.Decimal;
 import { SALA_A_CONFIRMAR } from "@/lib/utils";
-import { datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno } from "@/lib/academico";
+import { datasDoAnoLetivoSeguinte, dentroDoAnoLetivo, trabalhoDeFimDeAno } from "@/lib/academico";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -363,6 +363,20 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   if (!config?.anoLetivoFim || !config.anoLetivoInicio) return;
 
   const agora = await getAgora();
+
+  // Entre anos letivos o semestre é sempre o 1º — é assim que o ano novo tem de arrancar. Corre
+  // FORA do turno diário e antes dele, de propósito: é uma condição contínua, não uma tarefa de
+  // fim de ano. §2026-09-03: o rollover repunha o semestre, mas corre uma única vez, no dia em que
+  // o ano acaba; qualquer alteração posterior — um clique manual, um seed, uma restauração de
+  // backup — ficava até ao fim do ano letivo SEGUINTE. Aconteceu nesta instalação: o ano
+  // 2027/2028 ia arrancar no 2º semestre, e os alunos veriam as disciplinas erradas no primeiro
+  // dia. O `updateMany` só escreve quando está errado, por isso é barato e idempotente.
+  if (!dentroDoAnoLetivo(agora, config)) {
+    await prisma.configuracaoAcademica.updateMany({
+      where: { id: "config", semestreAtual: { not: 1 } },
+      data: { semestreAtual: 1 },
+    });
+  }
 
   // Dois gatilhos distintos, deliberadamente separados — a regra vive em trabalhoDeFimDeAno
   // (lib/academico.ts), onde é testável, e a nota lá explica porquê.

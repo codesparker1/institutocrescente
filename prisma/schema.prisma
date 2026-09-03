@@ -551,8 +551,10 @@ model ConfiguracaoAcademica {
   ultimaSuspensaoEm        DateTime?
   /// Interruptor manual do DAAC (1 ou 2) — não é derivado de datas. Só disciplinas cujo
   /// TurmaDisciplina.semestre coincide com este valor (e do ano letivo corrente) ficam abertas
-  /// para aulas/notas do professor; volta a 1 sozinho quando um novo ano letivo começa
-  /// (garantirSuspensaoAutomatica). O DAAC continua sempre a poder editar qualquer semestre.
+  /// para aulas/notas do professor. O DAAC continua sempre a poder editar qualquer semestre.
+  /// FORA do ano letivo é reposto a 1 em cada visita ao dashboard (garantirSuspensaoAutomatica),
+  /// não só na viragem: o rollover corre uma vez e qualquer alteração posterior — clique manual,
+  /// seed, restauro de backup — ficava até ao fim do ano letivo seguinte (§2026-09-03).
   semestreAtual            Int           @default(1)
   /// Interruptor manual do DAAC/ADMIN (§decisão do cliente 2026-09-02): a true, TODOS os
   /// professores podem lançar notas das suas disciplinas; a false, nenhum. Substitui o prazo
