@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, ClipboardCheck, GraduationCap, PauseCircle, TrendingUp } from "lucide-react";
+import { AlertTriangle, CalendarClock, ClipboardCheck, GraduationCap, PauseCircle, TrendingUp } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
-import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatDate, nomeProfessor } from "@/lib/utils";
+import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatCurrency, formatDate, nomeProfessor } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, provaJaPassou, EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
@@ -114,7 +114,26 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
         </div>
       ) : null}
 
-      {bloqueio.bloqueado ? <AvisoNotasBloqueadas saldoEmDivida={bloqueio.saldoEmDivida} /> : null}
+      {bloqueio.bloqueado ? (
+        <AvisoNotasBloqueadas
+          saldoEmDivida={bloqueio.saldoEmDivida}
+          saldoMultas={bloqueio.saldoMultas}
+          saldoTotal={bloqueio.saldoTotal}
+        />
+      ) : null}
+
+      {/* Multas sem bloqueio: o aviso vermelho só aparece quando as notas estão bloqueadas, e sem
+          isto uma multa por pagar não aparecia em lado nenhum no painel do aluno. Âmbar, não
+          vermelho — é dívida a regularizar, mas não lhe tira acesso a nada (§financeiro-tipos). */}
+      {!bloqueio.bloqueado && bloqueio.saldoMultas > 0 ? (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <p>
+            Tem <strong>{formatCurrency(bloqueio.saldoMultas)}</strong> em multas por pagar. Não bloqueiam o acesso às
+            notas, mas deve regularizá-las na secretaria.
+          </p>
+        </div>
+      ) : null}
 
       <ProfileCard
         nome={aluno.nome}

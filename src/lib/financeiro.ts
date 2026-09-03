@@ -250,17 +250,33 @@ export interface MesPendente {
 
 export interface EstadoBloqueioAluno {
   bloqueado: boolean;
+  /** Só PROPINA — é o que bloqueia, e o que o aluno tem de pagar para desbloquear. */
   saldoEmDivida: number;
+  /**
+   * Só MULTA. Separado de propósito: a multa nunca bloqueia (§financeiro-tipos), mas é dívida real
+   * e o aluno tem de a pagar. Antes não aparecia em lado nenhum no aviso, e quem devia 85.000 de
+   * propina + 25.000 de multa lia "85.000" e ia à secretaria com a conta errada.
+   */
+  saldoMultas: number;
+  /** Propinas + multas — o que o aluno paga de facto ao balcão. */
+  saldoTotal: number;
   mesesPendentes: MesPendente[];
 }
 
 /** Regra única de "em dívida" — usada pelo portão de bloqueio, pela lista de devedores e pelo filtro do PDF. */
 export async function verificarBloqueioAluno(alunoId: string): Promise<EstadoBloqueioAluno> {
-  const [config, cobrancasPendentes] = await Promise.all([
+  const [config, cobrancasPendentes, multasPendentes] = await Promise.all([
     getConfiguracaoFinanceira(),
     prisma.cobranca.findMany({
       where: { alunoId, status: "PENDENTE", tipo: { in: [...TIPOS_QUE_BLOQUEIAM] } },
       orderBy: { mesReferencia: "asc" },
+    }),
+    // Consulta à parte, e não um `in: TIPOS_QUE_CONTAM_COMO_DIVIDA` filtrado depois: o bloqueio
+    // continua a decidir-se só com propinas (mesesPendentes alimenta `temMesVencido`), e misturar
+    // os dois tipos no mesmo conjunto seria o caminho fácil para uma multa passar a bloquear.
+    prisma.cobranca.findMany({
+      where: { alunoId, status: "PENDENTE", tipo: "MULTA" },
+      select: { valorDevido: true, valorPago: true },
     }),
   ]);
 
@@ -274,14 +290,18 @@ export async function verificarBloqueioAluno(alunoId: string): Promise<EstadoBlo
   }));
 
   const saldoEmDivida = mesesPendentes.reduce((soma, m) => soma + (m.valorDevido - m.valorPago), 0);
+  const saldoMultas = multasPendentes.reduce((soma, m) => soma + (Number(m.valorDevido) - Number(m.valorPago)), 0);
 
   const temMesVencido = cobrancasPendentes.some((c) =>
     ehVencidoAlemDaTolerancia(c.dataVencimento, config.toleranciaDias, agora),
   );
 
   return {
+    // Só a propina bloqueia — `multasPendentes` não entra aqui de propósito (§financeiro-tipos).
     bloqueado: config.bloqueioAtivo && temMesVencido,
     saldoEmDivida,
+    saldoMultas,
+    saldoTotal: saldoEmDivida + saldoMultas,
     mesesPendentes,
   };
 }

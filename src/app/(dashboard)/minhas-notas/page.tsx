@@ -25,7 +25,11 @@ export default async function MinhasNotasPage() {
           <h1 className="text-xl font-bold text-navy-900">Minhas Notas</h1>
           <p className="text-sm text-navy-400">As suas notas, organizadas por ano do curso e semestre.</p>
         </div>
-        <AvisoNotasBloqueadas saldoEmDivida={bloqueio.saldoEmDivida} />
+        <AvisoNotasBloqueadas
+          saldoEmDivida={bloqueio.saldoEmDivida}
+          saldoMultas={bloqueio.saldoMultas}
+          saldoTotal={bloqueio.saldoTotal}
+        />
       </div>
     );
   }
