@@ -126,6 +126,33 @@ export function datasDoAnoLetivoSeguinte(config: {
   };
 }
 
+/**
+ * Que trabalho de fim de ano é preciso fazer agora. Duas fronteiras DIFERENTES, e confundi-las foi
+ * o que trancou 12 alunos de uma vez (§2026-09-03):
+ *
+ * - `rollover` no fim do ANO LETIVO: as turmas e as datas do ano novo têm de existir antes de as
+ *   matrículas abrirem, senão não há para onde rematricular ninguém.
+ * - `suspender` no fim da JANELA DE MATRÍCULA: só depois de a janela fechar é que "não veio
+ *   renovar" é verdade. Antes disso — incluindo no intervalo entre o fim do ano letivo e a abertura
+ *   das matrículas — quem não renovou está a tempo.
+ *
+ * Na configuração real do cliente o ano letivo acabava a 24/Jun e as matrículas abriam a 30/Ago:
+ * com as duas coisas presas ao fim do ano letivo, os alunos eram trancados a 25/Jun por não terem
+ * cumprido um prazo que só começava dois meses depois.
+ *
+ * Sem `matriculaFim` não suspende ninguém: sem fronteira não há como distinguir quem faltou de quem
+ * ainda vai a tempo, e trancar por omissão tira o acesso a quem não fez nada de errado.
+ */
+export function trabalhoDeFimDeAno(
+  agora: Date,
+  config: { anoLetivoFim: Date | null; matriculaFim: Date | null },
+): { rollover: boolean; suspender: boolean } {
+  return {
+    rollover: config.anoLetivoFim !== null && agora > config.anoLetivoFim,
+    suspender: config.matriculaFim !== null && agora > config.matriculaFim,
+  };
+}
+
 /** A data cai dentro do ano letivo configurado? Usado para recusar provas agendadas fora dele. */
 export function dentroDoAnoLetivo(
   data: Date,

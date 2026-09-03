@@ -6,7 +6,7 @@ import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import type { Periodo, Prisma } from "@/generated/prisma/client";
 type Decimal = Prisma.Decimal;
 import { SALA_A_CONFIRMAR } from "@/lib/utils";
-import { datasDoAnoLetivoSeguinte } from "@/lib/academico";
+import { datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno } from "@/lib/academico";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -333,12 +333,27 @@ function inicioDoDia(data: Date): Date {
 }
 
 /**
- * Suspende automaticamente quem não veio fazer a rematrícula (§4.2/Fase 8b): depois de
- * `anoLetivoFim` passar, todo o Aluno ATIVO cuja Matricula mais recente aponta a um ano letivo
- * anterior ao corrente passa a TRANCADO (e essa Matricula a TRANCADA) — fica associado ao ano
- * onde parou, e nunca mais aparece nas turmas do ano novo, porque nunca ganha Matricula nova.
- * Usa `anoLetivoFim`, não `matriculaFim` — são fronteiras diferentes: a janela de matrícula é só
- * quando a Secretaria pode processar rematrículas, o ano letivo é o próprio ano académico.
+ * Suspende automaticamente quem não veio fazer a rematrícula (§4.2/Fase 8b): todo o Aluno ATIVO
+ * cuja Matricula mais recente aponta a um ano letivo anterior ao corrente passa a TRANCADO (e essa
+ * Matricula a TRANCADA) — fica associado ao ano onde parou, e nunca mais aparece nas turmas do ano
+ * novo, porque nunca ganha Matricula nova.
+ *
+ * §2026-09-03: espera pelo FIM DA JANELA DE MATRÍCULA, não pelo fim do ano letivo. Antes usava
+ * `anoLetivoFim`, e a versão anterior deste comentário defendia a escolha dizendo que "são
+ * fronteiras diferentes" — são, mas a errada estava a ser usada. Na configuração real do cliente o
+ * ano letivo acabava a 24/Jun e as matrículas só abriam a 30/Ago: os alunos eram todos trancados
+ * em bloco no dia 25/Jun, DOIS MESES antes de existir sequer maneira de renovar. E a mensagem que
+ * o aluno lia — "não renovou dentro do prazo" — falava de um prazo que nunca chegou a existir.
+ * Só depois de a janela fechar é que "não veio renovar" é uma afirmação verdadeira.
+ *
+ * Sem janela de matrícula configurada, não suspende ninguém: sem fronteira não há forma de
+ * distinguir quem faltou de quem ainda vai a tempo, e trancar por omissão é o pior dos erros
+ * possíveis aqui — tira o acesso a quem não fez nada de errado.
+ *
+ * O rollover das turmas e das datas NÃO depende disto e continua a acontecer no fim do ano letivo
+ * (ver o after() abaixo): as turmas do ano novo têm de existir ANTES de as matrículas abrirem,
+ * senão não há para onde rematricular.
+ *
  * Mesmo padrão preguiçoso de garantirCobrancasGeradas (financeiro.ts): corre no máximo uma vez
  * por dia civil, reclamando o "turno" com um updateMany condicional. Sem cron horário.
  */
@@ -348,7 +363,12 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   if (!config?.anoLetivoFim || !config.anoLetivoInicio) return;
 
   const agora = await getAgora();
-  if (agora <= config.anoLetivoFim) return;
+
+  // Dois gatilhos distintos, deliberadamente separados — a regra vive em trabalhoDeFimDeAno
+  // (lib/academico.ts), onde é testável, e a nota lá explica porquê.
+  const { rollover: precisaRollover, suspender: precisaSuspender } = trabalhoDeFimDeAno(agora, config);
+  if (!precisaRollover && !precisaSuspender) return;
+
   if (config.ultimaSuspensaoEm && inicioDoDia(config.ultimaSuspensaoEm).getTime() === inicioDoDia(agora).getTime()) {
     return;
   }
@@ -367,23 +387,44 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   // cair em qualquer altura do ano civil.
   // Fixados fora do closure: dentro de after() o TypeScript já não vê o guarda de null acima.
   const { anoLetivoInicio, anoLetivoFim, matriculaInicio, matriculaFim } = config;
-  const anoLetivoNovo = anoLetivoInicio.getFullYear() + 1;
+
+  // Depois do rollover, a config já aponta ao ano novo: o ano corrente é o do início configurado, e
+  // só há "+1" enquanto o rollover ainda está por fazer. Sem esta distinção, a suspensão que corre
+  // numa passagem posterior compararia contra um ano letivo que não existe.
+  const anoLetivoCorrenteConfig = anoLetivoInicio.getFullYear();
+  const anoLetivoNovo = precisaRollover ? anoLetivoCorrenteConfig + 1 : anoLetivoCorrenteConfig;
 
   after(async () => {
-    await rolloverTurmas(anoLetivoNovo);
-    await suspenderNaoRematriculados(anoLetivoNovo, config.semestreAtual);
-    // Sem avançar as datas, a configuração continuava a apontar para o ano que acabou:
-    // anoLetivoCorrente devolvia null, o Horário bloqueava e o sistema ficava parado à espera que
-    // alguém fosse mexer nas datas — precisamente quando as matrículas abrem e é preciso marcar os
-    // horários. O DAAC ajusta depois se as datas reais do ano novo forem outras.
-    //
-    // §2026-09-03: a janela de MATRÍCULA avança junto. Antes ficava no ano que acabou, e a
-    // Secretaria não conseguia rematricular ninguém ("fora do período de matrícula") no momento
-    // exato em que era suposto fazê-lo — só a ADMIN passava, por ter podeForaDaJanela.
-    await prisma.configuracaoAcademica.update({
-      where: { id: "config" },
-      data: datasDoAnoLetivoSeguinte({ anoLetivoInicio, anoLetivoFim, matriculaInicio, matriculaFim }),
-    });
+    if (precisaRollover) {
+      await rolloverTurmas(anoLetivoNovo);
+      // Sem avançar as datas, a configuração continuava a apontar para o ano que acabou:
+      // anoLetivoCorrente devolvia null, o Horário bloqueava e o sistema ficava parado à espera que
+      // alguém fosse mexer nas datas — precisamente quando as matrículas abrem e é preciso marcar
+      // os horários. O DAAC ajusta depois se as datas reais do ano novo forem outras.
+      //
+      // §2026-09-03: a janela de MATRÍCULA avança junto. Antes ficava no ano que acabou, e a
+      // Secretaria não conseguia rematricular ninguém ("fora do período de matrícula") no momento
+      // exato em que era suposto fazê-lo — só a ADMIN passava, por ter podeForaDaJanela.
+      //
+      // O semestre volta a 1º aqui, com as datas: começa um ano letivo novo, e o DAAC não tem de
+      // se lembrar de o repor todos os anos. §2026-09-03: estava em suspenderNaoRematriculados, o
+      // que deixou de servir quando a suspensão passou a poder correr a meio do ano letivo (no
+      // fecho da janela de matrícula) — de lá, rebobinaria o semestre para 1 no meio do 2º.
+      await prisma.configuracaoAcademica.update({
+        where: { id: "config" },
+        data: {
+          ...datasDoAnoLetivoSeguinte({ anoLetivoInicio, anoLetivoFim, matriculaInicio, matriculaFim }),
+          semestreAtual: 1,
+        },
+      });
+    }
+
+    // Só quando a janela já fechou. Enquanto estiver aberta — ou ainda por abrir, como no intervalo
+    // entre o fim do ano letivo e a abertura das matrículas — quem não renovou está a tempo, não em
+    // falta, e trancá-lo seria dizer-lhe que falhou um prazo que ainda não passou.
+    if (precisaSuspender) {
+      await suspenderNaoRematriculados(anoLetivoNovo);
+    }
   });
 }
 
@@ -465,15 +506,7 @@ async function rolloverTurmas(anoLetivoNovo: number): Promise<void> {
  * é da mesma família de custo pesado-no-dia-da-virada que causava contenção no pool de ligações
  * sob os picos de tráfego da simulação de ano caótico.
  */
-async function suspenderNaoRematriculados(anoLetivoNovo: number, semestreAtual: number): Promise<void> {
-  // Passado o fim do ano letivo, um novo ano letivo começa — o semestre volta sempre a 1º, para o
-  // DAAC não ter de se lembrar de o repor manualmente todos os anos. Incondicional (não depende de
-  // haver alunos a suspender) e idempotente, porque este job corre uma vez por dia civil enquanto
-  // a data atual continuar depois de `anoLetivoFim`.
-  if (semestreAtual !== 1) {
-    await prisma.configuracaoAcademica.update({ where: { id: "config" }, data: { semestreAtual: 1 } });
-  }
-
+async function suspenderNaoRematriculados(anoLetivoNovo: number): Promise<void> {
   // §Opção A (2026-08-24): só ATIVO é suspendível. FORMADO fica de fora de propósito — quem
   // terminou o curso (processarRematriculaAction marca FORMADO no fim-de-curso) não "trancou",
   // terminou; TRANCADO/DESISTENTE já estão fora do ciclo de matrículas.

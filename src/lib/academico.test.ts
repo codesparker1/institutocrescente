@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, semestreFechado } from "./academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, semestreFechado } from "./academico";
 
 test("reprovações dentro do limite avança de ano", () => {
   const r = decidirRematricula({ reprovacoes: 2, limiteReprovacoes: 2, anoCurricular: 1 });
@@ -132,6 +132,45 @@ test("datasDoAnoLetivoSeguinte: o intervalo novo e reconhecido por anoLetivoCorr
   const novo = datasDoAnoLetivoSeguinte(antigo);
   assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), novo), 2027, "Outubro de 2027 cai no ano novo");
   assert.equal(anoLetivoCorrente(new Date(2027, 9, 15), antigo), null, "e nao no antigo");
+});
+
+test("trabalhoDeFimDeAno: entre o fim do ano letivo e o fim das matriculas, NAO suspende", () => {
+  // §2026-09-03, o bug que trancou 12 alunos: a configuracao real tinha o ano letivo a acabar a
+  // 24/Jun e as matriculas a abrir a 30/Ago. Com a suspensao presa ao fim do ano letivo, todos
+  // eram trancados a 25/Jun — dois meses antes de existir maneira de renovar.
+  const config = { anoLetivoFim: new Date(2027, 5, 24), matriculaFim: new Date(2027, 8, 30) };
+  const doisDiasDepoisDoAnoLetivo = trabalhoDeFimDeAno(new Date(2027, 5, 26), config);
+  assert.equal(doisDiasDepoisDoAnoLetivo.rollover, true, "o rollover corre — as turmas novas fazem falta");
+  assert.equal(doisDiasDepoisDoAnoLetivo.suspender, false, "mas ninguem e trancado: a janela nem abriu");
+});
+
+test("trabalhoDeFimDeAno: com a janela de matricula ABERTA, ainda nao suspende", () => {
+  const config = { anoLetivoFim: new Date(2027, 5, 24), matriculaFim: new Date(2027, 8, 30) };
+  assert.equal(trabalhoDeFimDeAno(new Date(2027, 8, 15), config).suspender, false, "quem nao renovou esta a tempo");
+});
+
+test("trabalhoDeFimDeAno: depois de a janela fechar, suspende", () => {
+  const config = { anoLetivoFim: new Date(2027, 5, 24), matriculaFim: new Date(2027, 8, 30) };
+  assert.equal(trabalhoDeFimDeAno(new Date(2027, 9, 1), config).suspender, true, "agora sim faltou mesmo");
+});
+
+test("trabalhoDeFimDeAno: sem janela de matricula configurada, nunca suspende", () => {
+  // Trancar por omissao tira o acesso a quem nao fez nada de errado — sem fronteira nao ha como
+  // distinguir quem faltou de quem ainda vai a tempo.
+  const config = { anoLetivoFim: new Date(2027, 5, 24), matriculaFim: null };
+  const t = trabalhoDeFimDeAno(new Date(2030, 0, 1), config);
+  assert.equal(t.suspender, false);
+  assert.equal(t.rollover, true, "o rollover nao depende da janela");
+});
+
+test("trabalhoDeFimDeAno: durante o ano letivo nao ha nada a fazer", () => {
+  const config = { anoLetivoFim: new Date(2027, 5, 24), matriculaFim: new Date(2026, 8, 30) };
+  const t = trabalhoDeFimDeAno(new Date(2027, 0, 15), config);
+  assert.equal(t.rollover, false);
+  // matriculaFim ja passou (Set/2026), por isso `suspender` e true — mas isso sozinho nao tranca
+  // ninguem a meio do ano letivo: quem se matriculou tem matricula do ano corrente, e
+  // suspenderNaoRematriculados so mexe em quem ficou num ano ANTERIOR (anoLetivo < anoLetivoNovo).
+  assert.equal(t.suspender, true, "a janela deste ano ja fechou — e a funcao diz so isso");
 });
 
 test("semestreFechado: o semestre a decorrer não está fechado", () => {
