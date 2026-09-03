@@ -18,7 +18,7 @@ export function TrocarSenhaForm() {
           <IspcCrest size={176} priority />
           <div>
             <h1 className="text-lg font-bold tracking-wide text-gold-300">Trocar senha</h1>
-            <p className="text-xs uppercase tracking-wider text-texto-suave">
+            <p className="text-xs uppercase tracking-wider text-navy-300">
               Por segurança, defina uma senha só sua antes de continuar.
             </p>
           </div>

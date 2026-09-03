@@ -32,7 +32,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
           <IspcCrest size={176} priority />
           <div>
             <h1 className="text-lg font-bold tracking-wide text-gold-300">ISPC</h1>
-            <p className="text-xs uppercase tracking-wider text-texto-suave">
+            <p className="text-xs uppercase tracking-wider text-navy-300">
               Instituto Superior Politécnico Crescente
             </p>
           </div>
@@ -85,7 +85,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-texto-suave">
+        <p className="mt-6 text-center text-xs text-navy-300">
           Acesso reservado à comunidade académica do ISPC.
         </p>
       </div>
