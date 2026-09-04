@@ -60,6 +60,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
     const resultado = calcularNotaFinal(notasCadeira, {
       permiteDispensa: inscricao.permiteDispensaAplicada,
       notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+      eMonografia: inscricao.eMonografiaAplicada,
     });
     return proximaEpocaPendente(notasCadeira, resultado.estado) === avaliacao.epoca;
   });

@@ -20,6 +20,12 @@ export interface CapabilityUser {
 interface Cadeira {
   /** null enquanto a disciplina não tiver professor atribuído — ver TurmaDisciplina.professorId. */
   professorId: string | null;
+  /**
+   * Monografia: a nota da defesa é do júri, não do orientador (§decisão do cliente 2026-09-04).
+   * Opcional para não obrigar todos os chamadores a passá-lo — a ausência significa "cadeira
+   * normal", que é o caso de 99% das chamadas e o comportamento que já existia.
+   */
+  eMonografia?: boolean;
 }
 
 /**
@@ -37,6 +43,10 @@ interface Cadeira {
 export function podeLancarNota(user: CapabilityUser, cadeira: Cadeira, prazoAberto = true): boolean {
   if (user.role === "DAAC" || user.role === "ADMIN") return true;
   if (user.role !== "PROFESSOR") return false;
+  // A nota da defesa é do júri (§decisão do cliente 2026-09-04) — nem o professor atribuído à
+  // monografia a lança, nem o orientador. Depois do teste de papel acima, para o DAAC/ADMIN
+  // continuar a poder lançá-la: são eles que a lançam.
+  if (cadeira.eMonografia) return false;
   // Disciplina ainda sem professor: ninguém a lança a não ser o DAAC (já tratado acima). Sem este
   // guarda, um PROFESSOR sem professorId na sessão passaria por `null === null`.
   if (!cadeira.professorId || !user.professorId) return false;

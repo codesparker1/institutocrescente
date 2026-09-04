@@ -21,7 +21,7 @@ export async function sincronizarInscricoesTurma(turmaId: string): Promise<void>
     prisma.matricula.findMany({ where: { turmaId, status: "ATIVA" }, select: { alunoId: true } }),
     prisma.turmaDisciplina.findMany({
       where: { turmaId },
-      select: { id: true, cadeiraCurricularId: true, cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true } } },
+      select: { id: true, cadeiraCurricularId: true, cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true, eMonografia: true } } },
     }),
   ]);
   if (matriculas.length === 0 || turmaDisciplinas.length === 0) return;
@@ -47,6 +47,7 @@ export async function sincronizarInscricoesTurma(turmaId: string): Promise<void>
         tentativa: 1,
         ativa: true,
         permiteDispensaAplicada: td.cadeiraCurricular.permiteDispensa,
+        eMonografiaAplicada: td.cadeiraCurricular.eMonografia,
         notaMinimaDispensaAplicada: td.cadeiraCurricular.notaMinimaDispensa,
       })),
   );
@@ -151,7 +152,7 @@ export async function inscreverCadeirasAnosAnteriores(
     select: {
       id: true,
       cadeiraCurricularId: true,
-      cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true } },
+      cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true, eMonografia: true } },
     },
   });
   if (turmaDisciplinas.length === 0) return;
@@ -164,6 +165,7 @@ export async function inscreverCadeirasAnosAnteriores(
     tentativa: 1,
     ativa: true,
     permiteDispensaAplicada: td.cadeiraCurricular.permiteDispensa,
+    eMonografiaAplicada: td.cadeiraCurricular.eMonografia,
     notaMinimaDispensaAplicada: td.cadeiraCurricular.notaMinimaDispensa,
   }));
   await prisma.inscricaoCadeira.createMany({ data: novasInscricoes, skipDuplicates: true });
@@ -258,12 +260,12 @@ export async function garantirOfertaParaRepeticao(params: {
   cursoId: string;
   periodo: Periodo;
   anoLetivo: number;
-}): Promise<{ id: string; cadeiraCurricular: { permiteDispensa: boolean; notaMinimaDispensa: Decimal } } | null> {
+}): Promise<{ id: string; cadeiraCurricular: { permiteDispensa: boolean; notaMinimaDispensa: Decimal; eMonografia: boolean } } | null> {
   const { cadeiraCurricularId, cursoId, periodo, anoLetivo } = params;
 
   const cadeira = await prisma.cadeiraCurricular.findUnique({
     where: { id: cadeiraCurricularId },
-    select: { id: true, cursoId: true, anoCurricular: true, disciplinaId: true, semestre: true, permiteDispensa: true, notaMinimaDispensa: true },
+    select: { id: true, cursoId: true, anoCurricular: true, disciplinaId: true, semestre: true, permiteDispensa: true, notaMinimaDispensa: true, eMonografia: true },
   });
   if (!cadeira || cadeira.cursoId !== cursoId) return null;
 
@@ -294,7 +296,7 @@ export async function garantirOfertaParaRepeticao(params: {
 
   return {
     id: oferta.id,
-    cadeiraCurricular: { permiteDispensa: cadeira.permiteDispensa, notaMinimaDispensa: cadeira.notaMinimaDispensa },
+    cadeiraCurricular: { permiteDispensa: cadeira.permiteDispensa, notaMinimaDispensa: cadeira.notaMinimaDispensa, eMonografia: cadeira.eMonografia },
   };
 }
 

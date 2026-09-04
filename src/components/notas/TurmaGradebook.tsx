@@ -8,7 +8,7 @@ import { GradebookEditor } from "./GradebookEditor";
 import { AttendanceChip } from "./AttendanceChip";
 import { CreateAulaForm } from "./CreateAulaForm";
 import { DIA_SEMANA_LABEL, diaSemanaHoje, formatDate, nomeProfessor, PERIODO_LABEL, proximasDatasValidas, toIsoDate } from "@/lib/utils";
-import { EPOCA_ORDEM, motivoLancamentoFechadoOuAusente } from "@/lib/avaliacao";
+import { EPOCA_DA_DEFESA, EPOCA_ORDEM, motivoLancamentoFechadoOuAusente } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
 interface TurmaGradebookProps {
@@ -17,6 +17,12 @@ interface TurmaGradebookProps {
   editable: boolean;
   /** DAAC/ADMIN ignora sempre a janela de lançamento — false para a página do professor. */
   podeIgnorarJanela?: boolean;
+  /**
+   * Bloqueia SÓ as células de nota, deixando a frequência editável. Usado na monografia vista pelo
+   * professor: a nota da defesa é do DAAC, mas as presenças continuam a ser dele (§cliente
+   * 2026-09-04). Não usar `editable={false}` para isto — essa prop governa as duas coisas.
+   */
+  notasSoLeitura?: boolean;
   /**
    * Quando preenchido, a pauta só abre se esta TurmaDisciplina for mesmo deste professor — sem
    * isto, qualquer professor via a pauta de qualquer colega escrevendo o id no URL (as Server
@@ -30,6 +36,7 @@ export async function TurmaGradebook({
   backHref,
   editable,
   podeIgnorarJanela = false,
+  notasSoLeitura = false,
   restringirAoProfessorId = null,
 }: TurmaGradebookProps) {
   const turmaDisciplina = await prisma.turmaDisciplina.findUnique({
@@ -38,6 +45,10 @@ export async function TurmaGradebook({
       disciplina: true,
       professor: true,
       turma: { include: { curso: true } },
+      // A monografia é propriedade da cadeira do plano, não da inscrição — todos os alunos desta
+      // TurmaDisciplina partilham a mesma CadeiraCurricular, logo ou é monografia para todos ou
+      // para nenhum. As inscrições trazem a cópia congelada, para o cálculo.
+      cadeiraCurricular: { select: { eMonografia: true } },
       avaliacoes: true,
       horarioSlots: true,
       inscricoes: { where: { ativa: true }, include: { aluno: true }, orderBy: { aluno: { nome: "asc" } } },
@@ -87,10 +98,17 @@ export async function TurmaGradebook({
   const proximoDiaLabel = datasValidas.find((d) => d.iso !== hojeIsoValor)?.label ?? datasValidas[0]?.label ?? null;
   const aulaDeHojeJaExiste = turmaDisciplina.aulas.some((a) => toIsoDate(a.data) === hojeIsoValor);
 
+  const eMonografia = turmaDisciplina.cadeiraCurricular.eMonografia;
+
   // As 5 colunas mostram-se sempre, mesmo antes de Recurso/Exame Especial terem sido formalmente
   // agendados em Horário e Provas — a Avaliacao nasce sozinha na primeira nota lançada
   // (lancarNotasEmLoteAction). Desde §2026-09-02 uma época sem Avaliacao também obedece à janela.
-  const avaliacoesParaEditor = EPOCA_ORDEM.map((epoca) => {
+  //
+  // Exceção: numa monografia há UMA coluna, a da defesa (§cliente 2026-09-04). Mostrar P1, P2,
+  // Recurso e Especial convidaria a lançar notas que a cadeira não tem, e que o cálculo trata
+  // como órfãs — quatro campos que só servem para enganar quem lança.
+  const colunas = eMonografia ? [EPOCA_DA_DEFESA] : EPOCA_ORDEM;
+  const avaliacoesParaEditor = colunas.map((epoca) => {
     const avaliacao = avaliacaoPorEpoca.get(epoca);
     // Duas condições: a janela global do DAAC (§2026-09-02) e a prova já realizada (§2026-08-28).
     // O DAAC/ADMIN (podeIgnorarJanela) continua sem limites — é o mecanismo de correção.
@@ -110,6 +128,7 @@ export async function TurmaGradebook({
     tentativa: inscricao.tentativa,
     permiteDispensaAplicada: inscricao.permiteDispensaAplicada,
     notaMinimaDispensaAplicada: Number(inscricao.notaMinimaDispensaAplicada),
+    eMonografiaAplicada: inscricao.eMonografiaAplicada,
     notas: notasPorInscricao.get(inscricao.id) ?? [],
   }));
 
@@ -131,7 +150,7 @@ export async function TurmaGradebook({
       <Card>
         <CardHeader
           title="Pauta de notas"
-          subtitle={editable ? "Edite as notas e clique em Guardar alterações" : "Modo de visualização"}
+          subtitle={editable && !notasSoLeitura ? "Edite as notas e clique em Guardar alterações" : "Modo de visualização"}
           action={
             <a
               href={`/api/pauta/${turmaDisciplina.id}`}
@@ -154,7 +173,8 @@ export async function TurmaGradebook({
               turmaDisciplinaId={turmaDisciplina.id}
               avaliacoes={avaliacoesParaEditor}
               inscricoes={inscricoesParaEditor}
-              editable={editable}
+              editable={editable && !notasSoLeitura}
+              eMonografia={eMonografia}
             />
           </CardBody>
         )}

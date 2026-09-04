@@ -99,6 +99,7 @@ async function gravarNotasEAtualizarOrfas(resolvidas: { avaliacaoId: string; ins
       id: true,
       permiteDispensaAplicada: true,
       notaMinimaDispensaAplicada: true,
+      eMonografiaAplicada: true,
       notas: { select: { id: true, valor: true, avaliacao: { select: { epoca: true } } } },
     },
   });
@@ -108,6 +109,7 @@ async function gravarNotasEAtualizarOrfas(resolvidas: { avaliacaoId: string; ins
     const resultado = calcularNotaFinal(notasCadeira, {
       permiteDispensa: inscricao.permiteDispensaAplicada,
       notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+      eMonografia: inscricao.eMonografiaAplicada,
     });
     if (resultado.epocasOrfas.length === 0) continue;
     const orfasSet = new Set(resultado.epocasOrfas);
@@ -152,10 +154,15 @@ export async function lancarNotasEmLoteAction(entradas: unknown): Promise<Lancar
   }
   const turmaDisciplinaId = entries[0].turmaDisciplinaId;
 
-  const turmaDisciplina = await prisma.turmaDisciplina.findUnique({ where: { id: turmaDisciplinaId } });
+  const turmaDisciplina = await prisma.turmaDisciplina.findUnique({
+    where: { id: turmaDisciplinaId },
+    // A monografia é da cadeira do plano — podeLancarNota precisa dela para recusar o professor.
+    include: { cadeiraCurricular: { select: { eMonografia: true } } },
+  });
   if (!turmaDisciplina) {
     return { error: "Disciplina não encontrada." };
   }
+  const eMonografia = turmaDisciplina.cadeiraCurricular.eMonografia;
 
   const agora = await getAgora();
   // upsert e não findUnique: a config singleton pode ainda não existir numa instalação nova, e
@@ -173,7 +180,15 @@ export async function lancarNotasEmLoteAction(entradas: unknown): Promise<Lancar
     // o professor também não a pode fazer nascer.
     // A UI já desativa o campo; isto é a barreira que conta — um POST direto ignoraria aquela.
     const motivoFechado = motivoLancamentoFechadoOuAusente(avaliacao, agora, config.lancamentoNotasAberto);
-    if (!podeLancarNota(session.user, turmaDisciplina, motivoFechado === null)) {
+    if (!podeLancarNota(session.user, { ...turmaDisciplina, eMonografia }, motivoFechado === null)) {
+      // A monografia primeiro: com a janela também fechada, dizer "peça ao DAAC para abrir a
+      // janela" mandaria o professor esperar por algo que não o ia desbloquear — a nota da defesa
+      // nunca é dele, com a janela aberta ou fechada.
+      if (eMonografia) {
+        return {
+          error: "A nota da defesa da monografia é lançada pelo DAAC, não pelo professor da cadeira.",
+        };
+      }
       if (motivoFechado === "PROVA_POR_REALIZAR") {
         return {
           error: `A prova de ${EPOCA_LABEL[epoca]} ainda não se realizou (${formatDate(avaliacao!.data)}) — só pode lançar a nota a partir desse dia.`,
@@ -386,6 +401,7 @@ export async function creditarCadeiraAction(_prevState: CreditarCadeiraState, fo
           creditada: true,
           instituicaoOrigemCreditado: instituicaoOrigem,
           permiteDispensaAplicada: cadeiraCurricular.permiteDispensa,
+          eMonografiaAplicada: cadeiraCurricular.eMonografia,
           notaMinimaDispensaAplicada: cadeiraCurricular.notaMinimaDispensa,
         },
       });

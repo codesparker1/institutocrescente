@@ -16,7 +16,10 @@ export default async function ProfessorGradebookPage({ params }: ProfessorGradeb
   if (!session?.user.professorId) redirect("/dashboard");
 
   const [turmaDisciplina, config] = await Promise.all([
-    prisma.turmaDisciplina.findUnique({ where: { id: turmaDisciplinaId }, include: { turma: true } }),
+    prisma.turmaDisciplina.findUnique({
+      where: { id: turmaDisciplinaId },
+      include: { turma: true, cadeiraCurricular: { select: { eMonografia: true } } },
+    }),
     prisma.configuracaoAcademica.findUnique({ where: { id: "config" } }),
   ]);
   if (!turmaDisciplina || turmaDisciplina.professorId !== session.user.professorId) redirect("/professor");
@@ -42,20 +45,33 @@ export default async function ProfessorGradebookPage({ params }: ProfessorGradeb
 
   // Uma pauta cinzenta sem explicação parece uma avaria. Dizer porquê e a quem falar transforma um
   // beco sem saída num passo seguinte.
-  const motivoSoLeitura = !editable
-    ? !doAnoCorrente
-      ? `Esta turma é do ano letivo ${formatAnoLetivo(turmaDisciplina.turma.anoLetivo)}, que já não está a decorrer. A pauta fica em consulta — para corrigir uma nota, peça ao DAAC.`
-      : `Esta disciplina é do ${turmaDisciplina.semestre}º semestre e está a decorrer o ${semestreAtual}º. A pauta fica em consulta — para lançar ou corrigir notas fora do semestre, peça ao DAAC.`
-    : !lancamentoAberto
-      ? "O lançamento de notas está fechado neste momento — é o DAAC que o abre e fecha. Pode consultar a pauta e marcar presenças; para lançar ou corrigir uma nota agora, peça ao DAAC."
-      : null;
+  // A monografia vem primeiro porque é a razão mais definitiva: não muda com o semestre nem com a
+  // janela de lançamento. Dizer ao professor "peça ao DAAC para abrir a janela" numa monografia
+  // mandá-lo-ia esperar por algo que nunca o desbloquearia (§cliente 2026-09-04).
+  const eMonografia = turmaDisciplina.cadeiraCurricular.eMonografia;
+  const motivoSoLeitura = eMonografia
+    ? "A nota da defesa desta monografia é lançada pelo DAAC, não pelo professor da cadeira. Pode consultar a pauta e marcar presenças normalmente."
+    : !editable
+      ? !doAnoCorrente
+        ? `Esta turma é do ano letivo ${formatAnoLetivo(turmaDisciplina.turma.anoLetivo)}, que já não está a decorrer. A pauta fica em consulta — para corrigir uma nota, peça ao DAAC.`
+        : `Esta disciplina é do ${turmaDisciplina.semestre}º semestre e está a decorrer o ${semestreAtual}º. A pauta fica em consulta — para lançar ou corrigir notas fora do semestre, peça ao DAAC.`
+      : !lancamentoAberto
+        ? "O lançamento de notas está fechado neste momento — é o DAAC que o abre e fecha. Pode consultar a pauta e marcar presenças; para lançar ou corrigir uma nota agora, peça ao DAAC."
+        : null;
 
   return (
     <div className="flex flex-col gap-4">
       {motivoSoLeitura ? (
         <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-3 text-sm text-gold-800">{motivoSoLeitura}</p>
       ) : null}
-      <TurmaGradebook turmaDisciplinaId={turmaDisciplinaId} backHref="/professor" editable={editable} />
+      {/* notasSoLeitura, e NÃO editable={false}: `editable` governa a pauta E a frequência, e as
+          presenças da monografia continuam a ser do professor (§cliente: "só as notas"). */}
+      <TurmaGradebook
+        turmaDisciplinaId={turmaDisciplinaId}
+        backHref="/professor"
+        editable={editable}
+        notasSoLeitura={eMonografia}
+      />
     </div>
   );
 }

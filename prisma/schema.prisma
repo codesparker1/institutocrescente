@@ -103,26 +103,29 @@ model Professor {
   turmaDisciplinas TurmaDisciplina[]
   user             User?
   reclamacoes      Reclamacao[]
+  /// Monografias que orienta (§2026-09-04) — o limite por professor está em
+  /// ConfiguracaoAcademica.limiteOrientandosPorProfessor.
+  orientandos      InscricaoCadeira[] @relation("Orientacao")
 }
 
 model Aluno {
-  id              String             @id @default(cuid())
-  numeroEstudante String             @unique
-  nome            String
-  email           String?            @unique
-  telefone        String?
-  dataNascimento  DateTime
-  genero          String
-  curso           String
-  anoIngresso     Int
-  anoCurricular   Int                @default(1)
-  status          AlunoStatus        @default(ATIVO)
-  categoria       CategoriaEstudante @default(NORMAL)
-  createdAt       DateTime           @default(now())
+  id                            String             @id @default(cuid())
+  numeroEstudante               String             @unique
+  nome                          String
+  email                         String?            @unique
+  telefone                      String?
+  dataNascimento                DateTime
+  genero                        String
+  curso                         String
+  anoIngresso                   Int
+  anoCurricular                 Int                @default(1)
+  status                        AlunoStatus        @default(ATIVO)
+  categoria                     CategoriaEstudante @default(NORMAL)
+  createdAt                     DateTime           @default(now())
   /// Nº de cadeiras que ficaram REPROVADO na última rematrícula processada (processarRematriculaAction)
   /// — alimenta o agravamento por cadeira em repetição na propina (§pedido do cliente 2026-08-18).
   /// Continua > 0 enquanto o aluno andar a repetir essas cadeiras, mesmo tendo avançado de ano.
-  cadeirasReprovadasAnoAnterior Int @default(0)
+  cadeirasReprovadasAnoAnterior Int                @default(0)
 
   matriculas  Matricula[]
   cobrancas   Cobranca[]
@@ -137,17 +140,17 @@ model Aluno {
 /// Blob; blobUrl nunca é exposto ao browser diretamente (documentos sensíveis) — só lido do lado
 /// do servidor pela route handler de download (src/app/api/documentos/[id]/route.tsx).
 model DocumentoAluno {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   alunoId        String
-  aluno          Aluno     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  aluno          Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   nome           String
   blobUrl        String
   blobPathname   String
   tamanhoBytes   Int
   tipoMime       String
   carregadoPorId String?
-  carregadoPor   User?     @relation("DocumentoCarregadoPor", fields: [carregadoPorId], references: [id])
-  createdAt      DateTime  @default(now())
+  carregadoPor   User?    @relation("DocumentoCarregadoPor", fields: [carregadoPorId], references: [id])
+  createdAt      DateTime @default(now())
 
   @@index([alunoId])
 }
@@ -203,6 +206,12 @@ model CadeiraCurricular {
   /// (ex. laboratórios). Copiadas para InscricaoCadeira no momento da inscrição — ver nota lá.
   permiteDispensa    Boolean    @default(true)
   notaMinimaDispensa Decimal    @default(14) @db.Decimal(4, 2)
+  /// §pedido do cliente 2026-09-04: no último ano o aluno tem a monografia em vez de cadeiras
+  /// normais. Avaliada por uma defesa com nota ÚNICA (sem P1/P2, sem recurso — uma só chance),
+  /// lançada só pelo DAAC/ADMIN. A nota grava-se na época EXAME por decisão deliberada: as 5
+  /// épocas são uma cascata sequencial (cada uma exige a anterior, ver motivoAgendamentoInvalido)
+  /// e a defesa não pertence a essa sequência. NA UI LÊ-SE SEMPRE "Defesa", nunca "Exame".
+  eMonografia        Boolean    @default(false)
 
   turmaDisciplinas TurmaDisciplina[]
   inscricoes       InscricaoCadeira[]
@@ -310,11 +319,23 @@ model InscricaoCadeira {
   /// já existente resolver sozinha); só metadado de exibição/auditoria.
   creditada                  Boolean           @default(false)
   instituicaoOrigemCreditado String?
+  /// Congelado de CadeiraCurricular.eMonografia no momento da inscrição, pelo mesmo motivo de
+  /// permiteDispensaAplicada: desmarcar a caixa no ano seguinte não pode transformar defesas já
+  /// feitas em cadeiras normais, nem reabrir contas fechadas.
+  eMonografiaAplicada        Boolean           @default(false)
+  /// Orientador do finalista (§pedido do cliente 2026-09-04). Vive aqui e não no Aluno porque é
+  /// por monografia: sobrevive ao histórico — quem orientou em 2027 continua a ser quem orientou,
+  /// mesmo que o aluno repita ou mude de curso.
+  orientadorId               String?
+  orientador                 Professor?        @relation("Orientacao", fields: [orientadorId], references: [id])
 
   notas       Nota[]
   frequencias Frequencia[]
 
   @@unique([alunoId, cadeiraCurricularId, tentativa])
+  // Cobre a contagem de orientandos por professor (validação do limite) e a página "Meus
+  // Orientandos" — as duas leituras percorrem as inscrições de um orientador.
+  @@index([orientadorId])
 }
 
 /// Uma prova de uma época fixa (§4.1/§4.3). No máximo uma por TurmaDisciplina×época — a fórmula
@@ -461,11 +482,11 @@ model Emolumento {
 
 /// Configuração singleton do bloqueio por dívida (id fixo "config").
 model ConfiguracaoFinanceira {
-  id              String    @id @default("config")
-  bloqueioAtivo   Boolean   @default(true)
-  toleranciaDias  Int       @default(0)
-  diaVencimento   Int       @default(10)
-  valorMulta      Decimal   @default(5000) @db.Decimal(10, 2)
+  id                               String    @id @default("config")
+  bloqueioAtivo                    Boolean   @default(true)
+  toleranciaDias                   Int       @default(0)
+  diaVencimento                    Int       @default(10)
+  valorMulta                       Decimal   @default(5000) @db.Decimal(10, 2)
   /// % agravada sobre a mensalidade por cada cadeira em repetição (Aluno.cadeirasReprovadasAnoAnterior)
   /// — editado em Admin > Preços, não em Admin > Financeiro > Configuração, mas guardado aqui porque
   /// gerarCobrancasDoDia já carrega esta linha a cada geração de propinas (evita outra query no hot path).
@@ -473,12 +494,12 @@ model ConfiguracaoFinanceira {
   /// Multa por rematrícula tardia — confirmada pela ADMIN fora da janela de matrícula
   /// (§pedido do cliente 2026-08). 0 = desligada (defeito). Nasce como Cobranca MULTA órfã,
   /// presa ao aluno, confirmável/reversível só pela ADMIN (toggleMultaAction).
-  valorMultaRematriculaTardia       Decimal   @default(0) @db.Decimal(10, 2)
+  valorMultaRematriculaTardia      Decimal   @default(0) @db.Decimal(10, 2)
   /// Marca a última corrida da geração automática de propinas/multas — evita repeti-la em cada request (§2).
-  ultimaGeracaoEm DateTime?
-  updatedAt       DateTime  @updatedAt
-  updatedPorId    String?
-  updatedPor      User?     @relation("ConfigFinanceiraAtualizadaPor", fields: [updatedPorId], references: [id])
+  ultimaGeracaoEm                  DateTime?
+  updatedAt                        DateTime  @updatedAt
+  updatedPorId                     String?
+  updatedPor                       User?     @relation("ConfigFinanceiraAtualizadaPor", fields: [updatedPorId], references: [id])
 }
 
 /// O que acontece às cadeiras já aprovadas de um aluno retido (Fase 8b) — configurável pelo DAAC
@@ -513,20 +534,20 @@ enum SimEventoTipo {
 }
 
 model SimEvento {
-  id            String        @id @default(cuid())
-  tipo          SimEventoTipo
+  id           String        @id @default(cuid())
+  tipo         SimEventoTipo
   /// Data SIMULADA no momento do evento (getAgora()).
-  dataSimulada  DateTime
+  dataSimulada DateTime
   /// Hora real do servidor — é esta que mede latências e permite reconstruir a linha temporal real.
-  dataReal      DateTime      @default(now())
+  dataReal     DateTime      @default(now())
   /// Offset simulado-real em ms no momento do evento (dataSimulada - dataReal).
-  offsetMs      BigInt
-  userId        String?
-  userRole      String?
+  offsetMs     BigInt
+  userId       String?
+  userRole     String?
   /// Ex.: "garantirCobrancasGeradas", "/financeiro", "avancarRelogio +30d".
-  etiqueta      String
-  detalhes      Json?
-  duracaoMs     Int?
+  etiqueta     String
+  detalhes     Json?
+  duracaoMs    Int?
 
   @@index([tipo])
   @@index([dataSimulada])
@@ -537,40 +558,44 @@ model SimEvento {
 /// automática em lote: a Secretaria aciona aluno a aluno via processarRematriculaAction, só dentro
 /// da janela [matriculaInicio, matriculaFim]).
 model ConfiguracaoAcademica {
-  id                       String        @id @default("config")
-  limiteReprovacoes        Int           @default(2)
-  regraRetencao            RegraRetencao @default(SO_REPROVADAS)
-  matriculaInicio          DateTime?
-  matriculaFim             DateTime?
+  id                            String        @id @default("config")
+  limiteReprovacoes             Int           @default(2)
+  regraRetencao                 RegraRetencao @default(SO_REPROVADAS)
+  matriculaInicio               DateTime?
+  matriculaFim                  DateTime?
   /// Fronteira real do ano letivo — distinta da janela de matrícula (que só define quando a
   /// Secretaria pode processar rematrículas). É `anoLetivoFim`, não `matriculaFim`, que
   /// garantirSuspensaoAutomatica usa para detetar que um novo ano letivo começou.
-  anoLetivoInicio          DateTime?
-  anoLetivoFim             DateTime?
+  anoLetivoInicio               DateTime?
+  anoLetivoFim                  DateTime?
   /// Marca a última corrida da suspensão automática de quem não rematriculou — evita repeti-la em cada request.
-  ultimaSuspensaoEm        DateTime?
+  ultimaSuspensaoEm             DateTime?
   /// Interruptor manual do DAAC (1 ou 2) — não é derivado de datas. Só disciplinas cujo
   /// TurmaDisciplina.semestre coincide com este valor (e do ano letivo corrente) ficam abertas
   /// para aulas/notas do professor. O DAAC continua sempre a poder editar qualquer semestre.
   /// FORA do ano letivo é reposto a 1 em cada visita ao dashboard (garantirSuspensaoAutomatica),
   /// não só na viragem: o rollover corre uma vez e qualquer alteração posterior — clique manual,
   /// seed, restauro de backup — ficava até ao fim do ano letivo seguinte (§2026-09-03).
-  semestreAtual            Int           @default(1)
+  semestreAtual                 Int           @default(1)
+  /// Máximo de monografias que um professor pode orientar ao mesmo tempo (§decisão do cliente
+  /// 2026-09-04). 0 = sem limite. Validado em atribuirOrientadorAction, não no schema: o DAAC
+  /// precisa de uma mensagem que diga QUEM está cheio, não um erro de constraint.
+  limiteOrientandosPorProfessor Int           @default(5)
   /// Interruptor manual do DAAC/ADMIN (§decisão do cliente 2026-09-02): a true, TODOS os
   /// professores podem lançar notas das suas disciplinas; a false, nenhum. Substitui o prazo
   /// automático por época (diasPrazo*), que fechava sozinho N dias depois da prova.
   /// NÃO fecha sozinho — só um clique o fecha. O DAAC/ADMIN continua a ignorá-lo (podeLancarNota).
-  lancamentoNotasAberto    Boolean       @default(true)
+  lancamentoNotasAberto         Boolean       @default(true)
   /// Desde quando está no estado atual — sem data-limite, é esta a única referência temporal.
   /// O "quem" fica na AuditLog, que já regista o autor de cada alteração.
-  lancamentoNotasAlteradoEm DateTime?
+  lancamentoNotasAlteradoEm     DateTime?
   /// Marca a última corrida da sincronização das turmas com o plano curricular — rede de segurança
   /// diária para turmas que ficaram desalinhadas fora do fluxo normal (criadas antes de a oferta
   /// automática existir, plano alterado noutro ano letivo, importação manual).
-  ultimaSincronizacaoPlanoEm DateTime?
-  updatedAt                DateTime      @updatedAt
-  updatedPorId             String?
-  updatedPor               User?         @relation("ConfigAcademicaAtualizadaPor", fields: [updatedPorId], references: [id])
+  ultimaSincronizacaoPlanoEm    DateTime?
+  updatedAt                     DateTime      @updatedAt
+  updatedPorId                  String?
+  updatedPor                    User?         @relation("ConfigAcademicaAtualizadaPor", fields: [updatedPorId], references: [id])
 }
 
 enum ReclamacaoCategoria {

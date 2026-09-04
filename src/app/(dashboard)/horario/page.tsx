@@ -77,6 +77,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
         const estado = calcularNotaFinal(notasCadeira, {
           permiteDispensa: i.permiteDispensaAplicada,
           notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
+          eMonografia: i.eMonografiaAplicada,
         }).estado;
         // Não mostrar Recurso/Exame Especial a quem já foi dispensado ou aprovado sem precisar deles.
         const visiveis = new Set(epocasVisiveis(notasCadeira, estado));

@@ -293,10 +293,21 @@ export async function processarRematriculaAction(
     const resultado = calcularNotaFinal(extrairNotasPorEpoca(notas), {
       permiteDispensa: inscricao.permiteDispensaAplicada,
       notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+      eMonografia: inscricao.eMonografiaAplicada,
     });
     return { inscricao, estado: resultado.estado };
   });
-  const pendentes = avaliadas.filter((a) => a.estado === "EM_CURSO" || a.estado === "ADMITIDO_A_EXAME" || a.estado === "EM_RECURSO" || a.estado === "EM_EXAME_ESPECIAL");
+  // EM_DEFESA entra aqui (§2026-09-04): sem a nota da defesa lançada, o finalista não avança nem
+  // se forma. Sem isto, um aluno chegaria a FORMADO só por não haver turma do ano seguinte
+  // (ver o fim de curso mais abaixo), sem ninguém verificar se defendeu a monografia.
+  const pendentes = avaliadas.filter(
+    (a) =>
+      a.estado === "EM_CURSO" ||
+      a.estado === "ADMITIDO_A_EXAME" ||
+      a.estado === "EM_RECURSO" ||
+      a.estado === "EM_EXAME_ESPECIAL" ||
+      a.estado === "EM_DEFESA",
+  );
   if (pendentes.length > 0) {
     return {
       error: `${aluno.nome} tem cadeiras por avaliar (${pendentes.map((p) => p.inscricao.turmaDisciplina.disciplina.nome).join(", ")}) — a rematrícula só é possível depois do lançamento de notas.`,
@@ -360,7 +371,7 @@ export async function processarRematriculaAction(
     aRepetir.map(async (item) => {
       const novaOferta = await prisma.turmaDisciplina.findFirst({
         where: { cadeiraCurricularId: item.inscricao.cadeiraCurricularId, turma: { anoLetivo: anoLetivoAlvo } },
-        include: { cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true } } },
+        include: { cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true, eMonografia: true } } },
       });
       return { item, novaOferta };
     }),
@@ -431,6 +442,7 @@ export async function processarRematriculaAction(
           tentativa: (tentativasAnteriores[0]?.tentativa ?? item.inscricao.tentativa) + 1,
           ativa: true,
           permiteDispensaAplicada: novaOferta.cadeiraCurricular.permiteDispensa,
+          eMonografiaAplicada: novaOferta.cadeiraCurricular.eMonografia,
           notaMinimaDispensaAplicada: novaOferta.cadeiraCurricular.notaMinimaDispensa,
         },
       });

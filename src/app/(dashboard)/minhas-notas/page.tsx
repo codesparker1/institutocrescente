@@ -71,6 +71,7 @@ export default async function MinhasNotasPage() {
     return calcularNotaFinal(extrairNotasPorEpoca(notas), {
       permiteDispensa: inscricao.permiteDispensaAplicada,
       notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+      eMonografia: inscricao.eMonografiaAplicada,
     });
   }
 

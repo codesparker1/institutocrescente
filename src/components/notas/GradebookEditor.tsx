@@ -10,7 +10,7 @@ import {
   calcularNotaFinal,
   extrairNotasPorEpoca,
   epocasVisiveis,
-  EPOCA_LABEL,
+  rotuloEpoca,
   ESTADO_LABEL,
   type EstadoAvaliacao,
   type NotasCadeira,
@@ -23,6 +23,7 @@ const ESTADO_TONE: Record<EstadoAvaliacao, "success" | "warning" | "danger" | "n
   ADMITIDO_A_EXAME: "warning",
   EM_RECURSO: "warning",
   EM_EXAME_ESPECIAL: "warning",
+  EM_DEFESA: "warning",
   APROVADO: "success",
   REPROVADO: "danger",
 };
@@ -46,6 +47,8 @@ interface InscricaoResumo {
   tentativa: number;
   permiteDispensaAplicada: boolean;
   notaMinimaDispensaAplicada: number;
+  /** Monografia: nota única na defesa, sem média nem cascata (§cliente 2026-09-04). */
+  eMonografiaAplicada: boolean;
   notas: { epoca: Epoca; valor: number; automatica: boolean }[];
 }
 
@@ -54,13 +57,24 @@ interface GradebookEditorProps {
   avaliacoes: AvaliacaoResumo[];
   inscricoes: InscricaoResumo[];
   editable: boolean;
+  /**
+   * Monografia: uma só coluna ("Defesa"), sem a coluna Média — não há P1/P2 de onde a tirar.
+   * Vem da CadeiraCurricular via TurmaGradebook: é da turma inteira, não de cada inscrição.
+   */
+  eMonografia?: boolean;
 }
 
 function chave(inscricaoCadeiraId: string, epoca: Epoca): string {
   return `${inscricaoCadeiraId}:${epoca}`;
 }
 
-export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, editable }: GradebookEditorProps) {
+export function GradebookEditor({
+  turmaDisciplinaId,
+  avaliacoes,
+  inscricoes,
+  editable,
+  eMonografia = false,
+}: GradebookEditorProps) {
   const [edicoes, setEdicoes] = useState<Map<string, number>>(new Map());
   const [isPending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -114,10 +128,11 @@ export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, edi
     const resultado = calcularNotaFinal(notasCadeira, {
       permiteDispensa: inscricao.permiteDispensaAplicada,
       notaMinimaDispensa: inscricao.notaMinimaDispensaAplicada,
+      eMonografia: inscricao.eMonografiaAplicada,
     });
     // Recalculado a cada tecla — assim que P1+P2 (ainda não gravados) já dão dispensa, o
     // Exame/Recurso/Especial ficam bloqueados de imediato, sem esperar por Guardar.
-    const visiveis = new Set(epocasVisiveis(notasCadeira, resultado.estado));
+    const visiveis = new Set(epocasVisiveis(notasCadeira, resultado.estado, inscricao.eMonografiaAplicada));
     const orfas = new Set(resultado.epocasOrfas);
     const media = mediaProvisoria(notasCadeira);
     return { inscricao, resultado, visiveis, orfas, media };
@@ -174,11 +189,11 @@ export function GradebookEditor({ turmaDisciplinaId, avaliacoes, inscricoes, edi
           <tr>
             <Th>Aluno</Th>
             {antesDoExame.map((avaliacao) => (
-              <Th key={avaliacao.epoca}>{EPOCA_LABEL[avaliacao.epoca]}</Th>
+              <Th key={avaliacao.epoca}>{rotuloEpoca(avaliacao.epoca, eMonografia)}</Th>
             ))}
             {mostrarMedia ? <Th>Média</Th> : null}
             {desdeExame.map((avaliacao) => (
-              <Th key={avaliacao.epoca}>{EPOCA_LABEL[avaliacao.epoca]}</Th>
+              <Th key={avaliacao.epoca}>{rotuloEpoca(avaliacao.epoca, eMonografia)}</Th>
             ))}
             <Th>Estado</Th>
             <Th>Nota Final</Th>

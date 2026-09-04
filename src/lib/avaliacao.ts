@@ -124,6 +124,8 @@ export type EstadoAvaliacao =
   | "ADMITIDO_A_EXAME"
   | "EM_RECURSO"
   | "EM_EXAME_ESPECIAL"
+  /** Monografia sem a nota da defesa lançada — o único estado pendente de uma cadeira de monografia. */
+  | "EM_DEFESA"
   | "APROVADO"
   | "REPROVADO";
 
@@ -133,12 +135,19 @@ export const ESTADO_LABEL: Record<EstadoAvaliacao, string> = {
   ADMITIDO_A_EXAME: "Admitido a exame",
   EM_RECURSO: "Em recurso",
   EM_EXAME_ESPECIAL: "Em exame especial",
+  EM_DEFESA: "Por defender",
   APROVADO: "Aprovado",
   REPROVADO: "Reprovado",
 };
 
 /** Estados em que a cadeira ainda espera por uma prova que aconteça. */
-const ESTADOS_PENDENTES: EstadoAvaliacao[] = ["EM_CURSO", "ADMITIDO_A_EXAME", "EM_RECURSO", "EM_EXAME_ESPECIAL"];
+const ESTADOS_PENDENTES: EstadoAvaliacao[] = [
+  "EM_CURSO",
+  "ADMITIDO_A_EXAME",
+  "EM_RECURSO",
+  "EM_EXAME_ESPECIAL",
+  "EM_DEFESA",
+];
 
 /**
  * Como mostrar o estado de uma cadeira, tendo em conta se o semestre dela já fechou.
@@ -184,6 +193,13 @@ export interface RegrasCadeira {
   /** Valores congelados em InscricaoCadeira.*Aplicada — nunca os atuais da CadeiraCurricular. */
   permiteDispensa: boolean;
   notaMinimaDispensa: number;
+  /**
+   * Monografia do último ano (§pedido do cliente 2026-09-04): nota ÚNICA na defesa, sem P1/P2 e
+   * sem recurso. Obrigatório e sem valor por omissão de propósito — um default silencioso faria
+   * um chamador esquecido calcular a monografia pela cascata normal, e o resultado (EM_CURSO para
+   * sempre, por falta de P1) só apareceria meses depois.
+   */
+  eMonografia: boolean;
 }
 
 export interface ResultadoAvaliacao {
@@ -221,6 +237,29 @@ export const EPOCA_PARA_CHAVE_NOTAS: Record<Epoca, keyof NotasCadeira> = {
 export function calcularNotaFinal(notas: NotasCadeira, regras: RegrasCadeira): ResultadoAvaliacao {
   function orfasApartirDe(epoca: Epoca): Epoca[] {
     return EPOCA_ORDEM.slice(EPOCA_ORDEM.indexOf(epoca)).filter((e) => notas[EPOCA_PARA_CHAVE_NOTAS[e]] !== null);
+  }
+
+  // A monografia sai da cascata ANTES de qualquer média (§pedido do cliente 2026-09-04). Não tem
+  // P1/P2, logo não tem nota de frequência, e a nota da defesa É a nota final — lançar 15 dá 15,
+  // sem divisões pelo meio. Uma só chance: negativa fecha REPROVADO, sem exame nem recurso.
+  //
+  // A nota vive na época EXAME (ver o comentário de CadeiraCurricular.eMonografia no schema); é a
+  // única época que uma monografia usa, e nos ecrãs chama-se "Defesa".
+  if (regras.eMonografia) {
+    const nota = notas.exame;
+    if (nota === null) {
+      return { estado: "EM_DEFESA", notaFrequencia: null, notaFinal: null, aprovado: null, epocasOrfas: [] };
+    }
+    const aprovado = nota >= NOTA_MINIMA_POSITIVA;
+    return {
+      estado: aprovado ? "APROVADO" : "REPROVADO",
+      notaFrequencia: null,
+      notaFinal: nota,
+      aprovado,
+      // Qualquer nota que não a da defesa é lixo numa monografia — tratada como órfã, e apagada
+      // por quem grava (ver lancarNotasEmLoteAction), como em qualquer outra cadeira.
+      epocasOrfas: EPOCA_ORDEM.filter((e) => e !== "EXAME" && notas[EPOCA_PARA_CHAVE_NOTAS[e]] !== null),
+    };
   }
 
   if (notas.p1 === null || notas.p2 === null) {
@@ -275,7 +314,25 @@ const ESTADO_PROXIMA_EPOCA: Partial<Record<EstadoAvaliacao, Epoca>> = {
   ADMITIDO_A_EXAME: "EXAME",
   EM_RECURSO: "RECURSO",
   EM_EXAME_ESPECIAL: "EXAME_ESPECIAL",
+  // A defesa guarda-se na época EXAME — é a única época de uma monografia.
+  EM_DEFESA: "EXAME",
 };
+
+/**
+ * A única época que uma monografia usa. Existe como constante para os ecrãs não repetirem o
+ * literal "EXAME" — quem lê `[EPOCA_DA_DEFESA]` percebe que é a defesa, quem lê `["EXAME"]` fica
+ * a pensar que a monografia tem exame.
+ */
+export const EPOCA_DA_DEFESA: Epoca = "EXAME";
+
+/**
+ * O rótulo de uma época, para o utilizador. Numa monografia a época EXAME chama-se "Defesa" — a
+ * palavra "Exame" é detalhe de armazenamento (ver o schema) e nunca deve chegar ao ecrã.
+ */
+export function rotuloEpoca(epoca: Epoca, eMonografia: boolean): string {
+  if (eMonografia && epoca === EPOCA_DA_DEFESA) return "Defesa";
+  return EPOCA_LABEL[epoca];
+}
 
 /**
  * Quais épocas mostrar ao próprio aluno (dashboard, horário) — nunca a lista bruta de `Avaliacao`
@@ -285,7 +342,11 @@ const ESTADO_PROXIMA_EPOCA: Partial<Record<EstadoAvaliacao, Epoca>> = {
  * (mesmo sem nota — é a prova que falta). Estados terminais (DISPENSADO/APROVADO/REPROVADO) não
  * têm "seguinte" — só o que já foi lançado.
  */
-export function epocasVisiveis(notas: NotasCadeira, estado: EstadoAvaliacao): Epoca[] {
+export function epocasVisiveis(notas: NotasCadeira, estado: EstadoAvaliacao, eMonografia = false): Epoca[] {
+  // Numa monografia só a defesa existe: fatiar EPOCA_ORDEM até EXAME traria P1 e P2, que a
+  // cadeira não tem. É a única função de época com default — aqui falhar significa mostrar
+  // colunas a mais, não calcular mal uma nota.
+  if (eMonografia) return [EPOCA_DA_DEFESA];
   const comNota = EPOCA_ORDEM.filter((epoca) => notas[EPOCA_PARA_CHAVE_NOTAS[epoca]] !== null);
   const proxima = ESTADO_PROXIMA_EPOCA[estado];
   if (!proxima) return comNota;

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, motivoLancamentoFechadoOuAusente, provaJaPassou, proximaEpocaPendente, rotuloEstado, toneEstado, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
+import { calcularNotaFinal, epocasVisiveis, motivoAgendamentoInvalido, motivoLancamentoFechado, motivoLancamentoFechadoOuAusente, provaJaPassou, proximaEpocaPendente, rotuloEpoca, rotuloEstado, toneEstado, EPOCA_PARA_CHAVE_NOTAS, type NotasCadeira, type RegrasCadeira } from "./avaliacao";
 
-const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
+const REGRAS_PADRAO: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14, eMonografia: false };
 const SEM_NOTAS: NotasCadeira = { p1: null, p2: null, exame: null, recurso: null, exameEspecial: null };
 
 test("sem P1 ou P2 fica EM_CURSO", () => {
@@ -69,14 +69,85 @@ test("recurso < 10 vai para exame especial; exame especial conta isolado", () =>
 });
 
 test("permiteDispensa=false força sempre exame, mesmo com média alta", () => {
-  const regras: RegrasCadeira = { permiteDispensa: false, notaMinimaDispensa: 14 };
+  const regras: RegrasCadeira = { permiteDispensa: false, notaMinimaDispensa: 14, eMonografia: false };
   const r = calcularNotaFinal({ ...SEM_NOTAS, p1: 20, p2: 20 }, regras);
   assert.equal(r.estado, "ADMITIDO_A_EXAME", "média 20 não dispensa se a cadeira não permite dispensa");
 });
 
+// --- Monografia (§pedido do cliente 2026-09-04) ---------------------------------------------
+// A nota da defesa vive na epoca EXAME (ver o schema); o que estes testes garantem e que a
+// monografia NAO passa pela cascata: a nota entra e sai tal e qual, sem media nenhuma.
+
+const REGRAS_MONOGRAFIA: RegrasCadeira = { permiteDispensa: false, notaMinimaDispensa: 14, eMonografia: true };
+
+test("monografia: a nota da defesa e a nota final, sem media — 15 da 15", () => {
+  // A pergunta do cliente: "como e que o backend sabe que a nota vai ser 15, se o sistema faz
+  // calculo geral das notas?". A resposta e este teste.
+  const r = calcularNotaFinal({ ...SEM_NOTAS, exame: 15 }, REGRAS_MONOGRAFIA);
+  assert.equal(r.notaFinal, 15, "sem (P1+P2)/2 nem (frequencia+exame)/2 pelo meio");
+  assert.equal(r.estado, "APROVADO");
+  assert.equal(r.aprovado, true);
+});
+
+test("monografia: sem nota de frequencia — nao ha P1/P2 de onde a tirar", () => {
+  const r = calcularNotaFinal({ ...SEM_NOTAS, exame: 15 }, REGRAS_MONOGRAFIA);
+  assert.equal(r.notaFrequencia, null, "mostrar uma media aqui seria inventar");
+});
+
+test("monografia: negativa fecha REPROVADO — uma so chance, sem recurso", () => {
+  const r = calcularNotaFinal({ ...SEM_NOTAS, exame: 9 }, REGRAS_MONOGRAFIA);
+  assert.equal(r.estado, "REPROVADO", "nao vai a EM_RECURSO como uma cadeira normal iria");
+  assert.equal(r.notaFinal, 9);
+  assert.equal(r.aprovado, false);
+});
+
+test("monografia: 10 aprova (fronteira)", () => {
+  assert.equal(calcularNotaFinal({ ...SEM_NOTAS, exame: 10 }, REGRAS_MONOGRAFIA).estado, "APROVADO");
+  assert.equal(calcularNotaFinal({ ...SEM_NOTAS, exame: 9.9 }, REGRAS_MONOGRAFIA).estado, "REPROVADO");
+});
+
+test("monografia: sem nota lancada fica EM_DEFESA, nao EM_CURSO", () => {
+  // EM_CURSO significaria "faltam-lhe provas" e o fecho de semestre tentaria dar-lhe 0 no P2.
+  const r = calcularNotaFinal(SEM_NOTAS, REGRAS_MONOGRAFIA);
+  assert.equal(r.estado, "EM_DEFESA");
+  assert.equal(r.notaFinal, null);
+  assert.equal(r.aprovado, null);
+});
+
+test("monografia: P1/P2 lancados por engano sao orfas, nao entram na conta", () => {
+  const r = calcularNotaFinal({ ...SEM_NOTAS, p1: 20, p2: 20, exame: 12 }, REGRAS_MONOGRAFIA);
+  assert.equal(r.notaFinal, 12, "os 20 nao sobem a nota da defesa");
+  assert.deepEqual(r.epocasOrfas.sort(), ["P1", "P2"], "sao lixo a apagar, como em qualquer cadeira");
+});
+
+test("monografia: so a epoca da defesa e visivel", () => {
+  assert.deepEqual(epocasVisiveis(SEM_NOTAS, "EM_DEFESA", true), ["EXAME"]);
+  assert.deepEqual(epocasVisiveis({ ...SEM_NOTAS, exame: 15 }, "APROVADO", true), ["EXAME"]);
+});
+
+test("monografia: EM_DEFESA num semestre fechado le-se 'Por concluir'", () => {
+  assert.equal(rotuloEstado("EM_DEFESA", false), "Por defender");
+  assert.equal(rotuloEstado("EM_DEFESA", true), "Por concluir");
+  assert.equal(toneEstado("EM_DEFESA", true), "danger");
+});
+
+test("monografia: a cascata normal nao regride — eMonografia:false continua igual", () => {
+  // A rede de seguranca da mudanca: uma cadeira normal com nota no exame continua a fazer a media.
+  const r = calcularNotaFinal({ ...SEM_NOTAS, p1: 10, p2: 10, exame: 14 }, REGRAS_PADRAO);
+  assert.equal(r.notaFrequencia, 10);
+  assert.equal(r.notaFinal, 12, "(10+14)/2 — a media continua a ser feita");
+  assert.equal(r.estado, "APROVADO");
+});
+
+test("rotuloEpoca: 'Defesa' so numa monografia; nas outras cadeiras continua 'Exame'", () => {
+  assert.equal(rotuloEpoca("EXAME", true), "Defesa");
+  assert.equal(rotuloEpoca("EXAME", false), "Exame");
+  assert.equal(rotuloEpoca("P1", true), "1ª Prova (P1)", "so a epoca da defesa muda de nome");
+});
+
 test("congelamento: o resultado usa as regras passadas, não relê nada — mudar a cadeira depois não altera um cálculo já feito", () => {
   const notas: NotasCadeira = { ...SEM_NOTAS, p1: 15, p2: 15 };
-  const regrasNoMomentoDaInscricao: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14 };
+  const regrasNoMomentoDaInscricao: RegrasCadeira = { permiteDispensa: true, notaMinimaDispensa: 14, eMonografia: false };
   const resultadoOriginal = calcularNotaFinal(notas, regrasNoMomentoDaInscricao);
   assert.equal(resultadoOriginal.estado, "DISPENSADO");
 

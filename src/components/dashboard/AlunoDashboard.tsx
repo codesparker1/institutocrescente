@@ -61,6 +61,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     const resultado = calcularNotaFinal(notasCadeira, {
       permiteDispensa: i.permiteDispensaAplicada,
       notaMinimaDispensa: Number(i.notaMinimaDispensaAplicada),
+      eMonografia: i.eMonografiaAplicada,
     });
     return { inscricao: i, notasCadeira, resultado };
   });

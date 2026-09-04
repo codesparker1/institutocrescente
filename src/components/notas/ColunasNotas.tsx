@@ -14,6 +14,7 @@ export const ESTADO_TONE: Record<EstadoAvaliacao, "success" | "warning" | "dange
   ADMITIDO_A_EXAME: "warning",
   EM_RECURSO: "warning",
   EM_EXAME_ESPECIAL: "warning",
+  EM_DEFESA: "warning",
   APROVADO: "success",
   REPROVADO: "danger",
 };

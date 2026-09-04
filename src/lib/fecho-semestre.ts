@@ -39,6 +39,7 @@ export async function fecharSemestre(anoLetivo: number, semestre: number): Promi
           id: true,
           permiteDispensaAplicada: true,
           notaMinimaDispensaAplicada: true,
+          eMonografiaAplicada: true,
           notas: { select: { valor: true, avaliacao: { select: { epoca: true } } } },
         },
       },
@@ -51,6 +52,11 @@ export async function fecharSemestre(anoLetivo: number, semestre: number): Promi
     const avaliacaoPorEpoca = new Map(turmaDisciplina.avaliacoes.map((a) => [a.epoca, a]));
 
     for (const inscricao of turmaDisciplina.inscricoes) {
+      // A monografia NUNCA leva 0 por falta (§decisão do cliente 2026-09-04). Tem uma só chance:
+      // um 0 automático reprovaria o finalista sem ele chegar a defender, e não há recurso que o
+      // salve. Fica "Por defender" até o DAAC lançar a nota da defesa.
+      if (inscricao.eMonografiaAplicada) continue;
+
       let notasCadeira: NotasCadeira = extrairNotasPorEpoca(
         inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao })),
       );
@@ -61,6 +67,7 @@ export async function fecharSemestre(anoLetivo: number, semestre: number): Promi
         const resultado = calcularNotaFinal(notasCadeira, {
           permiteDispensa: inscricao.permiteDispensaAplicada,
           notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+          eMonografia: false, // as monografias já saíram no `continue` acima
         });
         const proxima: Epoca | null = proximaEpocaPendente(notasCadeira, resultado.estado);
         if (!proxima) break;
@@ -104,6 +111,7 @@ export async function contarFechoSemestre(
         select: {
           permiteDispensaAplicada: true,
           notaMinimaDispensaAplicada: true,
+          eMonografiaAplicada: true,
           notas: { select: { valor: true, avaliacao: { select: { epoca: true } } } },
         },
       },
@@ -115,12 +123,17 @@ export async function contarFechoSemestre(
   for (const turmaDisciplina of turmaDisciplinas) {
     const epocasAgendadas = new Set(turmaDisciplina.avaliacoes.map((a) => a.epoca));
     for (const inscricao of turmaDisciplina.inscricoes) {
+      // Mesma exclusão de fecharSemestre: a monografia não fecha a 0, logo não entra na contagem
+      // do aviso. Contá-la aqui prometeria um fecho que não vai acontecer.
+      if (inscricao.eMonografiaAplicada) continue;
+
       const notasCadeira = extrairNotasPorEpoca(
         inscricao.notas.map((n) => ({ valor: Number(n.valor), avaliacao: n.avaliacao })),
       );
       const resultado = calcularNotaFinal(notasCadeira, {
         permiteDispensa: inscricao.permiteDispensaAplicada,
         notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+        eMonografia: false, // idem
       });
       const proxima = proximaEpocaPendente(notasCadeira, resultado.estado);
       if (!proxima) continue;

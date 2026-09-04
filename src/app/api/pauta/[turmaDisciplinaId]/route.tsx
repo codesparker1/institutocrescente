@@ -52,6 +52,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
     const resultado = calcularNotaFinal(extrairNotasPorEpoca(notas), {
       permiteDispensa: inscricao.permiteDispensaAplicada,
       notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
+      eMonografia: inscricao.eMonografiaAplicada,
     });
     const notasPorEpoca: Partial<Record<Epoca, number>> = {};
     for (const nota of inscricao.notas) {
