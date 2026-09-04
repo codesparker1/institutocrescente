@@ -191,6 +191,25 @@ async function main() {
     cadeirasCurricularesPorChave.set(chave, cadeira.id);
   }
 
+  // A monografia do último ano (§pedido do cliente 2026-09-04) — nota única na defesa, lançada só
+  // pelo DAAC. Fica no plano sem turma associada: as turmas do seed vão até ao 3º ano, e a de 4º
+  // nasce quando o DAAC a criar. Existir aqui é o que permite ver o mecanismo em Plano Curricular
+  // sem ter de o configurar à mão.
+  const disciplinaMonografia = await prisma.disciplina.create({
+    data: { nome: "Monografia", codigo: "ENG-MONO", cargaHoraria: 120, cursoId: cursoEngInf.id },
+  });
+  await prisma.cadeiraCurricular.create({
+    data: {
+      cursoId: cursoEngInf.id,
+      disciplinaId: disciplinaMonografia.id,
+      anoCurricular: 4,
+      semestre: 1,
+      eMonografia: true,
+      // Sem dispensa: não há P1/P2 de onde sair uma média que dispense.
+      permiteDispensa: false,
+    },
+  });
+
   const turmaDisciplinas = [];
   for (const td of turmaDisciplinasData) {
     const chave = `${td.turma.cursoId}:${td.disciplina.id}:${td.turma.anoCurricular}:${td.semestre}`;

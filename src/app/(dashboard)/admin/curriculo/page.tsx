@@ -139,6 +139,13 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                             de {cadeira.disciplina.curso.nome}
                           </span>
                         ) : null}
+                        {/* A monografia comporta-se de forma diferente de todas as outras cadeiras
+                            (nota única, só o DAAC lança) — tem de se ver na lista qual é. */}
+                        {cadeira.eMonografia ? (
+                          <span className="ml-2 rounded bg-gold-100 px-1.5 py-0.5 text-xs font-normal text-gold-800">
+                            Monografia
+                          </span>
+                        ) : null}
                       </Td>
                       <Td>{cadeira.anoCurricular}º Ano</Td>
                       <Td>{cadeira.semestre}º Semestre</Td>

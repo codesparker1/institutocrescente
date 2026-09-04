@@ -15,9 +15,14 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   simulationMode: boolean;
+  /**
+   * Aluno inscrito numa monografia (§2026-09-04) — só a esses se mostra "Meu Orientador". Mostrar
+   * o item a um aluno de 1º ano seria oferecer uma página que só lhe pode dizer "ainda não tem".
+   */
+  temMonografia?: boolean;
 }
 
-export function Sidebar({ role, isOpen, onClose, simulationMode }: SidebarProps) {
+export function Sidebar({ role, isOpen, onClose, simulationMode, temMonografia = false }: SidebarProps) {
   const pathname = usePathname();
 
   useEffect(() => {
@@ -42,7 +47,7 @@ export function Sidebar({ role, isOpen, onClose, simulationMode }: SidebarProps)
           {role === "ADMIN" ? <AdminNav /> : null}
           {role === "SECRETARIA" ? <SecretariaNav /> : null}
           {role === "PROFESSOR" ? <ProfessorNav /> : null}
-          {role === "ALUNO" ? <AlunoNav /> : null}
+          {role === "ALUNO" ? <AlunoNav temMonografia={temMonografia} /> : null}
           {role === "DAAC" ? <DaacNav /> : null}
           {role === "DEV" ? <DevNav simulationMode={simulationMode} /> : null}
         </nav>
@@ -65,6 +70,7 @@ function AdminNav() {
           { href: "/admin/academico/configuracao", label: "Configuração Académica" },
           { href: "/admin/cursos", label: "Cursos" },
           { href: "/admin/disciplinas", label: "Disciplinas" },
+          { href: "/admin/finalistas", label: "Finalistas" },
           { href: "/admin/curriculo", label: "Plano Curricular" },
           { href: "/admin/turmas", label: "Turmas" },
           { href: "/admin/emolumentos", label: "Emolumentos" },
@@ -120,6 +126,9 @@ function ProfessorNav() {
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
       <NavItem href="/professor" label="Minhas Disciplinas" icon={<GraduationCap size={18} />} />
       <NavItem href="/horario" label="Meu Horário" icon={<CalendarClock size={18} />} />
+      {/* Sempre visível, ao contrário de "Meu Orientador" no aluno: qualquer professor pode vir a
+          ser orientador, e a página explica-se sozinha quando ainda não tem orientandos. */}
+      <NavItem href="/professor/orientandos" label="Meus Orientandos" icon={<Users size={18} />} />
       <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
     </>
   );
@@ -140,6 +149,7 @@ function DaacNav() {
           { href: "/admin/academico/configuracao", label: "Configuração Académica" },
           { href: "/admin/cursos", label: "Cursos" },
           { href: "/admin/disciplinas", label: "Disciplinas" },
+          { href: "/admin/finalistas", label: "Finalistas" },
           { href: "/admin/curriculo", label: "Plano Curricular" },
           { href: "/admin/turmas", label: "Turmas" },
           { href: "/admin/emolumentos", label: "Emolumentos" },
@@ -166,11 +176,15 @@ function DevNav({ simulationMode }: { simulationMode: boolean }) {
   );
 }
 
-function AlunoNav() {
+function AlunoNav({ temMonografia }: { temMonografia: boolean }) {
   return (
     <>
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
       <NavItem href="/horario" label="Meu Horário" icon={<CalendarClock size={18} />} />
+      {/* Só a finalistas — ver a nota em SidebarProps.temMonografia. */}
+      {temMonografia ? (
+        <NavItem href="/meu-orientador" label="Meu Orientador" icon={<Users size={18} />} />
+      ) : null}
       <NavItem href="/minhas-notas" label="Minhas Notas" icon={<ClipboardList size={18} />} />
       <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
       <NavGroup

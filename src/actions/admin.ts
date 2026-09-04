@@ -237,6 +237,9 @@ const CadeiraCurricularSchema = z.object({
   disciplinaId: z.string().min(1, "Disciplina é obrigatória"),
   anoCurricular: z.coerce.number("Indique o ano").int().min(1, "Mínimo 1º ano").max(8, "Máximo 8º ano"),
   semestre: z.coerce.number("Indique o semestre").int().min(1, "Semestre inválido").max(2, "Semestre inválido"),
+  // Select e não checkbox: mesma armadilha do z.coerce.boolean() documentada em RegrasDispensaSchema
+  // — a string "false" também é truthy.
+  eMonografia: z.enum(["true", "false"]).transform((v) => v === "true"),
 });
 
 const RegrasDispensaSchema = z.object({
@@ -246,7 +249,7 @@ const RegrasDispensaSchema = z.object({
   notaMinimaDispensa: z.coerce.number().min(0, "Nota entre 0 e 20").max(20, "Nota entre 0 e 20"),
 });
 
-const CAMPOS_CADEIRA_CURRICULAR = ["cursoId", "disciplinaId", "anoCurricular", "semestre"] as const;
+const CAMPOS_CADEIRA_CURRICULAR = ["cursoId", "disciplinaId", "anoCurricular", "semestre", "eMonografia"] as const;
 export type CreateCadeiraCurricularState = FormState<Record<(typeof CAMPOS_CADEIRA_CURRICULAR)[number], string>>;
 
 export async function createCadeiraCurricularAction(
@@ -259,6 +262,7 @@ export async function createCadeiraCurricularAction(
     disciplinaId: formData.get("disciplinaId"),
     anoCurricular: formData.get("anoCurricular"),
     semestre: formData.get("semestre"),
+    eMonografia: formData.get("eMonografia"),
   });
   if (!parsed.success) return erroDeValidacao(parsed.error, formData, CAMPOS_CADEIRA_CURRICULAR);
 
@@ -748,6 +752,85 @@ export async function atualizarProfessorTurmaDisciplinaAction(
   );
 
   revalidatePath(`/admin/turmas/${antes.turmaId}`);
+  return {};
+}
+
+const OrientadorSchema = z.object({
+  inscricaoId: z.string().min(1),
+  // "" = retirar o orientador. Um seletor sem esta opção obrigaria a apagar e recriar a inscrição
+  // para corrigir um engano.
+  orientadorId: z.string(),
+});
+
+/**
+ * Atribui (ou retira) o orientador de uma monografia — §pedido do cliente 2026-09-04.
+ *
+ * O limite por professor (ConfiguracaoAcademica.limiteOrientandosPorProfessor, 0 = sem limite) é
+ * validado aqui e não por constraint: o DAAC precisa de saber QUEM está cheio e com quantos, não
+ * de um erro de base de dados. Contam-se só as inscrições ATIVAS — uma monografia de um ano
+ * anterior, já fechada, não ocupa lugar este ano.
+ */
+export async function atribuirOrientadorAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = OrientadorSchema.safeParse({
+    inscricaoId: formData.get("inscricaoId"),
+    orientadorId: formData.get("orientadorId"),
+  });
+  if (!parsed.success) return { error: "Dados inválidos." };
+  const novoOrientadorId = parsed.data.orientadorId || null;
+
+  const antes = await prisma.inscricaoCadeira.findUnique({
+    where: { id: parsed.data.inscricaoId },
+    include: { aluno: { select: { nome: true } }, orientador: { select: { nome: true } } },
+  });
+  if (!antes) return { error: "Inscrição não encontrada." };
+  if (!antes.eMonografiaAplicada) return { error: "Esta cadeira não é uma monografia — não tem orientador." };
+  if (antes.orientadorId === novoOrientadorId) return {};
+
+  let nomeNovo: string | null = null;
+  if (novoOrientadorId) {
+    const [professor, config, jaOrienta] = await Promise.all([
+      prisma.professor.findUnique({ where: { id: novoOrientadorId }, select: { nome: true } }),
+      prisma.configuracaoAcademica.findUnique({
+        where: { id: "config" },
+        select: { limiteOrientandosPorProfessor: true },
+      }),
+      prisma.inscricaoCadeira.count({ where: { orientadorId: novoOrientadorId, ativa: true } }),
+    ]);
+    if (!professor) return { error: "Professor não encontrado." };
+    nomeNovo = professor.nome;
+
+    const limite = config?.limiteOrientandosPorProfessor ?? 5;
+    if (limite > 0 && jaOrienta >= limite) {
+      return {
+        error: `${professor.nome} já orienta ${jaOrienta} monografia(s), o máximo configurado. Escolha outro professor, ou suba o limite em Configuração Académica.`,
+      };
+    }
+  }
+
+  await prisma.inscricaoCadeira.update({
+    where: { id: parsed.data.inscricaoId },
+    data: { orientadorId: novoOrientadorId },
+  });
+
+  await audit(
+    session,
+    novoOrientadorId
+      ? `${antes.orientador ? "Trocou" : "Atribuiu"} o orientador da monografia de ${antes.aluno.nome}`
+      : `Retirou o orientador da monografia de ${antes.aluno.nome}`,
+    "InscricaoCadeira",
+    antes.id,
+    { valorAnterior: antes.orientador?.nome ?? "Sem orientador", valorNovo: nomeNovo ?? "Sem orientador" },
+  );
+
+  revalidatePath("/admin/finalistas");
+  // O aluno e o professor veem a mudança nas suas próprias páginas — sem isto, só no próximo
+  // pedido não-cache.
+  revalidatePath("/meu-orientador");
+  revalidatePath("/professor/orientandos");
   return {};
 }
 

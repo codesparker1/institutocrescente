@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { prisma } from "@/lib/prisma";
 import { garantirCobrancasGeradas } from "@/lib/financeiro";
 import { garantirSuspensaoAutomatica, garantirTurmasSincronizadasComPlano } from "@/lib/curriculo";
 import { SIMULATION_MODE, getAgora } from "@/lib/tempo";
@@ -44,12 +45,23 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // Depois do rollover, para as turmas que ele acabou de criar entrarem já sincronizadas.
   await medirJobGarantir("garantirTurmasSincronizadasComPlano", () => garantirTurmasSincronizadasComPlano());
 
+  // "Meu Orientador" só aparece a quem tem monografia (§2026-09-04). A query corre só para alunos:
+  // os outros papéis não têm o item no menu de qualquer forma, e não vale a pena cobrar-lhes uma
+  // ida à base em cada navegação.
+  const temMonografia =
+    session.user.role === "ALUNO" && session.user.alunoId
+      ? (await prisma.inscricaoCadeira.count({
+          where: { alunoId: session.user.alunoId, eMonografiaAplicada: true },
+        })) > 0
+      : false;
+
   return (
     <DashboardShell
       role={session.user.role}
       name={session.user.name ?? session.user.email ?? "Utilizador"}
       dataSistema={agora}
       simulationMode={SIMULATION_MODE}
+      temMonografia={temMonografia}
     >
       {children}
     </DashboardShell>

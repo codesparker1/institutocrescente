@@ -39,7 +39,7 @@ export function CreateCadeiraCurricularForm({ cursoId, disciplinas, duracaoAnos 
     <form
       key={JSON.stringify(state.values ?? {})}
       action={formAction}
-      className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end"
     >
       <input type="hidden" name="cursoId" value={cursoId} />
       <Field label="Disciplina" htmlFor="cc-disciplina" error={state.fieldErrors?.disciplinaId}>
@@ -75,7 +75,15 @@ export function CreateCadeiraCurricularForm({ cursoId, disciplinas, duracaoAnos 
           <option value="2">2º Semestre</option>
         </Select>
       </Field>
-      {state.error ? <p className="sm:col-span-4 text-sm text-red-600">{state.error}</p> : null}
+      {/* Select e não checkbox, como em EditarRegrasCadeiraCurricular: a caixa não marcada não é
+          enviada no FormData, e o valor ficaria indistinguível de "campo em falta". */}
+      <Field label="Tipo" htmlFor="cc-monografia" error={state.fieldErrors?.eMonografia}>
+        <Select id="cc-monografia" name="eMonografia" required defaultValue={state.values?.eMonografia ?? "false"}>
+          <option value="false">Cadeira normal</option>
+          <option value="true">Monografia (defesa)</option>
+        </Select>
+      </Field>
+      {state.error ? <p className="sm:col-span-5 text-sm text-red-600">{state.error}</p> : null}
       <Button type="submit" disabled={isPending}>
         {isPending ? "A adicionar..." : "Adicionar ao plano"}
       </Button>
