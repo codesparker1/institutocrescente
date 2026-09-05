@@ -288,8 +288,13 @@ export async function createCadeiraCurricularAction(
     };
   }
 
+  // A monografia dura o ano inteiro — o semestre gravado é arbitrário e nunca deve ser 2, mesmo
+  // que o cliente (ou um hidden input adulterado) mande outra coisa. O formulário já não pergunta,
+  // isto é a barreira que conta.
+  const dados = parsed.data.eMonografia ? { ...parsed.data, semestre: 1 } : parsed.data;
+
   try {
-    const cadeira = await prisma.cadeiraCurricular.create({ data: parsed.data, include: { disciplina: true } });
+    const cadeira = await prisma.cadeiraCurricular.create({ data: dados, include: { disciplina: true } });
 
     // A turma nasce com as disciplinas do plano, mas o plano também muda depois de a turma existir
     // — sem isto, uma disciplina acrescentada a meio do ano nunca chegava às turmas já criadas.

@@ -37,7 +37,13 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   // aulas" contavam as do 1º e do 2º semestre juntas, mostrando por exemplo "2 disciplinas ativas"
   // durante o 1º semestre quando só uma estava mesmo a decorrer.
   const inscricoes = await prisma.inscricaoCadeira.findMany({
-    where: { alunoId, ativa: true, turmaDisciplina: { semestre: semestreAtual } },
+    where: {
+      alunoId,
+      ativa: true,
+      // A monografia dura o ano inteiro (§pedido do cliente 2026-09-05) — não some do painel do
+      // finalista só porque o semestre corrente não é o que ficou gravado na cadeira (arbitrário).
+      turmaDisciplina: { OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }] },
+    },
     include: {
       turmaDisciplina: {
         include: {

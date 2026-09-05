@@ -37,7 +37,10 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
     include: {
       curso: true,
       turmaDisciplinas: {
-        where: { semestre },
+        // A monografia sai daqui — dura o ano inteiro, não pertence a este semestre mesmo que o
+        // valor gravado (arbitrário, sempre 1) coincida. Tem a sua própria secção, sempre visível
+        // (query separada abaixo, turmaDisciplinasMonografia).
+        where: { semestre, cadeiraCurricular: { eMonografia: false } },
         include: { disciplina: true, professor: true, _count: { select: { avaliacoes: true, horarioSlots: true } } },
         orderBy: { disciplina: { nome: "asc" } },
       },
@@ -46,25 +49,49 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
 
   if (!turma) notFound();
 
-  const [professores, cadeirasCurriculares, cadeirasJaAtribuidas, semProfessorNoOutroSemestre] = await Promise.all([
+  const [
+    professores,
+    cadeirasCurriculares,
+    cadeirasMonografia,
+    cadeirasJaAtribuidas,
+    semProfessorNoOutroSemestre,
+    turmaDisciplinasMonografia,
+  ] = await Promise.all([
     prisma.professor.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     // select: CreateTurmaDisciplinaForm (Client Component) só precisa de id/semestre/disciplina.nome
     // — CadeiraCurricular.notaMinimaDispensa é Decimal, ver nota em admin/disciplinas/page.tsx.
     prisma.cadeiraCurricular.findMany({
-      where: { cursoId: turma.cursoId, anoCurricular: turma.anoCurricular, semestre },
-      select: { id: true, semestre: true, disciplina: { select: { nome: true } } },
+      where: { cursoId: turma.cursoId, anoCurricular: turma.anoCurricular, semestre, eMonografia: false },
+      select: { id: true, semestre: true, eMonografia: true, disciplina: { select: { nome: true } } },
+      orderBy: { disciplina: { nome: "asc" } },
+    }),
+    // Sem filtro de semestre: a monografia oferece-se sempre, na secção própria.
+    prisma.cadeiraCurricular.findMany({
+      where: { cursoId: turma.cursoId, anoCurricular: turma.anoCurricular, eMonografia: true },
+      select: { id: true, semestre: true, eMonografia: true, disciplina: { select: { nome: true } } },
       orderBy: { disciplina: { nome: "asc" } },
     }),
     // Todos os semestres: uma cadeira já atribuída não pode reaparecer como disponível só porque a
     // vista está filtrada.
     prisma.turmaDisciplina.findMany({ where: { turmaId: id }, select: { cadeiraCurricularId: true } }),
     // O aviso que impede o esquecimento: se o outro semestre tem cadeiras sem professor, dizemo-lo
-    // aqui em vez de esperar que alguém se lembre de lá ir.
-    prisma.turmaDisciplina.count({ where: { turmaId: id, semestre: semestre === 1 ? 2 : 1, professorId: null } }),
+    // aqui em vez de esperar que alguém se lembre de lá ir. Exclui a monografia — não é "do outro
+    // semestre", é a secção à parte, que já tem o seu próprio aviso.
+    prisma.turmaDisciplina.count({
+      where: { turmaId: id, semestre: semestre === 1 ? 2 : 1, professorId: null, cadeiraCurricular: { eMonografia: false } },
+    }),
+    // A monografia desta turma, sempre — nunca filtrada por semestre (§pedido do cliente 2026-09-05).
+    prisma.turmaDisciplina.findMany({
+      where: { turmaId: id, cadeiraCurricular: { eMonografia: true } },
+      include: { disciplina: true, professor: true, _count: { select: { avaliacoes: true, horarioSlots: true } } },
+      orderBy: { disciplina: { nome: "asc" } },
+    }),
   ]);
   const cadeirasAtribuidas = new Set(cadeirasJaAtribuidas.map((td) => td.cadeiraCurricularId));
   const cadeirasDisponiveis = cadeirasCurriculares.filter((c) => !cadeirasAtribuidas.has(c.id));
+  const cadeirasMonografiaDisponiveis = cadeirasMonografia.filter((c) => !cadeirasAtribuidas.has(c.id));
   const outroSemestre = semestre === 1 ? 2 : 1;
+  const semProfessorNaMonografia = turmaDisciplinasMonografia.filter((td) => !td.professorId).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -179,6 +206,71 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
           </p>
         </CardBody>
       </Card>
+
+      {/* Sempre visível, fora das abas de semestre acima (§pedido do cliente 2026-09-05): a
+          monografia dura o ano inteiro, e prendê-la a uma aba fazia-a desaparecer sempre que o
+          semestre corrente não coincidisse com o gravado (arbitrário) na CadeiraCurricular dela. */}
+      {cadeirasMonografiaDisponiveis.length > 0 || turmaDisciplinasMonografia.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Monografia — ano inteiro"
+            subtitle="Não pertence a nenhum semestre. Atribua o orientador em Finalistas, depois de criada aqui."
+          />
+          <CardBody className="flex flex-col gap-4">
+            {semProfessorNaMonografia > 0 ? (
+              <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-2.5 text-xs text-gold-800">
+                A monografia tem {semProfessorNaMonografia} disciplina(s) sem professor atribuído — sem professor,
+                ninguém marca presenças.
+              </p>
+            ) : null}
+
+            {cadeirasMonografiaDisponiveis.length > 0 ? (
+              <CreateTurmaDisciplinaForm
+                turmaId={turma.id}
+                cadeirasCurriculares={cadeirasMonografiaDisponiveis}
+                professores={professores}
+              />
+            ) : null}
+
+            {turmaDisciplinasMonografia.length === 0 ? (
+              <EmptyState message="Nenhuma monografia atribuída ainda a esta turma." />
+            ) : (
+              <Table>
+                <Thead>
+                  <tr>
+                    <Th>Disciplina</Th>
+                    <Th>Professor</Th>
+                    <Th>Sala</Th>
+                    <Th>Horários</Th>
+                    <Th>Provas</Th>
+                    <Th></Th>
+                  </tr>
+                </Thead>
+                <Tbody>
+                  {turmaDisciplinasMonografia.map((td) => (
+                    <Tr key={td.id}>
+                      <Td className="font-medium text-texto">{td.disciplina.nome}</Td>
+                      <Td>
+                        <EditarProfessorTurmaDisciplina
+                          turmaDisciplinaId={td.id}
+                          professorAtualId={td.professorId}
+                          professores={professores}
+                        />
+                      </Td>
+                      <Td>{td.sala}</Td>
+                      <Td>{td._count.horarioSlots}</Td>
+                      <Td>{td._count.avaliacoes}</Td>
+                      <Td className="text-right">
+                        <DeleteButtonForm action={deleteTurmaDisciplinaAction} id={td.id} />
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
     </div>
   );
 }

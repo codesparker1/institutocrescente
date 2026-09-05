@@ -43,7 +43,10 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
     include: {
       curso: true,
       turmaDisciplinas: {
-        where: { semestre, ...(professorId ? { professorId } : {}) },
+        // A monografia sai daqui — dura o ano inteiro, não pertence a este semestre mesmo que o
+        // valor gravado (arbitrário, sempre 1) coincida. Sai numa secção à parte, sempre visível
+        // (§pedido do cliente 2026-09-05).
+        where: { semestre, cadeiraCurricular: { eMonografia: false }, ...(professorId ? { professorId } : {}) },
         include: { disciplina: true, professor: true, _count: { select: { avaliacoes: true } } },
         orderBy: { disciplina: { nome: "asc" } },
       },
@@ -59,6 +62,14 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
     ? await prisma.turmaDisciplina.count({ where: { turmaId, professorId } })
     : 0;
   if (professorId && disciplinasDoProfessorNaTurma === 0) notFound();
+
+  // Sempre visível, independente do semestre acima. Vazia (não null) quando não há monografia
+  // desta turma, ou quando o professor não lhe está atribuído.
+  const turmaDisciplinasMonografia = await prisma.turmaDisciplina.findMany({
+    where: { turmaId, cadeiraCurricular: { eMonografia: true }, ...(professorId ? { professorId } : {}) },
+    include: { disciplina: true, professor: true, _count: { select: { avaliacoes: true } } },
+    orderBy: { disciplina: { nome: "asc" } },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -122,6 +133,36 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
           </Table>
         )}
       </Card>
+
+      {/* Sempre visível, fora da aba de semestre acima (§pedido do cliente 2026-09-05): a
+          monografia dura o ano inteiro. Não aparece a um professor sem atribuição nela. */}
+      {turmaDisciplinasMonografia.length > 0 ? (
+        <Card>
+          <CardHeader title="Monografia — ano inteiro" subtitle={`${turmaDisciplinasMonografia.length} disciplina(s)`} />
+          <Table>
+            <Thead>
+              <tr>
+                <Th>Disciplina</Th>
+                <Th>Professor</Th>
+                <Th>Avaliações</Th>
+              </tr>
+            </Thead>
+            <Tbody>
+              {turmaDisciplinasMonografia.map((td) => (
+                <Tr key={td.id}>
+                  <Td>
+                    <Link href={`/notas/${turma.id}/${td.id}`} className="font-medium text-texto hover:text-navy-600">
+                      {td.disciplina.nome}
+                    </Link>
+                  </Td>
+                  <Td className={td.professor ? undefined : "text-texto-suave italic"}>{nomeProfessor(td.professor)}</Td>
+                  <Td>{td._count.avaliacoes}</Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Card>
+      ) : null}
     </div>
   );
 }

@@ -203,6 +203,8 @@ async function main() {
       cursoId: cursoEngInf.id,
       disciplinaId: disciplinaMonografia.id,
       anoCurricular: 4,
+      // Arbitrário e sem significado numa monografia (§2026-09-05): ela dura o ano inteiro e as
+      // listagens ignoram este valor — ver createCadeiraCurricularAction, que o força a 1.
       semestre: 1,
       eMonografia: true,
       // Sem dispensa: não há P1/P2 de onde sair uma média que dispense.

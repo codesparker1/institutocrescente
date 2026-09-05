@@ -148,7 +148,9 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                         ) : null}
                       </Td>
                       <Td>{cadeira.anoCurricular}º Ano</Td>
-                      <Td>{cadeira.semestre}º Semestre</Td>
+                      {/* O valor gravado (sempre 1) não tem significado para a monografia — ver
+                          CreateCadeiraCurricularAction. Mostrá-lo enganaria quem lê a lista. */}
+                      <Td>{cadeira.eMonografia ? "Ano inteiro" : `${cadeira.semestre}º Semestre`}</Td>
                       <Td>{cadeira._count.turmaDisciplinas}</Td>
                       <Td>
                         <EditarRegrasCadeiraCurricular

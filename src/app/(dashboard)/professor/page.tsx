@@ -36,7 +36,14 @@ export default async function ProfessorDisciplinasPage() {
     where:
       anoLetivo === null
         ? { id: "" } // sem ano letivo a decorrer não há trabalho do dia a dia — explicado no ecrã
-        : { professorId: session.user.professorId, turma: { anoLetivo }, semestre: semestreAtual },
+        : {
+            professorId: session.user.professorId,
+            turma: { anoLetivo },
+            // A monografia dura o ano inteiro (§pedido do cliente 2026-09-05) — não fica escondida
+            // quando o semestre corrente não coincide com o que ficou gravado na CadeiraCurricular
+            // dela (sempre 1, arbitrário, ver createCadeiraCurricularAction).
+            OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }],
+          },
     include: { disciplina: true, turma: { include: { curso: true } }, _count: { select: { inscricoes: { where: { ativa: true } } } } },
     orderBy: [{ turma: { anoCurricular: "asc" } }, { disciplina: { nome: "asc" } }],
   });

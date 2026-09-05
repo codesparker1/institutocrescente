@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Field } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -29,6 +29,11 @@ interface CreateCadeiraCurricularFormProps {
 export function CreateCadeiraCurricularForm({ cursoId, disciplinas, duracaoAnos }: CreateCadeiraCurricularFormProps) {
   const [state, formAction, isPending] = useActionState(createCadeiraCurricularAction, initialState);
   const anosDisponiveis = Array.from({ length: duracaoAnos }, (_, i) => i + 1);
+  // §pedido do cliente 2026-09-05: a monografia dura o ano inteiro, não "pertence" a um semestre —
+  // por isso não faz sentido perguntar qual. A Server Action força semestre=1 quando eMonografia,
+  // de qualquer forma (nunca confia só neste hidden input); aqui é só para não mostrar uma pergunta
+  // sem resposta certa.
+  const [eMonografia, setEMonografia] = useState(state.values?.eMonografia === "true");
 
   // As do próprio curso primeiro: são o caso normal, e enterrá-las no meio das dos outros cursos
   // tornaria mais lento o que se faz todos os dias para facilitar o que se faz de vez em quando.
@@ -69,16 +74,31 @@ export function CreateCadeiraCurricularForm({ cursoId, disciplinas, duracaoAnos 
           ))}
         </Select>
       </Field>
-      <Field label="Semestre" htmlFor="cc-semestre" error={state.fieldErrors?.semestre}>
-        <Select id="cc-semestre" name="semestre" required defaultValue={state.values?.semestre ?? "1"}>
-          <option value="1">1º Semestre</option>
-          <option value="2">2º Semestre</option>
-        </Select>
-      </Field>
+      {eMonografia ? (
+        // Sem seletor de semestre: o valor seria arbitrário, e mostrar um choice que não muda nada
+        // ensinaria o DAAC a decidir algo que não existe.
+        <>
+          <input type="hidden" name="semestre" value="1" />
+          <div className="text-xs text-texto-suave sm:pb-2.5">Semestre: <strong>não se aplica</strong> — dura o ano inteiro.</div>
+        </>
+      ) : (
+        <Field label="Semestre" htmlFor="cc-semestre" error={state.fieldErrors?.semestre}>
+          <Select id="cc-semestre" name="semestre" required defaultValue={state.values?.semestre ?? "1"}>
+            <option value="1">1º Semestre</option>
+            <option value="2">2º Semestre</option>
+          </Select>
+        </Field>
+      )}
       {/* Select e não checkbox, como em EditarRegrasCadeiraCurricular: a caixa não marcada não é
           enviada no FormData, e o valor ficaria indistinguível de "campo em falta". */}
       <Field label="Tipo" htmlFor="cc-monografia" error={state.fieldErrors?.eMonografia}>
-        <Select id="cc-monografia" name="eMonografia" required defaultValue={state.values?.eMonografia ?? "false"}>
+        <Select
+          id="cc-monografia"
+          name="eMonografia"
+          required
+          defaultValue={state.values?.eMonografia ?? "false"}
+          onChange={(e) => setEMonografia(e.target.value === "true")}
+        >
           <option value="false">Cadeira normal</option>
           <option value="true">Monografia (defesa)</option>
         </Select>

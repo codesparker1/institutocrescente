@@ -38,7 +38,12 @@ export async function ProfessorDashboard({ professorId }: ProfessorDashboardProp
     where:
       anoLetivo === null
         ? { id: "" } // fora de um ano letivo não há nada a decorrer — a mensagem explica-o abaixo
-        : { professorId, turma: { anoLetivo }, semestre: semestreAtual },
+        : {
+            professorId,
+            turma: { anoLetivo },
+            // Monografia dura o ano inteiro — ver a mesma nota em professor/page.tsx.
+            OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }],
+          },
     include: {
       disciplina: true,
       horarioSlots: true,

@@ -16,6 +16,8 @@ const TURMA_DISCIPLINA_INCLUDE = {
   disciplina: true,
   horarioSlots: true,
   avaliacoes: true,
+  // Só para o ramo ADMIN separar a monografia das disciplinas do semestre — ver mais abaixo.
+  cadeiraCurricular: { select: { eMonografia: true } },
 } as const;
 
 interface HorarioPageProps {
@@ -48,7 +50,9 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       const rows = await prisma.turmaDisciplina.findMany({
         where: {
           professorId: session.user.professorId,
-          semestre: semestreAtual,
+          // Monografia dura o ano inteiro (§pedido do cliente 2026-09-05) — não sai do horário só
+          // porque o semestre corrente não é o gravado na cadeira (arbitrário, ver Plano Curricular).
+          OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }],
           ...(anoLetivoPessoal !== null ? { turma: { anoLetivo: anoLetivoPessoal } } : {}),
         },
         include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } },
@@ -66,7 +70,11 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       // disciplinas do 1º e do 2º semestre juntas no mesmo horário e na mesma contagem, mesmo só
       // devendo assistir às do semestre a decorrer.
       const inscricoes = await prisma.inscricaoCadeira.findMany({
-        where: { alunoId: session.user.alunoId, ativa: true, turmaDisciplina: { semestre: semestreAtual } },
+        where: {
+          alunoId: session.user.alunoId,
+          ativa: true,
+          turmaDisciplina: { OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }] },
+        },
         include: {
           turmaDisciplina: { include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } } },
           notas: { include: { avaliacao: true } },
@@ -188,8 +196,18 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   const semestrePedido = parseIntParam(params.semestre);
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
   const semestre = semestrePedido === 1 || semestrePedido === 2 ? semestrePedido : semestreAtual;
-  const turmaDisciplinasDoSemestre = turma?.turmaDisciplinas.filter((td) => td.semestre === semestre) ?? [];
+  // Monografia excluída daqui: dura o ano inteiro, não "pertence" a este semestre mesmo que o
+  // valor gravado (arbitrário, sempre 1) coincida — sai numa secção à parte, sempre visível
+  // (§pedido do cliente 2026-09-05, mesma decisão de admin/turmas/[id] e notas/[turmaId]).
+  const turmaDisciplinasDoSemestre =
+    turma?.turmaDisciplinas.filter((td) => td.semestre === semestre && !td.cadeiraCurricular.eMonografia) ?? [];
+  const turmaDisciplinasMonografia = turma?.turmaDisciplinas.filter((td) => td.cadeiraCurricular.eMonografia) ?? [];
   const editavel = podeGerirCurriculo(session.user) && semestre === semestreAtual;
+  // A defesa agenda-se quando for preciso, não só quando a aba do semestre "certo" estiver aberta —
+  // sem isto, o DAAC ficava sem conseguir marcar a defesa sempre que semestreAtual não coincidisse
+  // com o 1 gravado na cadeira da monografia (o caso mais comum: a defesa é normalmente perto do
+  // fim do ano, já no 2º semestre).
+  const editavelMonografia = podeGerirCurriculo(session.user);
 
   // A janela agendável das provas: de hoje (nunca antes — não se marca uma prova para ontem) até ao
   // fim do ano letivo. O ano não chega sequer a ser uma escolha do utilizador: sai daqui
@@ -199,6 +217,16 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   const fimAnoLetivo = config?.anoLetivoFim ?? null;
   const janelaProvas =
     editavel && inicioAnoLetivo && fimAnoLetivo
+      ? {
+          minIso: toIsoDate(agora > inicioAnoLetivo ? agora : inicioAnoLetivo),
+          maxIso: toIsoDate(fimAnoLetivo),
+          anoLetivoLabel: formatAnoLetivo(anoLetivo),
+        }
+      : null;
+  // A mesma janela, mas presa a editavelMonografia em vez de editavel: a defesa agenda-se em
+  // qualquer semestre, não só quando a aba aberta coincide com o semestreAtual.
+  const janelaProvasMonografia =
+    editavelMonografia && inicioAnoLetivo && fimAnoLetivo
       ? {
           minIso: toIsoDate(agora > inicioAnoLetivo ? agora : inicioAnoLetivo),
           maxIso: toIsoDate(fimAnoLetivo),
@@ -291,6 +319,22 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
               janela={janelaProvas}
             />
           )}
+
+          {/* Sempre visível, independente da aba de semestre acima (§pedido do cliente 2026-09-05):
+              a monografia dura o ano inteiro, e a defesa costuma marcar-se perto do fim do ano —
+              já no 2º semestre, quando a aba "1º semestre" (onde a cadeira ficou gravada) já não
+              é a corrente. Presa a editavelMonografia, não a editavel: agenda-se sempre. */}
+          {turmaDisciplinasMonografia.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-texto">Monografia — ano inteiro</p>
+              <ScheduleGrid
+                turmaDisciplinas={turmaDisciplinasMonografia}
+                view={view}
+                editable={editavelMonografia}
+                janela={janelaProvasMonografia}
+              />
+            </div>
+          ) : null}
         </>
       )}
     </div>

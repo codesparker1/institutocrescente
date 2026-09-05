@@ -70,7 +70,14 @@ export default async function NotasPage({ searchParams }: NotasPageProps) {
       _count: {
         select: {
           matriculas: true,
-          turmaDisciplinas: { where: { semestre: semestreAtual, ...(professorId ? { professorId } : {}) } },
+          // A monografia dura o ano inteiro — conta sempre, para bater certo com a página da turma
+          // (que a mostra numa secção à parte, sempre visível — ver notas/[turmaId]/page.tsx).
+          turmaDisciplinas: {
+            where: {
+              OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }],
+              ...(professorId ? { professorId } : {}),
+            },
+          },
         },
       },
     },

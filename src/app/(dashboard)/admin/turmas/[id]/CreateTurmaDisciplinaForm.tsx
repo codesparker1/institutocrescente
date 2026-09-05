@@ -16,6 +16,8 @@ interface Opcao {
 interface CadeiraOpcao {
   id: string;
   semestre: number;
+  /** Quando true, "{semestre}º Semestre" mentiria — o valor é arbitrário (ver createCadeiraCurricularAction). */
+  eMonografia: boolean;
   disciplina: { nome: string };
 }
 
@@ -39,7 +41,7 @@ export function CreateTurmaDisciplinaForm({ turmaId, cadeirasCurriculares, profe
         <Select id="td-cadeira" name="cadeiraCurricularId" required defaultValue={state.values?.cadeiraCurricularId}>
           {cadeirasCurriculares.map((cadeira) => (
             <option key={cadeira.id} value={cadeira.id}>
-              {cadeira.disciplina.nome} · {cadeira.semestre}º Semestre
+              {cadeira.disciplina.nome} · {cadeira.eMonografia ? "Ano inteiro" : `${cadeira.semestre}º Semestre`}
             </option>
           ))}
         </Select>
