@@ -40,7 +40,7 @@ const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   { prefix: "/minhas-notas", roles: ["ALUNO"] },
   // §2026-09-04. /admin/finalistas e /professor/orientandos nao precisam de linha propria: caem
   // nos prefixos /admin e /professor acima.
-  { prefix: "/meu-orientador", roles: ["ALUNO"] },
+  { prefix: "/finalista", roles: ["ALUNO"] },
   { prefix: "/financeiro", roles: ["ADMIN", "SECRETARIA", "ALUNO"] },
 ];
 
@@ -77,7 +77,7 @@ export const config = {
     "/auditoria/:path*",
     "/horario/:path*",
     "/minhas-notas/:path*",
-    "/meu-orientador/:path*",
+    "/finalista/:path*",
     "/financeiro/:path*",
     "/conta/:path*",
     "/reclamacoes/:path*",

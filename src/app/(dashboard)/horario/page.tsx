@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -50,9 +51,12 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
       const rows = await prisma.turmaDisciplina.findMany({
         where: {
           professorId: session.user.professorId,
-          // Monografia dura o ano inteiro (§pedido do cliente 2026-09-05) — não sai do horário só
-          // porque o semestre corrente não é o gravado na cadeira (arbitrário, ver Plano Curricular).
-          OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }],
+          // A monografia fica FORA do horário (§pedido do cliente 2026-09-05): não tem aulas, e a
+          // defesa deixou de ser a Avaliacao da turma-disciplina — é individual por aluno, e vê-se
+          // em Finalistas (DAAC) ou em Meus Orientandos (professor). Deixá-la aqui mostraria a data
+          // provisória da avaliação que só serve de veículo à nota, como se fosse a defesa marcada.
+          semestre: semestreAtual,
+          cadeiraCurricular: { eMonografia: false },
           ...(anoLetivoPessoal !== null ? { turma: { anoLetivo: anoLetivoPessoal } } : {}),
         },
         include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } },
@@ -73,7 +77,9 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
         where: {
           alunoId: session.user.alunoId,
           ativa: true,
-          turmaDisciplina: { OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }] },
+          // Fora do horário pela mesma razão do ramo do professor, acima: a defesa vê-se na página
+          // Finalista, com a data individual deste aluno.
+          turmaDisciplina: { semestre: semestreAtual, cadeiraCurricular: { eMonografia: false } },
         },
         include: {
           turmaDisciplina: { include: { ...TURMA_DISCIPLINA_INCLUDE, turma: { include: { curso: true } } } },
@@ -203,11 +209,6 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
     turma?.turmaDisciplinas.filter((td) => td.semestre === semestre && !td.cadeiraCurricular.eMonografia) ?? [];
   const turmaDisciplinasMonografia = turma?.turmaDisciplinas.filter((td) => td.cadeiraCurricular.eMonografia) ?? [];
   const editavel = podeGerirCurriculo(session.user) && semestre === semestreAtual;
-  // A defesa agenda-se quando for preciso, não só quando a aba do semestre "certo" estiver aberta —
-  // sem isto, o DAAC ficava sem conseguir marcar a defesa sempre que semestreAtual não coincidisse
-  // com o 1 gravado na cadeira da monografia (o caso mais comum: a defesa é normalmente perto do
-  // fim do ano, já no 2º semestre).
-  const editavelMonografia = podeGerirCurriculo(session.user);
 
   // A janela agendável das provas: de hoje (nunca antes — não se marca uma prova para ontem) até ao
   // fim do ano letivo. O ano não chega sequer a ser uma escolha do utilizador: sai daqui
@@ -217,16 +218,6 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   const fimAnoLetivo = config?.anoLetivoFim ?? null;
   const janelaProvas =
     editavel && inicioAnoLetivo && fimAnoLetivo
-      ? {
-          minIso: toIsoDate(agora > inicioAnoLetivo ? agora : inicioAnoLetivo),
-          maxIso: toIsoDate(fimAnoLetivo),
-          anoLetivoLabel: formatAnoLetivo(anoLetivo),
-        }
-      : null;
-  // A mesma janela, mas presa a editavelMonografia em vez de editavel: a defesa agenda-se em
-  // qualquer semestre, não só quando a aba aberta coincide com o semestreAtual.
-  const janelaProvasMonografia =
-    editavelMonografia && inicioAnoLetivo && fimAnoLetivo
       ? {
           minIso: toIsoDate(agora > inicioAnoLetivo ? agora : inicioAnoLetivo),
           maxIso: toIsoDate(fimAnoLetivo),
@@ -320,20 +311,17 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
             />
           )}
 
-          {/* Sempre visível, independente da aba de semestre acima (§pedido do cliente 2026-09-05):
-              a monografia dura o ano inteiro, e a defesa costuma marcar-se perto do fim do ano —
-              já no 2º semestre, quando a aba "1º semestre" (onde a cadeira ficou gravada) já não
-              é a corrente. Presa a editavelMonografia, não a editavel: agenda-se sempre. */}
+          {/* A defesa deixou de se marcar aqui (§pedido do cliente 2026-09-05): é individual por
+              aluno, não uma prova da turma, e marca-se em Finalistas. Sem esta linha o DAAC ficava
+              a procurar a monografia num ecrã onde ela já não está. */}
           {turmaDisciplinasMonografia.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-texto">Monografia — ano inteiro</p>
-              <ScheduleGrid
-                turmaDisciplinas={turmaDisciplinasMonografia}
-                view={view}
-                editable={editavelMonografia}
-                janela={janelaProvasMonografia}
-              />
-            </div>
+            <p className="rounded-lg border border-navy-50 bg-navy-50/40 px-4 py-3 text-sm text-texto-suave">
+              A defesa da monografia marca-se por aluno, em{" "}
+              <Link href="/admin/finalistas" className="font-medium text-texto underline">
+                Finalistas
+              </Link>
+              . Cada finalista tem a sua data, hora e sala.
+            </p>
           ) : null}
         </>
       )}

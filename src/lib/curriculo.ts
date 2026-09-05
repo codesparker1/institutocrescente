@@ -37,8 +37,12 @@ export async function sincronizarInscricoesTurma(turmaId: string): Promise<void>
 
   // Congelamento de regras (§4.1.1, Fase 6): copia as regras de dispensa da cadeira NESTE momento
   // — calcularNotaFinal usa sempre estes valores, nunca os atuais da CadeiraCurricular.
+  // A monografia NÃO entra na sincronização automática (§pedido do cliente 2026-09-05): o finalista
+  // só a recebe quando o DAAC confirmar o pagamento, em Admin > Finalistas. Este era o sítio que a
+  // atribuía a toda a gente do último ano, pago ou não.
   const novasInscricoes = alunoIds.flatMap((alunoId) =>
     turmaDisciplinas
+      .filter((td) => !td.cadeiraCurricular.eMonografia)
       .filter((td) => !jaInscrito.has(`${alunoId}:${td.cadeiraCurricularId}`))
       .map((td) => ({
         alunoId,
@@ -157,17 +161,22 @@ export async function inscreverCadeirasAnosAnteriores(
   });
   if (turmaDisciplinas.length === 0) return;
 
-  // Congelamento de regras (§4.1.1) — mesmo raciocínio de sincronizarInscricoesTurma.
-  const novasInscricoes = turmaDisciplinas.map((td) => ({
-    alunoId,
-    cadeiraCurricularId: td.cadeiraCurricularId,
-    turmaDisciplinaId: td.id,
-    tentativa: 1,
-    ativa: true,
-    permiteDispensaAplicada: td.cadeiraCurricular.permiteDispensa,
-    eMonografiaAplicada: td.cadeiraCurricular.eMonografia,
-    notaMinimaDispensaAplicada: td.cadeiraCurricular.notaMinimaDispensa,
-  }));
+  // Congelamento de regras (§4.1.1) — mesmo raciocínio de sincronizarInscricoesTurma, incluindo a
+  // exclusão da monografia: um aluno que entra num ano adiantado não recebe a monografia de anos
+  // anteriores sem pagar. Na prática anosNecessarios nunca chega ao último ano, mas se um dia
+  // chegar (curso encurtado, entrada no último ano) o filtro tem de estar cá.
+  const novasInscricoes = turmaDisciplinas
+    .filter((td) => !td.cadeiraCurricular.eMonografia)
+    .map((td) => ({
+      alunoId,
+      cadeiraCurricularId: td.cadeiraCurricularId,
+      turmaDisciplinaId: td.id,
+      tentativa: 1,
+      ativa: true,
+      permiteDispensaAplicada: td.cadeiraCurricular.permiteDispensa,
+      eMonografiaAplicada: td.cadeiraCurricular.eMonografia,
+      notaMinimaDispensaAplicada: td.cadeiraCurricular.notaMinimaDispensa,
+    }));
   await prisma.inscricaoCadeira.createMany({ data: novasInscricoes, skipDuplicates: true });
 
   // Mesma lógica de sincronizarInscricoesTurma: sem isto, o aluno fica invisível na marcação de

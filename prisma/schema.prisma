@@ -90,6 +90,7 @@ model User {
   configuracoesAcademicasAtualizadas  ConfiguracaoAcademica[]  @relation("ConfigAcademicaAtualizadaPor")
   reclamacoes                         Reclamacao[]
   documentosCarregados                DocumentoAluno[]         @relation("DocumentoCarregadoPor")
+  monografiasConfirmadas              InscricaoCadeira[]       @relation("MonografiaConfirmadaPor")
 }
 
 model Professor {
@@ -328,6 +329,20 @@ model InscricaoCadeira {
   /// mesmo que o aluno repita ou mude de curso.
   orientadorId               String?
   orientador                 Professor?        @relation("Orientacao", fields: [orientadorId], references: [id])
+  /// Defesa individual (§pedido do cliente 2026-09-05): data/hora e sala DESTE finalista. Vive aqui
+  /// e não na Avaliacao porque a Avaliacao pertence à TurmaDisciplina — é partilhada por todos os
+  /// finalistas do mesmo curso e período, que passavam a ver todos a mesma data (a de outra pessoa).
+  /// A Avaliacao da época EXAME continua a existir, mas apenas como veículo da nota na pauta.
+  defesaData                 DateTime?
+  defesaSala                 String?
+  /// Confirmação do pagamento da monografia (§pedido do cliente 2026-09-05). O finalista só recebe
+  /// a monografia quando o DAAC confirma, com a fatura à frente — por isso a própria EXISTÊNCIA
+  /// desta inscrição é a confirmação, e estes campos guardam só quem confirmou e quando.
+  /// Botão manual, e não leitura automática do emolumento pago: o nome da taxa no catálogo pode ser
+  /// reescrito a qualquer momento, e casar por nome partiria em silêncio.
+  monografiaConfirmadaEm     DateTime?
+  monografiaConfirmadaPorId  String?
+  monografiaConfirmadaPor    User?             @relation("MonografiaConfirmadaPor", fields: [monografiaConfirmadaPorId], references: [id])
 
   notas       Nota[]
   frequencias Frequencia[]

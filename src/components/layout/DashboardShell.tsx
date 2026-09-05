@@ -12,7 +12,7 @@ interface DashboardShellProps {
   /** Data corrente do sistema (getAgora) — simulada sob SIMULATION_MODE, real fora dela. */
   dataSistema: Date;
   simulationMode: boolean;
-  /** Aluno inscrito numa monografia — governa o item "Meu Orientador" no menu. */
+  /** Aluno inscrito numa monografia — governa o item "Finalista" no menu. */
   temMonografia?: boolean;
   children: ReactNode;
 }

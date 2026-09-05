@@ -45,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // Depois do rollover, para as turmas que ele acabou de criar entrarem já sincronizadas.
   await medirJobGarantir("garantirTurmasSincronizadasComPlano", () => garantirTurmasSincronizadasComPlano());
 
-  // "Meu Orientador" só aparece a quem tem monografia (§2026-09-04). A query corre só para alunos:
+  // "Finalista" só aparece a quem tem monografia (§2026-09-04). A query corre só para alunos:
   // os outros papéis não têm o item no menu de qualquer forma, e não vale a pena cobrar-lhes uma
   // ida à base em cada navegação.
   const temMonografia =

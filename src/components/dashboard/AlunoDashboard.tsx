@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, ClipboardCheck, GraduationCap, PauseCircle, TrendingUp } from "lucide-react";
+import { AlertTriangle, CalendarClock, ClipboardCheck, GraduationCap, MapPin, PauseCircle, TrendingUp } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/Table";
 import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
-import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatCurrency, formatDate, nomeProfessor } from "@/lib/utils";
+import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatCurrency, formatDate, formatHora, nomeProfessor } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, provaJaPassou, EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
@@ -40,9 +40,10 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     where: {
       alunoId,
       ativa: true,
-      // A monografia dura o ano inteiro (§pedido do cliente 2026-09-05) — não some do painel do
-      // finalista só porque o semestre corrente não é o que ficou gravado na cadeira (arbitrário).
-      turmaDisciplina: { OR: [{ semestre: semestreAtual }, { cadeiraCurricular: { eMonografia: true } }] },
+      // A monografia sai daqui e passa a ter bloco próprio, em cima (§pedido do cliente
+      // 2026-09-05): misturada nas "disciplinas ativas" não dizia nada útil ao finalista — sem
+      // aulas, sem assiduidade, e com a data provisória da avaliação-veículo a aparecer como prova.
+      turmaDisciplina: { semestre: semestreAtual, cadeiraCurricular: { eMonografia: false } },
     },
     include: {
       turmaDisciplina: {
@@ -102,6 +103,24 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
 
   const trancado = aluno.status === "TRANCADO";
 
+  // Bloco do finalista (§pedido do cliente 2026-09-05). Só existe quando há monografia atribuída —
+  // e ela só é atribuída depois do pagamento confirmado, pelo que a sua presença aqui já é, por si,
+  // a resposta à pergunta "já estou inscrito na defesa?".
+  const monografia = await prisma.inscricaoCadeira.findFirst({
+    where: { alunoId, ativa: true, eMonografiaAplicada: true },
+    include: {
+      orientador: { select: { nome: true } },
+      turmaDisciplina: { include: { disciplina: true } },
+    },
+    orderBy: { turmaDisciplina: { turma: { anoLetivo: "desc" } } },
+  });
+
+  // Finalista sem mais nada a decorrer: a monografia não tem aulas nem presenças, e os blocos de
+  // horário, assiduidade e disciplinas só teriam estados vazios a dizer "nada" três vezes
+  // (§decisão do cliente 2026-09-05). Quem ainda arrasta cadeiras de anos anteriores continua a
+  // vê-las — desapareceriam do ecrã justamente a quem mais precisa delas.
+  const soMonografia = monografia !== null && todasDisciplinas.length === 0;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -142,6 +161,46 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
         </div>
       ) : null}
 
+      {/* Primeira coisa que o finalista vê: é a data que ele vem cá procurar. Nada disto aparece a
+          quem não é finalista — a condição é a existência da monografia (§auditoria 2026-09-03). */}
+      {monografia ? (
+        <Card>
+          <CardHeader
+            title="A minha defesa"
+            subtitle={monografia.turmaDisciplina.disciplina.nome}
+            action={
+              <Link href="/finalista" className="text-xs font-medium text-texto-suave hover:text-navy-700">
+                Ver detalhes
+              </Link>
+            }
+          />
+          <CardBody className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {monografia.defesaData ? (
+              <span className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                <span className="flex items-center gap-2 text-texto">
+                  <CalendarClock size={18} className="shrink-0 text-texto-suave" />
+                  <strong>{formatDate(monografia.defesaData)}</strong>
+                  <span>às {formatHora(monografia.defesaData)}</span>
+                </span>
+                <span className="flex items-center gap-2 text-sm text-texto">
+                  <MapPin size={16} className="shrink-0 text-texto-suave" />
+                  {monografia.defesaSala ?? "Sala por confirmar"}
+                </span>
+              </span>
+            ) : (
+              <span className="text-sm text-texto-suave">
+                {monografia.orientadorId
+                  ? "A data da defesa ainda não foi marcada."
+                  : "Aguarda a atribuição de um orientador pelo DAAC."}
+              </span>
+            )}
+            <span className="text-sm text-texto-suave">
+              {monografia.orientador ? `Orientador: ${monografia.orientador.nome}` : "Sem orientador"}
+            </span>
+          </CardBody>
+        </Card>
+      ) : null}
+
       <ProfileCard
         nome={aluno.nome}
         cargo="Aluno"
@@ -165,14 +224,21 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           value={bloqueio.bloqueado ? "—" : mediaGeral !== null ? mediaGeral.toFixed(1) : "—"}
           icon={<TrendingUp size={20} />}
         />
-        <StatCard label="Assiduidade" value={percentualPresenca !== null ? `${percentualPresenca}%` : "—"} icon={<ClipboardCheck size={20} />} />
-        <StatCard
-          label={`Disciplinas ativas (${semestreAtual}º sem.)`}
-          value={todasDisciplinas.length}
-          icon={<GraduationCap size={20} />}
-        />
+        {soMonografia ? null : (
+          <StatCard label="Assiduidade" value={percentualPresenca !== null ? `${percentualPresenca}%` : "—"} icon={<ClipboardCheck size={20} />} />
+        )}
+        {soMonografia ? null : (
+          <StatCard
+            label={`Disciplinas ativas (${semestreAtual}º sem.)`}
+            value={todasDisciplinas.length}
+            icon={<GraduationCap size={20} />}
+          />
+        )}
       </div>
 
+      {/* Um finalista sem mais nada a decorrer não tem aulas nem provas — a defesa dele já está no
+          bloco em cima. Dois estados vazios lado a lado seriam ruído. */}
+      {soMonografia ? null : (
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader
@@ -223,7 +289,9 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           )}
         </Card>
       </div>
+      )}
 
+      {soMonografia ? null : (
       <Card>
         <CardHeader title="Minhas disciplinas" subtitle={`${todasDisciplinas.length} disciplina(s) ativa(s)`} />
         {todasDisciplinas.length === 0 ? (
@@ -250,6 +318,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           </CardBody>
         )}
       </Card>
+      )}
     </div>
   );
 }

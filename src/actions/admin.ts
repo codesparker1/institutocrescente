@@ -12,7 +12,7 @@ import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from "@/lib/curriculo";
 import { getAgora } from "@/lib/tempo";
-import { nomeProfessor, SALA_A_CONFIRMAR } from "@/lib/utils";
+import { formatDefesa, fromIsoDateTime, nomeProfessor, SALA_A_CONFIRMAR } from "@/lib/utils";
 
 async function audit(
   session: SessionComUser,
@@ -834,8 +834,237 @@ export async function atribuirOrientadorAction(
   revalidatePath("/admin/finalistas");
   // O aluno e o professor veem a mudança nas suas próprias páginas — sem isto, só no próximo
   // pedido não-cache.
-  revalidatePath("/meu-orientador");
+  revalidatePath("/finalista");
   revalidatePath("/professor/orientandos");
+  return {};
+}
+
+/** Revalida os três ecrãs que mostram a mesma monografia por ângulos diferentes. */
+function revalidarFinalistas() {
+  revalidatePath("/admin/finalistas");
+  revalidatePath("/finalista");
+  revalidatePath("/professor/orientandos");
+}
+
+/**
+ * Confirma o pagamento da monografia e, com isso, ATRIBUI a monografia ao finalista
+ * (§pedido do cliente 2026-09-05: "o aluno finalista só deve ter a disciplina monografia no
+ * momento em que faz o pagamento"). É o único sítio do sistema que cria uma inscrição em
+ * monografia — a sincronização automática deixou de a criar (ver sincronizarInscricoesTurma).
+ *
+ * Botão manual e não leitura do emolumento pago: o nome da taxa no catálogo pode ser reescrito, e
+ * casar por nome partiria em silêncio. O aluno apresenta a fatura, o DAAC confirma, e fica
+ * registado quem confirmou e quando — na inscrição e na auditoria.
+ */
+export async function confirmarPagamentoMonografiaAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const alunoId = String(formData.get("alunoId") ?? "");
+  const turmaId = String(formData.get("turmaId") ?? "");
+  if (!alunoId || !turmaId) return { error: "Dados inválidos." };
+
+  const [aluno, turma] = await Promise.all([
+    prisma.aluno.findUnique({ where: { id: alunoId }, select: { nome: true } }),
+    prisma.turma.findUnique({ where: { id: turmaId }, include: { curso: true } }),
+  ]);
+  if (!aluno) return { error: "Aluno não encontrado." };
+  if (!turma) return { error: "Turma não encontrada." };
+
+  const matricula = await prisma.matricula.findUnique({
+    where: { alunoId_turmaId: { alunoId, turmaId } },
+    select: { status: true },
+  });
+  if (matricula?.status !== "ATIVA") {
+    return { error: `${aluno.nome} não tem matrícula ativa nesta turma.` };
+  }
+
+  // A monografia é a cadeira do plano curricular marcada como tal — pode não existir (nem todos os
+  // cursos exigem monografia), e nesse caso não há nada a atribuir.
+  const cadeira = await prisma.cadeiraCurricular.findFirst({
+    where: { cursoId: turma.cursoId, anoCurricular: turma.anoCurricular, eMonografia: true },
+    select: { id: true, permiteDispensa: true, notaMinimaDispensa: true, disciplina: { select: { nome: true } } },
+  });
+  if (!cadeira) {
+    return {
+      error: `O plano curricular de ${turma.curso.nome} não tem nenhuma disciplina marcada como monografia no ${turma.anoCurricular}º ano. Marque-a em Plano Curricular primeiro.`,
+    };
+  }
+
+  const turmaDisciplina = await prisma.turmaDisciplina.findFirst({
+    where: { turmaId, cadeiraCurricularId: cadeira.id },
+    select: { id: true },
+  });
+  if (!turmaDisciplina) {
+    return {
+      error: `${cadeira.disciplina.nome} ainda não está atribuída a esta turma. Atribua-a em Admin > Turmas antes de confirmar pagamentos.`,
+    };
+  }
+
+  const jaInscrito = await prisma.inscricaoCadeira.findFirst({
+    where: { alunoId, cadeiraCurricularId: cadeira.id, ativa: true },
+    select: { id: true },
+  });
+  if (jaInscrito) return {};
+
+  const agora = await getAgora();
+  const tentativaAnterior = await prisma.inscricaoCadeira.findFirst({
+    where: { alunoId, cadeiraCurricularId: cadeira.id },
+    orderBy: { tentativa: "desc" },
+    select: { tentativa: true },
+  });
+
+  const inscricao = await prisma.inscricaoCadeira.create({
+    data: {
+      alunoId,
+      cadeiraCurricularId: cadeira.id,
+      turmaDisciplinaId: turmaDisciplina.id,
+      // Um finalista retido repete a monografia numa tentativa nova — a anterior fica no histórico
+      // com a nota negativa que teve.
+      tentativa: (tentativaAnterior?.tentativa ?? 0) + 1,
+      ativa: true,
+      permiteDispensaAplicada: cadeira.permiteDispensa,
+      notaMinimaDispensaAplicada: cadeira.notaMinimaDispensa,
+      eMonografiaAplicada: true,
+      monografiaConfirmadaEm: agora,
+      monografiaConfirmadaPorId: session.user.id,
+    },
+  });
+
+  // A nota da defesa é lançada através da Avaliacao da época EXAME (ver a nota no schema sobre
+  // porque a monografia reutiliza essa época). Como a defesa deixou de se marcar em Horário e
+  // Provas, o DAAC já não a cria à mão — nasce aqui, com a data por definir. A data real de cada
+  // defesa vive em InscricaoCadeira.defesaData, individual; esta é só o veículo da nota na pauta.
+  await prisma.avaliacao.upsert({
+    where: { turmaDisciplinaId_epoca: { turmaDisciplinaId: turmaDisciplina.id, epoca: "EXAME" } },
+    update: {},
+    create: { turmaDisciplinaId: turmaDisciplina.id, epoca: "EXAME", data: agora, sala: SALA_A_CONFIRMAR },
+  });
+
+  await audit(
+    session,
+    `Confirmou o pagamento da monografia de ${aluno.nome} — ${cadeira.disciplina.nome} atribuída`,
+    "InscricaoCadeira",
+    inscricao.id,
+    { valorAnterior: "Sem monografia", valorNovo: "Monografia atribuída" },
+  );
+
+  revalidarFinalistas();
+  return {};
+}
+
+/**
+ * Desfaz uma confirmação de pagamento feita por engano — apaga a inscrição em monografia.
+ *
+ * Só enquanto não houver nota lançada: depois da defesa avaliada, a inscrição é registo académico
+ * e apagá-la destruiria a nota. Nesse ponto o engano corrige-se pela nota, não por aqui.
+ */
+export async function reverterConfirmacaoMonografiaAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const inscricaoId = String(formData.get("inscricaoId") ?? "");
+  if (!inscricaoId) return { error: "Dados inválidos." };
+
+  const inscricao = await prisma.inscricaoCadeira.findUnique({
+    where: { id: inscricaoId },
+    include: { aluno: { select: { nome: true } }, _count: { select: { notas: true } } },
+  });
+  if (!inscricao) return { error: "Inscrição não encontrada." };
+  if (!inscricao.eMonografiaAplicada) return { error: "Esta inscrição não é uma monografia." };
+  if (inscricao._count.notas > 0) {
+    return {
+      error: `${inscricao.aluno.nome} já tem a nota da defesa lançada — a confirmação deixou de ser reversível. Corrija pela pauta, em Notas e Frequência.`,
+    };
+  }
+
+  // A Frequencia da monografia (criada pelo backfill se houver aulas) impediria o delete por chave
+  // estrangeira. Apaga-se junto: sem inscrição não há presença a registar.
+  await prisma.$transaction([
+    prisma.frequencia.deleteMany({ where: { inscricaoCadeiraId: inscricaoId } }),
+    prisma.inscricaoCadeira.delete({ where: { id: inscricaoId } }),
+  ]);
+
+  await audit(
+    session,
+    `Reverteu a confirmação do pagamento da monografia de ${inscricao.aluno.nome}`,
+    "InscricaoCadeira",
+    inscricaoId,
+    { valorAnterior: "Monografia atribuída", valorNovo: "Sem monografia" },
+  );
+
+  revalidarFinalistas();
+  return {};
+}
+
+const DefesaSchema = z.object({
+  inscricaoId: z.string().min(1),
+  // "" nos dois = desmarcar a defesa. A data traz a hora junto (datetime-local): o cliente pede a
+  // hora na pauta de defesas impressa, e um dia inteiro sem hora não serve para convocar um júri.
+  data: z.string(),
+  sala: z.string().max(60, "Sala demasiado longa"),
+});
+
+/**
+ * Marca (ou desmarca) a defesa de UM finalista — §pedido do cliente 2026-09-05.
+ *
+ * Individual por decisão explícita do cliente: a Avaliacao pertence à TurmaDisciplina, partilhada
+ * por todos os finalistas do mesmo curso e período, e usá-la mostrava a cada aluno a data de outra
+ * pessoa. Por isso a defesa vive na inscrição, e cada aluno só consegue ver a sua.
+ */
+export async function marcarDefesaAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = DefesaSchema.safeParse({
+    inscricaoId: formData.get("inscricaoId"),
+    data: formData.get("data"),
+    sala: formData.get("sala"),
+  });
+  if (!parsed.success) return { error: "Dados inválidos." };
+
+  const inscricao = await prisma.inscricaoCadeira.findUnique({
+    where: { id: parsed.data.inscricaoId },
+    include: { aluno: { select: { nome: true } } },
+  });
+  if (!inscricao) return { error: "Inscrição não encontrada." };
+  if (!inscricao.eMonografiaAplicada) return { error: "Esta cadeira não é uma monografia — não tem defesa." };
+
+  const dataTexto = parsed.data.data.trim();
+  const sala = parsed.data.sala.trim();
+  let defesaData: Date | null = null;
+  if (dataTexto) {
+    // fromIsoDateTime e não `new Date(...)`: mesma razão documentada em fromIsoDate — entrada
+    // malformada tem de ser recusada, não gravada como Invalid Date.
+    defesaData = fromIsoDateTime(dataTexto);
+    if (!defesaData) return { error: "Data da defesa inválida." };
+  }
+  // Sala sem data seria uma defesa marcada em lado nenhum, e o PDF da pauta de defesas lista quem
+  // tem data — a linha apareceria lá com a data em branco.
+  if (!defesaData && sala) return { error: "Indique a data e a hora da defesa, não só a sala." };
+
+  await prisma.inscricaoCadeira.update({
+    where: { id: parsed.data.inscricaoId },
+    data: { defesaData, defesaSala: defesaData ? sala || null : null },
+  });
+
+  await audit(
+    session,
+    defesaData
+      ? `Marcou a defesa da monografia de ${inscricao.aluno.nome}`
+      : `Desmarcou a defesa da monografia de ${inscricao.aluno.nome}`,
+    "InscricaoCadeira",
+    inscricao.id,
+    {
+      valorAnterior: inscricao.defesaData ? formatDefesa(inscricao.defesaData, inscricao.defesaSala) : "Por marcar",
+      valorNovo: defesaData ? formatDefesa(defesaData, sala || null) : "Por marcar",
+    },
+  );
+
+  revalidarFinalistas();
   return {};
 }
 

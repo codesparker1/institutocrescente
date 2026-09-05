@@ -55,6 +55,13 @@ export async function criarTentativaRepeticaoAction(
   if (turmaDisciplina.cadeiraCurricularId !== parsed.data.cadeiraCurricularId) {
     return { error: "Essa turma não lecciona a cadeira selecionada." };
   }
+  // A monografia tem um caminho próprio (§pedido do cliente 2026-09-05) — depende da confirmação do
+  // pagamento, que este ecrã não faz. Inscrever por aqui contornaria essa condição em silêncio.
+  if (turmaDisciplina.cadeiraCurricular.eMonografia) {
+    return {
+      error: "A monografia não se inscreve por aqui — é atribuída em Finalistas, depois de confirmado o pagamento.",
+    };
+  }
 
   const tentativaAtiva = tentativasAnteriores.find((t) => t.ativa);
   const proximaTentativa = (tentativasAnteriores[0]?.tentativa ?? 0) + 1;

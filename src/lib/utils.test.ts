@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatSituacaoDivida, fromIsoDate, toIsoDate } from "./utils";
+import { formatSituacaoDivida, fromIsoDate, fromIsoDateTime, toIsoDate, toIsoDateTime } from "./utils";
 
 test("fromIsoDate lê 'aaaa-mm-dd' como meia-noite LOCAL, não UTC", () => {
   const data = fromIsoDate("2026-09-01");
@@ -53,4 +53,28 @@ test("formatSituacaoDivida mostra só a propina quando não há multa", () => {
 
 test("formatSituacaoDivida devolve travessão quando não há nada em atraso", () => {
   assert.equal(formatSituacaoDivida(0, 0), "—");
+});
+
+test("toIsoDateTime e fromIsoDateTime são inversos exatos, hora incluída", () => {
+  // A defesa marca-se com hora (a pauta impressa convoca um júri para uma hora concreta), e o par
+  // grava/lê tem de sobreviver a um servidor a oeste de Greenwich — mesma razão de fromIsoDate.
+  const original = new Date(2027, 5, 12, 14, 30);
+  const lido = fromIsoDateTime(toIsoDateTime(original));
+  assert.ok(lido, "data válida não devia ser null");
+  assert.equal(lido.getTime(), original.getTime());
+});
+
+test("toIsoDateTime preenche horas e minutos com zero à esquerda", () => {
+  assert.equal(toIsoDateTime(new Date(2027, 0, 5, 9, 5)), "2027-01-05T09:05");
+});
+
+test("fromIsoDateTime recusa entrada malformada em vez de devolver Invalid Date", () => {
+  assert.equal(fromIsoDateTime("2027-06-12"), null);
+  assert.equal(fromIsoDateTime(""), null);
+  assert.equal(fromIsoDateTime("ontem às 3"), null);
+});
+
+test("fromIsoDateTime recusa uma data que transborda o mês", () => {
+  // 31 de fevereiro viraria 3 de março em silêncio — a defesa ficava marcada noutro dia.
+  assert.equal(fromIsoDateTime("2027-02-31T10:00"), null);
 });

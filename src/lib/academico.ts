@@ -193,3 +193,48 @@ export function dentroDoAnoLetivo(
   if (!config?.anoLetivoInicio || !config.anoLetivoFim) return true;
   return data >= config.anoLetivoInicio && data <= config.anoLetivoFim;
 }
+
+/**
+ * Estado de um finalista no percurso da monografia — §pedido do cliente 2026-09-05.
+ *
+ * A ordem da união é a ordem do percurso, e cada passo só existe depois do anterior: sem pagamento
+ * confirmado não há monografia, sem monografia não há orientador, sem orientador não se marca a
+ * defesa. Os ecrãs usam isto para mostrar o passo em falta em vez de controlos que ainda não fazem
+ * nada (§auditoria 2026-09-03: só mostrar informação quando a condição é encontrada).
+ */
+export type EstadoFinalista =
+  | "SEM_MONOGRAFIA_NO_PLANO"
+  | "POR_CONFIRMAR"
+  | "SEM_ORIENTADOR"
+  | "DEFESA_POR_MARCAR"
+  | "DEFESA_MARCADA"
+  | "CONCLUIDA";
+
+export const ESTADO_FINALISTA_LABEL: Record<EstadoFinalista, string> = {
+  SEM_MONOGRAFIA_NO_PLANO: "Sem monografia no plano",
+  POR_CONFIRMAR: "Pagamento por confirmar",
+  SEM_ORIENTADOR: "Sem orientador",
+  DEFESA_POR_MARCAR: "Defesa por marcar",
+  DEFESA_MARCADA: "Defesa marcada",
+  CONCLUIDA: "Defendida",
+};
+
+/**
+ * `inscricao` a null = pagamento por confirmar: desde 2026-09-05 a monografia só é criada quando o
+ * DAAC confirma o pagamento, pelo que a ausência de inscrição É o estado "por pagar".
+ *
+ * A nota vem primeiro de propósito. Uma defesa já avaliada está concluída, e reabri-la por a data
+ * ter sido apagada entretanto (ou por o orientador ter sido retirado) faria um aluno já formado
+ * voltar a aparecer como pendente na lista do DAAC.
+ */
+export function estadoDaMonografia(
+  temMonografiaNoPlano: boolean,
+  inscricao: { orientadorId: string | null; defesaData: Date | null } | null,
+  notaFinal: number | null,
+): EstadoFinalista {
+  if (notaFinal !== null) return "CONCLUIDA";
+  if (!inscricao) return temMonografiaNoPlano ? "POR_CONFIRMAR" : "SEM_MONOGRAFIA_NO_PLANO";
+  if (!inscricao.orientadorId) return "SEM_ORIENTADOR";
+  if (!inscricao.defesaData) return "DEFESA_POR_MARCAR";
+  return "DEFESA_MARCADA";
+}

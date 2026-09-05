@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, motivoRematriculaIndisponivel, semestreFechado } from "./academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, motivoRematriculaIndisponivel, semestreFechado, estadoDaMonografia } from "./academico";
 
 test("reprovações dentro do limite avança de ano", () => {
   const r = decidirRematricula({ reprovacoes: 2, limiteReprovacoes: 2, anoCurricular: 1 });
@@ -245,4 +245,41 @@ test("semestreFechado: um ano letivo futuro nunca está fechado", () => {
 
 test("semestreFechado: sem ano letivo configurado nada fecha — não se inventa uma fronteira", () => {
   assert.equal(semestreFechado({ anoLetivo: 2025, semestre: 1 }, { anoLetivo: null, semestreAtual: 1 }), false);
+});
+
+// --- Percurso da monografia (§pedido do cliente 2026-09-05) ---
+
+test("sem inscrição em monografia, o finalista está com o pagamento por confirmar", () => {
+  // A ausência de inscrição É o estado "por pagar": desde 2026-09-05 a monografia só nasce quando
+  // o DAAC confirma o pagamento, e este é o caso que faz o aluno aparecer com o botão em Finalistas.
+  assert.equal(estadoDaMonografia(true, null, null), "POR_CONFIRMAR");
+});
+
+test("curso sem monografia no plano não pede pagamento nenhum", () => {
+  // Nem todos os cursos exigem monografia — oferecer o botão aqui daria sempre erro.
+  assert.equal(estadoDaMonografia(false, null, null), "SEM_MONOGRAFIA_NO_PLANO");
+});
+
+test("monografia atribuída mas sem orientador fica em SEM_ORIENTADOR", () => {
+  assert.equal(estadoDaMonografia(true, { orientadorId: null, defesaData: null }, null), "SEM_ORIENTADOR");
+});
+
+test("com orientador e sem data, a defesa está por marcar", () => {
+  assert.equal(estadoDaMonografia(true, { orientadorId: "p1", defesaData: null }, null), "DEFESA_POR_MARCAR");
+});
+
+test("com orientador e data marcada, a defesa está marcada", () => {
+  const estado = estadoDaMonografia(true, { orientadorId: "p1", defesaData: new Date(2027, 5, 12, 14, 0) }, null);
+  assert.equal(estado, "DEFESA_MARCADA");
+});
+
+test("nota lançada fecha em CONCLUIDA mesmo que a data da defesa seja apagada depois", () => {
+  // A nota vem primeiro de propósito: sem isto, apagar a data (ou retirar o orientador) de uma
+  // defesa já avaliada punha um aluno formado de volta na lista de pendentes do DAAC.
+  assert.equal(estadoDaMonografia(true, { orientadorId: null, defesaData: null }, 15), "CONCLUIDA");
+});
+
+test("uma monografia negativa também está concluída — uma só chance", () => {
+  // §decisão do cliente 2026-09-04: negativa fecha REPROVADO, sem recurso. Não volta a "por marcar".
+  assert.equal(estadoDaMonografia(true, { orientadorId: "p1", defesaData: new Date(2027, 5, 12) }, 8), "CONCLUIDA");
 });

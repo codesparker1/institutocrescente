@@ -341,6 +341,28 @@ export async function processarRematriculaAction(
     // (o teste de simulação trata o fim de curso como resultado esperado).
     const cursoTerminou = decisao.novoAnoCurricular > matriculaAtual.turma.curso.duracaoAnos;
     if (cursoTerminou) {
+      // A monografia deixou de nascer na rematrícula (§2026-09-05) — passou a depender da
+      // confirmação do pagamento. Isso abriria o buraco pelo outro lado: quem nunca pagou não tem
+      // monografia, logo não tem nada EM_DEFESA no gate de `pendentes` acima, e formar-se-ia em
+      // silêncio sem nunca ter defendido. O plano curricular do último ano é a fonte da verdade
+      // sobre se este curso exige monografia — nem todos exigem.
+      const [exigeMonografia, temMonografia] = await Promise.all([
+        prisma.cadeiraCurricular.count({
+          where: {
+            cursoId: matriculaAtual.turma.cursoId,
+            anoCurricular: matriculaAtual.turma.curso.duracaoAnos,
+            eMonografia: true,
+          },
+        }),
+        prisma.inscricaoCadeira.count({
+          where: { alunoId, eMonografiaAplicada: true, turmaDisciplina: { turmaId: matriculaAtual.turmaId } },
+        }),
+      ]);
+      if (exigeMonografia > 0 && temMonografia === 0) {
+        return {
+          error: `${aluno.nome} não pode concluir o curso sem a monografia. Confirme o pagamento da monografia em Finalistas, atribua o orientador e lance a nota da defesa antes de processar a conclusão.`,
+        };
+      }
       await prisma.$transaction([
         prisma.matricula.update({ where: { id: matriculaAtual.id }, data: { status: "CONCLUIDA" } }),
         prisma.aluno.update({ where: { id: alunoId }, data: { status: "FORMADO" } }),
@@ -429,6 +451,13 @@ export async function processarRematriculaAction(
     const criadas: { id: string; turmaDisciplinaId: string }[] = [];
     for (const { item, novaOferta } of repeticoesResolvidas) {
       if (!novaOferta) continue;
+      // Uma monografia reprovada não se reinscreve sozinha (§pedido do cliente 2026-09-05): o aluno
+      // que fica retido no último ano volta a pagar a taxa, e o DAAC volta a confirmar em
+      // Finalistas. A inscrição antiga passa a inativa como as outras, logo abaixo.
+      if (novaOferta.cadeiraCurricular.eMonografia) {
+        await tx.inscricaoCadeira.update({ where: { id: item.inscricao.id }, data: { ativa: false } });
+        continue;
+      }
       const tentativasAnteriores = await tx.inscricaoCadeira.findMany({
         where: { alunoId, cadeiraCurricularId: item.inscricao.cadeiraCurricularId },
         orderBy: { tentativa: "desc" },

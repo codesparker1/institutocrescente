@@ -7,7 +7,7 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { anoLetivoCorrente } from "@/lib/academico";
 import { calcularNotaFinal, extrairNotasPorEpoca, rotuloEstado, toneEstado } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
-import { formatAnoLetivo, formatDate } from "@/lib/utils";
+import { formatAnoLetivo, formatDate, formatHora } from "@/lib/utils";
 
 /**
  * Meus Orientandos — os finalistas que este professor orienta (§pedido do cliente 2026-09-04).
@@ -29,9 +29,10 @@ export default async function MeusOrientandosPage() {
     include: {
       aluno: { select: { nome: true, numeroEstudante: true, curso: true, email: true } },
       notas: { include: { avaliacao: true } },
-      turmaDisciplina: { include: { avaliacoes: true } },
     },
-    orderBy: { aluno: { nome: "asc" } },
+    // Por data de defesa: quem defende primeiro aparece primeiro, que e o que o orientador precisa
+    // de ver. Os que ainda nao tem data (null) ficam no fim, desempatados por nome.
+    orderBy: [{ defesaData: { sort: "asc", nulls: "last" } }, { aluno: { nome: "asc" } }],
   });
 
   return (
@@ -80,7 +81,6 @@ export default async function MeusOrientandosPage() {
                   notaMinimaDispensa: Number(inscricao.notaMinimaDispensaAplicada),
                   eMonografia: inscricao.eMonografiaAplicada,
                 });
-                const defesa = inscricao.turmaDisciplina.avaliacoes.find((a) => a.epoca === "EXAME");
                 return (
                   <Tr key={inscricao.id}>
                     <Td className="font-medium text-texto">
@@ -90,13 +90,18 @@ export default async function MeusOrientandosPage() {
                     <Td>{inscricao.aluno.curso}</Td>
                     <Td className="text-xs">{inscricao.aluno.email ?? "—"}</Td>
                     <Td>
-                      {defesa ? (
+                      {/* Individual por aluno desde 2026-09-05 — antes vinha da Avaliacao da
+                          turma-disciplina, partilhada, e todos os orientandos do mesmo curso
+                          apareciam com a mesma data. */}
+                      {inscricao.defesaData ? (
                         <>
-                          {formatDate(defesa.data)}
-                          {defesa.sala ? <span className="block text-xs text-texto-suave">{defesa.sala}</span> : null}
+                          {formatDate(inscricao.defesaData)} · {formatHora(inscricao.defesaData)}
+                          {inscricao.defesaSala ? (
+                            <span className="block text-xs text-texto-suave">{inscricao.defesaSala}</span>
+                          ) : null}
                         </>
                       ) : (
-                        <span className="text-texto-suave">Por agendar</span>
+                        <span className="text-texto-suave">Por marcar</span>
                       )}
                     </Td>
                     <Td>

@@ -69,6 +69,15 @@ export function formatDate(date: Date | string): string {
   return d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: FUSO_ANGOLA });
 }
 
+/**
+ * Data, hora e sala de uma defesa numa linha só — usada na auditoria, nos ecrãs do aluno e do
+ * orientador, e na pauta de defesas impressa, para as quatro dizerem a mesma coisa da mesma forma.
+ * Sem sala: só data e hora (a sala pode ficar por confirmar depois da data estar fechada).
+ */
+export function formatDefesa(data: Date | string, sala: string | null): string {
+  return sala ? `${formatDateTime(data)} · ${sala}` : formatDateTime(data);
+}
+
 export function formatDateTime(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleString("pt-PT", {
@@ -164,6 +173,35 @@ export function toIsoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+/** Só a hora, no fuso de Angola — a pauta de defesas impressa separa o dia (cabeçalho) da hora. */
+export function formatHora(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", timeZone: FUSO_ANGOLA });
+}
+
+/** Como `toIsoDate`, mas com hora — o formato que um <input type="datetime-local"> aceita. */
+export function toIsoDateTime(date: Date): string {
+  const horas = String(date.getHours()).padStart(2, "0");
+  const minutos = String(date.getMinutes()).padStart(2, "0");
+  return `${toIsoDate(date)}T${horas}:${minutos}`;
+}
+
+/**
+ * Inverso exato de `toIsoDateTime`: lê "aaaa-mm-ddThh:mm" como hora LOCAL, pelo mesmo motivo
+ * documentado em `fromIsoDate` — e devolve null em vez de Invalid Date para entrada malformada,
+ * para o chamador poder recusar antes de gravar.
+ */
+export function fromIsoDateTime(iso: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso.trim());
+  if (!match) return null;
+  const [, ano, mes, dia, horas, minutos] = match;
+  const data = new Date(Number(ano), Number(mes) - 1, Number(dia), Number(horas), Number(minutos));
+  if (data.getFullYear() !== Number(ano) || data.getMonth() !== Number(mes) - 1 || data.getDate() !== Number(dia)) {
+    return null;
+  }
+  return data;
 }
 
 /**

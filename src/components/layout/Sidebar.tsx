@@ -16,7 +16,7 @@ interface SidebarProps {
   onClose: () => void;
   simulationMode: boolean;
   /**
-   * Aluno inscrito numa monografia (§2026-09-04) — só a esses se mostra "Meu Orientador". Mostrar
+   * Aluno inscrito numa monografia (§2026-09-04) — só a esses se mostra "Finalista". Mostrar
    * o item a um aluno de 1º ano seria oferecer uma página que só lhe pode dizer "ainda não tem".
    */
   temMonografia?: boolean;
@@ -126,7 +126,7 @@ function ProfessorNav() {
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
       <NavItem href="/professor" label="Minhas Disciplinas" icon={<GraduationCap size={18} />} />
       <NavItem href="/horario" label="Meu Horário" icon={<CalendarClock size={18} />} />
-      {/* Sempre visível, ao contrário de "Meu Orientador" no aluno: qualquer professor pode vir a
+      {/* Sempre visível, ao contrário de "Finalista" no aluno: qualquer professor pode vir a
           ser orientador, e a página explica-se sozinha quando ainda não tem orientandos. */}
       <NavItem href="/professor/orientandos" label="Meus Orientandos" icon={<Users size={18} />} />
       <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
@@ -180,11 +180,9 @@ function AlunoNav({ temMonografia }: { temMonografia: boolean }) {
   return (
     <>
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
-      <NavItem href="/horario" label="Meu Horário" icon={<CalendarClock size={18} />} />
       {/* Só a finalistas — ver a nota em SidebarProps.temMonografia. */}
-      {temMonografia ? (
-        <NavItem href="/meu-orientador" label="Meu Orientador" icon={<Users size={18} />} />
-      ) : null}
+      {temMonografia ? <NavItem href="/finalista" label="Finalista" icon={<GraduationCap size={18} />} /> : null}
+      <NavItem href="/horario" label="Meu Horário" icon={<CalendarClock size={18} />} />
       <NavItem href="/minhas-notas" label="Minhas Notas" icon={<ClipboardList size={18} />} />
       <NavItem href="/reclamacoes" label="Reclamações" icon={<MessageSquareWarning size={18} />} />
       <NavGroup
