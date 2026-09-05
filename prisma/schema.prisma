@@ -288,6 +288,12 @@ model Matricula {
   turma         Turma           @relation(fields: [turmaId], references: [id])
   dataMatricula DateTime        @default(now())
   status        MatriculaStatus @default(ATIVA)
+  /// Matrícula ativa que NÃO gera mensalidades (§pedido do cliente 2026-09-05). Existe para um
+  /// caso só: o finalista que pagou a monografia e não chegou a defender por falta de júri, e a
+  /// quem o DAAC decidiu transitar sem voltar a cobrar o ano. Sem isto, a geração diária cobrava-lhe
+  /// todos os meses do ano novo por estar à espera de uma defesa que não foi culpa dele.
+  /// Só se liga por decidirTransicaoMonografiaAction — não é um interruptor de uso geral.
+  isentaPropinas Boolean        @default(false)
 
   cobrancas Cobranca[]
 

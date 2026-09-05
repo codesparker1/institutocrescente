@@ -13,6 +13,7 @@ import { getFinalistas, ESTADO_FINALISTA_LABEL, type EstadoFinalista, type Final
 import { getAgora } from "@/lib/tempo";
 import { formatAnoLetivo, formatDefesa, PERIODO_LABEL } from "@/lib/utils";
 import type { Periodo } from "@/generated/prisma/client";
+import { AvisoMonografiasPendentes } from "@/components/finalistas/AvisoMonografiasPendentes";
 import { ConfirmarPagamento } from "./ConfirmarPagamento";
 import { EditarOrientador } from "./EditarOrientador";
 import { EditarDefesa } from "./EditarDefesa";
@@ -92,6 +93,10 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
           orientador e marca-se a defesa. A nota lança-se em Notas e Frequência.
         </p>
       </div>
+
+      {/* O mesmo aviso do painel, tambem aqui: e nesta pagina que o DAAC trabalha os finalistas, e
+          quem vem ca direto sem passar pela Pagina Inicial tem de o ver na mesma. */}
+      <AvisoMonografiasPendentes />
 
       <Card>
         <CardBody>

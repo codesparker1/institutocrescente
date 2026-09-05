@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { ProfileCard } from "./ProfileCard";
+import { AvisoMonografiasPendentes } from "@/components/finalistas/AvisoMonografiasPendentes";
 import { formatAnoLetivo, formatDate } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
@@ -93,6 +94,11 @@ export async function AdminDashboard({ nome, email, role }: AdminDashboardProps)
         <h1 className="text-xl font-bold text-texto">Página Inicial</h1>
         <p className="text-sm text-texto-suave">Resumo do sistema de gestão académica do ISPC.</p>
       </div>
+
+      {/* Antes de tudo o resto: enquanto estiver por decidir, o aluno esta em suspenso e o aviso
+          nao desaparece (§pedido do cliente 2026-09-05). So a quem pode decidir — a secretaria ve
+          este painel mas nao tem a permissao, e um aviso que ela nao pode resolver e so ruido. */}
+      {role === "ADMIN" || role === "DAAC" ? <AvisoMonografiasPendentes /> : null}
 
       <ProfileCard
         nome={nome}

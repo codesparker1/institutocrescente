@@ -147,3 +147,58 @@ export async function getFinalistas(anoLetivo: number, filtros: FiltrosFinalista
   // segundo sítio, onde poderia divergir desta.
   return estado ? lista.filter((f) => f.estado === estado) : lista;
 }
+
+export interface MonografiaPendenteDecisao {
+  inscricaoId: string;
+  alunoId: string;
+  nome: string;
+  numeroEstudante: string;
+  cursoNome: string;
+  anoLetivoOrigem: number;
+  orientadorNome: string | null;
+  /** A data que chegou a estar marcada e não se cumpriu — ajuda o DAAC a lembrar-se do caso. */
+  defesaDataAnterior: Date | null;
+  confirmadaEm: Date | null;
+}
+
+/**
+ * Finalistas que pagaram a monografia e não chegaram a defender no ano letivo em que se
+ * inscreveram (§pedido do cliente 2026-09-05: "se ele não conseguir defender nesse período").
+ *
+ * O caso mais comum é não haver júri reunido a tempo — nada que o aluno possa resolver. Até o DAAC
+ * decidir o que fazer com cada um, estes alunos ficam de fora da suspensão automática: trancá-los
+ * dir-lhes-ia que falharam um prazo, e desativar-lhes a inscrição apagaria o pagamento que já
+ * fizeram.
+ *
+ * O conjunto limpa-se sozinho, sem campo de "já decidido": transitar move a inscrição para a turma
+ * do ano corrente (deixa de ter anoLetivo antigo) e não transitar desativa-a. Um estado gravado a
+ * dizer o mesmo seria uma segunda verdade a poder divergir desta.
+ */
+export async function getMonografiasPendentesDeDecisao(anoLetivoCorrente: number): Promise<MonografiaPendenteDecisao[]> {
+  const inscricoes = await prisma.inscricaoCadeira.findMany({
+    where: {
+      ativa: true,
+      eMonografiaAplicada: true,
+      notas: { none: {} },
+      turmaDisciplina: { turma: { anoLetivo: { lt: anoLetivoCorrente } } },
+    },
+    include: {
+      aluno: { select: { id: true, nome: true, numeroEstudante: true } },
+      orientador: { select: { nome: true } },
+      turmaDisciplina: { select: { turma: { select: { anoLetivo: true, curso: { select: { nome: true } } } } } },
+    },
+    orderBy: { aluno: { nome: "asc" } },
+  });
+
+  return inscricoes.map((i) => ({
+    inscricaoId: i.id,
+    alunoId: i.aluno.id,
+    nome: i.aluno.nome,
+    numeroEstudante: i.aluno.numeroEstudante,
+    cursoNome: i.turmaDisciplina.turma.curso.nome,
+    anoLetivoOrigem: i.turmaDisciplina.turma.anoLetivo,
+    orientadorNome: i.orientador?.nome ?? null,
+    defesaDataAnterior: i.defesaData,
+    confirmadaEm: i.monografiaConfirmadaEm,
+  }));
+}

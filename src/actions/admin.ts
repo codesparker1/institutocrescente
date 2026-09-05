@@ -11,6 +11,9 @@ import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from "@/lib/curriculo";
+// Com alias: createTurmaAction tem uma variável local com este nome (o ano CIVIL, outra coisa), e
+// duas leituras diferentes com o mesmo nome no mesmo ficheiro pedem um engano.
+import { anoLetivoCorrente as anoLetivoConfigurado } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
 import { formatDefesa, fromIsoDateTime, nomeProfessor, SALA_A_CONFIRMAR } from "@/lib/utils";
 
@@ -1065,6 +1068,153 @@ export async function marcarDefesaAction(
   );
 
   revalidarFinalistas();
+  return {};
+}
+
+const TransicaoSchema = z.object({
+  inscricaoId: z.string().min(1),
+  decisao: z.enum(["TRANSITA_SEM_PROPINAS", "TRANSITA_COM_PROPINAS", "NAO_TRANSITA"]),
+});
+
+/**
+ * Decide o que fazer com um finalista que pagou a monografia e não chegou a defender no ano letivo
+ * em que se inscreveu — §pedido do cliente 2026-09-05.
+ *
+ * Sem esta decisão o sistema fazia-lhe o pior de três coisas ao mesmo tempo: trancava-o por
+ * "não ter renovado dentro do prazo" (falso — faltou júri), desativava-lhe a inscrição, e com ela
+ * perdia-se o pagamento, obrigando-o a pagar de novo. Enquanto estiver por decidir, ele fica fora
+ * da suspensão automática (ver suspenderNaoRematriculados) e aparece no aviso do painel.
+ *
+ * Não se grava nenhum campo de "já decidido": transitar move a inscrição para a turma do ano
+ * corrente e não transitar desativa-a — de qualquer das formas o caso sai da lista de pendentes por
+ * si. Um estado gravado em paralelo seria uma segunda verdade a poder divergir desta.
+ */
+export async function decidirTransicaoMonografiaAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = TransicaoSchema.safeParse({
+    inscricaoId: formData.get("inscricaoId"),
+    decisao: formData.get("decisao"),
+  });
+  if (!parsed.success) return { error: "Dados inválidos." };
+
+  const inscricao = await prisma.inscricaoCadeira.findUnique({
+    where: { id: parsed.data.inscricaoId },
+    include: {
+      aluno: { select: { id: true, nome: true } },
+      _count: { select: { notas: true } },
+      turmaDisciplina: { select: { turma: true } },
+    },
+  });
+  if (!inscricao) return { error: "Inscrição não encontrada." };
+  if (!inscricao.eMonografiaAplicada) return { error: "Esta inscrição não é uma monografia." };
+  if (inscricao._count.notas > 0) {
+    return { error: `${inscricao.aluno.nome} já defendeu — não há nada a transitar.` };
+  }
+
+  const turmaOrigem = inscricao.turmaDisciplina.turma;
+
+  if (parsed.data.decisao === "NAO_TRANSITA") {
+    // A inscrição fica inativa e o aluno volta ao caminho normal: rematricula-se (ou é suspenso na
+    // corrida seguinte, como qualquer outro que não renovou). Para voltar a defender terá de pagar
+    // outra vez — é exatamente o que "não transita" significa.
+    await prisma.inscricaoCadeira.update({ where: { id: inscricao.id }, data: { ativa: false } });
+    await audit(
+      session,
+      `Decidiu que a monografia de ${inscricao.aluno.nome} (${turmaOrigem.anoLetivo}) NÃO transita — terá de pagar de novo`,
+      "InscricaoCadeira",
+      inscricao.id,
+      { valorAnterior: "Por decidir", valorNovo: "Não transita" },
+    );
+    revalidarFinalistas();
+    revalidatePath("/dashboard");
+    return {};
+  }
+
+  const agora = await getAgora();
+  const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const anoLetivo = anoLetivoConfigurado(agora, config);
+  if (anoLetivo === null) {
+    return { error: "Não há nenhum ano letivo a decorrer — só é possível transitar quando o ano novo estiver definido." };
+  }
+
+  // A turma do mesmo curso/ano/período no ano letivo corrente. O rollover automático cria-a a partir
+  // da do ano anterior, mas pode não ter corrido ainda (ou a combinação pode ter deixado de existir).
+  const turmaDestino = await prisma.turma.findUnique({
+    where: {
+      cursoId_anoCurricular_periodo_anoLetivo: {
+        cursoId: turmaOrigem.cursoId,
+        anoCurricular: turmaOrigem.anoCurricular,
+        periodo: turmaOrigem.periodo,
+        anoLetivo,
+      },
+    },
+  });
+  if (!turmaDestino) {
+    return {
+      error: `Não existe turma de ${turmaOrigem.anoCurricular}º Ano deste curso/período para ${anoLetivo}. Crie-a em Admin > Turmas antes de transitar.`,
+    };
+  }
+
+  const ofertaDestino = await prisma.turmaDisciplina.findFirst({
+    where: { turmaId: turmaDestino.id, cadeiraCurricularId: inscricao.cadeiraCurricularId },
+    select: { id: true },
+  });
+  if (!ofertaDestino) {
+    return {
+      error: `A monografia ainda não está atribuída à turma de ${anoLetivo}. Atribua-a em Admin > Turmas antes de transitar.`,
+    };
+  }
+
+  const isenta = parsed.data.decisao === "TRANSITA_SEM_PROPINAS";
+
+  await prisma.$transaction(async (tx) => {
+    const matriculaAntiga = await tx.matricula.findUnique({
+      where: { alunoId_turmaId: { alunoId: inscricao.aluno.id, turmaId: turmaOrigem.id } },
+      select: { id: true },
+    });
+    if (matriculaAntiga) {
+      await tx.matricula.update({ where: { id: matriculaAntiga.id }, data: { status: "CONCLUIDA" } });
+    }
+    await tx.matricula.upsert({
+      where: { alunoId_turmaId: { alunoId: inscricao.aluno.id, turmaId: turmaDestino.id } },
+      create: { alunoId: inscricao.aluno.id, turmaId: turmaDestino.id, status: "ATIVA", isentaPropinas: isenta },
+      update: { status: "ATIVA", isentaPropinas: isenta },
+    });
+    // ATIVO explícito: pode ter sido apanhado por uma suspensão anterior à existência desta regra.
+    await tx.aluno.update({ where: { id: inscricao.aluno.id }, data: { status: "ATIVO" } });
+    await tx.inscricaoCadeira.update({
+      where: { id: inscricao.id },
+      data: {
+        turmaDisciplinaId: ofertaDestino.id,
+        // A data anterior não se cumpriu — mantê-la mostraria ao aluno e ao orientador uma defesa
+        // que já passou como se estivesse marcada. Volta a "por marcar"; o orientador e o pagamento
+        // ficam como estavam, que é o ponto de transitar.
+        defesaData: null,
+        defesaSala: null,
+      },
+    });
+    await tx.avaliacao.upsert({
+      where: { turmaDisciplinaId_epoca: { turmaDisciplinaId: ofertaDestino.id, epoca: "EXAME" } },
+      update: {},
+      create: { turmaDisciplinaId: ofertaDestino.id, epoca: "EXAME", data: agora, sala: SALA_A_CONFIRMAR },
+    });
+  });
+
+  await audit(
+    session,
+    `Transitou a monografia de ${inscricao.aluno.nome} de ${turmaOrigem.anoLetivo} para ${anoLetivo}${
+      isenta ? " — sem propinas no ano novo" : " — a pagar propinas do ano novo"
+    }`,
+    "InscricaoCadeira",
+    inscricao.id,
+    { valorAnterior: `Por decidir (${turmaOrigem.anoLetivo})`, valorNovo: isenta ? "Transita, isento" : "Transita, a pagar" },
+  );
+
+  revalidarFinalistas();
+  revalidatePath("/dashboard");
   return {};
 }
 

@@ -536,7 +536,15 @@ async function suspenderNaoRematriculados(anoLetivoNovo: number): Promise<void> 
   // terminou o curso (processarRematriculaAction marca FORMADO no fim-de-curso) não "trancou",
   // terminou; TRANCADO/DESISTENTE já estão fora do ciclo de matrículas.
   const alunosAtivos = await prisma.aluno.findMany({
-    where: { status: "ATIVO" },
+    where: {
+      status: "ATIVO",
+      // O finalista que pagou a monografia e ainda não defendeu fica de fora até o DAAC decidir o
+      // que fazer com ele (§pedido do cliente 2026-09-05). Suspendê-lo aqui acusá-lo-ia de ter
+      // falhado a rematrícula — quando o que falhou foi haver júri — e desativar-lhe a inscrição
+      // (logo abaixo, nesta mesma transação) apagaria o pagamento que ele já fez.
+      // O aviso em Admin > Página Inicial lista estes casos e não desaparece até serem decididos.
+      inscricoes: { none: { ativa: true, eMonografiaAplicada: true, notas: { none: {} } } },
+    },
     select: {
       id: true,
       matriculas: {

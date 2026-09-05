@@ -181,7 +181,10 @@ async function gerarCobrancasDoDia(
 
   const [matriculasAtivas, precos] = await Promise.all([
     prisma.matricula.findMany({
-      where: { status: "ATIVA" },
+      // isentaPropinas fica de fora (§pedido do cliente 2026-09-05): é o finalista que transitou à
+      // espera de defesa sem voltar a pagar o ano. Precisa de matrícula ATIVA para poder defender,
+      // mas cobrá-lo seria fazê-lo pagar a falta de júri.
+      where: { status: "ATIVA", isentaPropinas: false },
       include: { turma: true, aluno: { select: { categoria: true, cadeirasReprovadasAnoAnterior: true } } },
     }),
     prisma.precoPropina.findMany(),
