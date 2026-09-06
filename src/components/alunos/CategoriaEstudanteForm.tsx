@@ -30,6 +30,8 @@ export function CategoriaEstudanteForm({ alunoId, categoria, editable }: Categor
     <form action={formAction} className="flex flex-col items-end gap-1">
       <input type="hidden" name="alunoId" value={alunoId} />
       <Select
+        // §2026-09-06 — mesma correção de EditarProfessorTurmaDisciplina.
+        key={categoria}
         name="categoria"
         defaultValue={categoria}
         disabled={isPending}

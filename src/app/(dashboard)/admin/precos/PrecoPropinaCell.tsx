@@ -22,6 +22,8 @@ export function PrecoPropinaCell({ categoria, anoCurricular, valorInicial }: Pre
       <input type="hidden" name="categoria" value={categoria} />
       <input type="hidden" name="anoCurricular" value={anoCurricular} />
       <Input
+        // §2026-09-06 — mesma correção de EditarProfessorTurmaDisciplina.
+        key={valorInicial ?? "none"}
         name="valor"
         type="number"
         min={0}

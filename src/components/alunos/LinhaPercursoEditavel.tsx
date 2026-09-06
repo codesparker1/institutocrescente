@@ -128,6 +128,9 @@ export function LinhaPercursoEditavel({
         {COLUNAS_EPOCA.map((coluna) => (
           <Td key={coluna.epoca} className="text-center">
             <input
+              // §2026-09-06 — mesma correção de EditarProfessorTurmaDisciplina: sem o key, o campo
+              // ficava com a nota antiga depois de gravar, enquanto a linha continuasse aberta.
+              key={notasPorEpoca[coluna.epoca]?.valor ?? "none"}
               form={formId}
               type="number"
               name={CAMPO_DA_EPOCA[coluna.epoca]}

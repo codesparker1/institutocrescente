@@ -26,6 +26,11 @@ export function EditarProfessorTurmaDisciplina({ turmaDisciplinaId, professorAtu
     <form action={formAction} className="flex items-center gap-1.5">
       <input type="hidden" name="id" value={turmaDisciplinaId} />
       <Select
+        // Sem isto o <select> ficava parado no valor antigo depois de gravar: defaultValue só se
+        // aplica na montagem, e revalidatePath troca a prop sem desmontar este Client Component
+        // (§bug reportado 2026-09-06). O key força o React a montar de novo quando o valor do
+        // servidor muda, sem perder o resto do estado do formulário (isPending, erro).
+        key={professorAtualId ?? "none"}
         name="professorId"
         defaultValue={professorAtualId ?? ""}
         disabled={isPending}

@@ -23,11 +23,14 @@ export function EditarRegrasCadeiraCurricular({
   return (
     <form action={formAction} className="flex items-center justify-end gap-1.5">
       <input type="hidden" name="cadeiraCurricularId" value={cadeiraCurricularId} />
-      <Select name="permiteDispensa" defaultValue={String(permiteDispensa)} disabled={isPending} className="w-28 py-1 text-xs">
+      {/* key em cada campo (§2026-09-06, mesma correção de EditarProfessorTurmaDisciplina): sem
+          isto, ficavam parados no valor antigo depois de gravar. */}
+      <Select key={String(permiteDispensa)} name="permiteDispensa" defaultValue={String(permiteDispensa)} disabled={isPending} className="w-28 py-1 text-xs">
         <option value="true">Com dispensa</option>
         <option value="false">Sem dispensa</option>
       </Select>
       <Input
+        key={notaMinimaDispensa}
         name="notaMinimaDispensa"
         type="number"
         min={0}

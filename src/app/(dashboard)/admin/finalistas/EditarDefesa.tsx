@@ -46,6 +46,9 @@ export function EditarDefesa({ inscricaoId, defesaData, defesaSala, temOrientado
       <input type="hidden" name="inscricaoId" value={inscricaoId} />
       <div className="flex flex-wrap items-center gap-1.5">
         <input
+          // Mesma correção de EditarProfessorTurmaDisciplina (§2026-09-06) — sem o key, os campos
+          // ficam parados no valor antigo depois de gravar.
+          key={defesaData ? defesaData.toISOString() : "none"}
           type="datetime-local"
           name="data"
           defaultValue={defesaData ? toIsoDateTime(defesaData) : ""}
@@ -53,6 +56,7 @@ export function EditarDefesa({ inscricaoId, defesaData, defesaSala, temOrientado
           className={`rounded-md border px-2 py-1 text-xs text-texto ${defesaData ? "border-navy-100" : "border-gold-300 bg-gold-50"}`}
         />
         <input
+          key={defesaSala ?? "none"}
           type="text"
           name="sala"
           defaultValue={defesaSala ?? ""}

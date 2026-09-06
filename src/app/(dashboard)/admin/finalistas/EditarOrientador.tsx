@@ -34,6 +34,9 @@ export function EditarOrientador({ inscricaoId, orientadorAtualId, professores, 
     <form action={formAction} className="flex items-center gap-1.5">
       <input type="hidden" name="inscricaoId" value={inscricaoId} />
       <Select
+        // Mesmo bug e mesma correção de EditarProfessorTurmaDisciplina (§2026-09-06): sem o key, o
+        // seletor fica parado no orientador antigo depois de gravar, até a página recarregar.
+        key={orientadorAtualId ?? "none"}
         name="orientadorId"
         defaultValue={orientadorAtualId ?? ""}
         disabled={isPending}

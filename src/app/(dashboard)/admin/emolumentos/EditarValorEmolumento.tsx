@@ -18,6 +18,8 @@ export function EditarValorEmolumento({ emolumentoId, valor }: EditarValorEmolum
     <form action={formAction} className="flex items-center justify-end gap-1.5">
       <input type="hidden" name="emolumentoId" value={emolumentoId} />
       <Input
+        // §2026-09-06 — mesma correção de EditarProfessorTurmaDisciplina.
+        key={valor}
         name="valor"
         type="number"
         min={0}
