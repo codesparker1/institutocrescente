@@ -9,7 +9,6 @@ import { ProfileCard } from "./ProfileCard";
 import { AvisoNotasBloqueadas } from "@/components/financeiro/AvisoNotasBloqueadas";
 import { verificarBloqueioAluno } from "@/lib/financeiro";
 import { DIA_SEMANA_LABEL, PERIODO_LABEL, diasAteProximo, formatAnoLetivo, formatCurrency, formatDate, formatHora, nomeProfessor } from "@/lib/utils";
-import { anoLetivoCorrente } from "@/lib/academico";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis, provaJaPassou, EPOCA_LABEL } from "@/lib/avaliacao";
 import { getAgora } from "@/lib/tempo";
 
@@ -26,11 +25,27 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     return <EmptyState message="Aluno não encontrado." />;
   }
 
+  const trancado = aluno.status === "TRANCADO";
+
   const agora = await getAgora();
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   const semestreAtual = config?.semestreAtual === 2 ? 2 : 1;
-  // Do intervalo configurado, não do ano civil — ver nota em anoLetivoCorrente.
-  const anoLetivo = anoLetivoCorrente(agora, config);
+
+  // O ano letivo A QUE O ALUNO PERTENCE vem da matrícula dele, não de anoLetivoCorrente(agora, config)
+  // (§pedido do cliente 2026-09-06). Os dois respondem a perguntas diferentes: anoLetivoCorrente é
+  // "que ciclo está o SISTEMA a operar agora" — fica null de propósito no intervalo entre um ano
+  // letivo e o seguinte (antes de o DAAC abrir as datas do novo ciclo), para bloquear provas e
+  // matrículas fora de época. Mas o aluno que já transitou para o 2º ano continua a pertencer ao
+  // 2º ano nesse intervalo — dizer-lhe "Por definir" nessa altura é confuso: parece que ele
+  // perdeu o lugar, quando só o RELÓGIO do sistema é que ainda não foi configurado.
+  const matriculaAtiva = trancado
+    ? null
+    : await prisma.matricula.findFirst({
+        where: { alunoId, status: "ATIVA" },
+        orderBy: { turma: { anoLetivo: "desc" } },
+        select: { turma: { select: { anoLetivo: true } } },
+      });
+  const anoLetivoDoAluno = matriculaAtiva?.turma.anoLetivo ?? null;
 
   // Por InscricaoCadeira, não por Matricula — cobre cadeiras repetidas noutra Turma (§4.2).
   // Filtrado ao semestre corrente (§pedido do cliente 2026-08-29): "Disciplinas ativas" e "Próximas
@@ -100,8 +115,6 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
     })
     .sort((a, b) => a.data.getTime() - b.data.getTime())
     .slice(0, 5);
-
-  const trancado = aluno.status === "TRANCADO";
 
   // Bloco do finalista (§pedido do cliente 2026-09-05). Só existe quando há monografia atribuída —
   // e ela só é atribuída depois do pagamento confirmado, pelo que a sua presença aqui já é, por si,
@@ -213,7 +226,7 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           // ano letivo/semestre correntes, que sugeririam um estado enganador (regra confirmada).
           trancado
             ? { label: "Matrícula", value: "Sem matrícula ativa" }
-            : { label: "Ano Letivo", value: anoLetivo !== null ? formatAnoLetivo(anoLetivo) : "Por definir" },
+            : { label: "Ano Letivo", value: anoLetivoDoAluno !== null ? formatAnoLetivo(anoLetivoDoAluno) : "Por definir" },
           ...(trancado ? [] : [{ label: "Semestre", value: `${semestreAtual}º Semestre` }]),
         ]}
       />
