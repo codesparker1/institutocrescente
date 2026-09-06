@@ -29,10 +29,12 @@ export function CreditarCadeiraForm({ alunoId, cadeirasDisponiveis }: CreditarCa
   if (cadeirasDisponiveis.length === 0) return null;
 
   if (!aberto) {
+    // Era um link de texto a 12px, sem contorno nem fundo — quase invisível ao lado do resto da
+    // página, que é toda botões (§pedido do cliente 2026-09-06). Mesmo Button que abre o form.
     return (
-      <button type="button" onClick={() => setAberto(true)} className="text-xs font-medium text-texto hover:text-navy-700 hover:underline">
+      <Button type="button" variant="secondary" onClick={() => setAberto(true)}>
         Creditar cadeira de outra instituição
-      </button>
+      </Button>
     );
   }
 

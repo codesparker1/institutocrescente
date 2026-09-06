@@ -473,8 +473,13 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                                       { anoLetivo: grupo.anoLetivo, semestre },
                                       { anoLetivo: anoLetivoAtual, semestreAtual: semestreAtualConfig },
                                     )}
-                                    professorNome={nomeProfessor(inscricao.turmaDisciplina.professor)}
-                                    temProfessor={Boolean(inscricao.turmaDisciplina.professor)}
+                                    // Uma cadeira creditada nunca foi lecionada aqui — o professor
+                                    // que consta na TurmaDisciplina é de quem lá dá aulas a OUTROS
+                                    // alunos, e mostrá-lo a este aluno sugeria que foi ele quem
+                                    // avaliou uma nota que veio de outra instituição (§pedido do
+                                    // cliente 2026-09-06).
+                                    professorNome={inscricao.creditada ? "—" : nomeProfessor(inscricao.turmaDisciplina.professor)}
+                                    temProfessor={!inscricao.creditada && Boolean(inscricao.turmaDisciplina.professor)}
                                     editavel={podeRepetir}
                                   />
                                 );
