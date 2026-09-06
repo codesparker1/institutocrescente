@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
 import { ehVencidoAlemDaTolerancia, mesDentroDoAnoLetivo } from "@/lib/divida";
+import { anoLetivoCorrente } from "@/lib/academico";
 import { estadoCobrancaVisual, type EstadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { getAgora } from "@/lib/tempo";
 import { TIPOS_QUE_BLOQUEIAM, TIPOS_QUE_CONTAM_COMO_DIVIDA } from "@/lib/financeiro-tipos";
@@ -162,6 +163,7 @@ export async function garantirCobrancasGeradas(): Promise<void> {
       Number(config.valorMulta),
       Number(config.percentagemAgravamentoPorCadeira),
       gerarPropinas,
+      anoLetivoCorrente(agora, configAcademica),
     ),
   );
 }
@@ -175,6 +177,8 @@ async function gerarCobrancasDoDia(
   percentagemAgravamentoPorCadeira: number,
   /** false fora do ano letivo — só as multas correm (ver nota em garantirCobrancasGeradas). */
   gerarPropinas: boolean,
+  /** null entre anos letivos, ou com a configuração por preencher — aí não se filtra por ano. */
+  anoLetivoAtual: number | null,
 ): Promise<void> {
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
   const dataVencimentoMes = new Date(agora.getFullYear(), agora.getMonth(), diaVencimento);
@@ -184,7 +188,17 @@ async function gerarCobrancasDoDia(
       // isentaPropinas fica de fora (§pedido do cliente 2026-09-05): é o finalista que transitou à
       // espera de defesa sem voltar a pagar o ano. Precisa de matrícula ATIVA para poder defender,
       // mas cobrá-lo seria fazê-lo pagar a falta de júri.
-      where: { status: "ATIVA", isentaPropinas: false },
+      //
+      // O filtro por ano letivo fecha a outra metade do mesmo caso (§2026-09-06): desde que a
+      // suspensão automática passou a poupar quem tem monografia paga e por defender, esses alunos
+      // ficam com a matrícula do ano ANTERIOR ainda ATIVA à espera da decisão do DAAC — e sem isto
+      // apanhavam a propina de cada mês do ano novo, cobrada ao preço do ano em que já não estão.
+      // Uma matrícula de um ano letivo fechado nunca deve gerar a mensalidade do mês corrente.
+      where: {
+        status: "ATIVA",
+        isentaPropinas: false,
+        ...(anoLetivoAtual !== null ? { turma: { anoLetivo: anoLetivoAtual } } : {}),
+      },
       include: { turma: true, aluno: { select: { categoria: true, cadeirasReprovadasAnoAnterior: true } } },
     }),
     prisma.precoPropina.findMany(),

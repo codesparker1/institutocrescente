@@ -29,7 +29,7 @@ async function carregarAlunos(): Promise<AlunoParaDiagnostico[]> {
           id: true,
           ativa: true,
           cadeiraCurricularId: true,
-          cadeiraCurricular: { select: { disciplina: { select: { nome: true } } } },
+          cadeiraCurricular: { select: { eMonografia: true, disciplina: { select: { nome: true } } } },
           turmaDisciplina: { select: { turma: { select: { anoLetivo: true } }, horarioSlots: { select: { id: true }, take: 1 } } },
         },
       },
@@ -48,6 +48,7 @@ async function carregarAlunos(): Promise<AlunoParaDiagnostico[]> {
       cadeiraNome: i.cadeiraCurricular.disciplina.nome,
       turmaAnoLetivo: i.turmaDisciplina.turma.anoLetivo,
       temHorarioSlot: i.turmaDisciplina.horarioSlots.length > 0,
+      eMonografia: i.cadeiraCurricular.eMonografia,
     })),
   }));
 }

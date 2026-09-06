@@ -8,7 +8,7 @@ function alunoBase(overrides: Partial<AlunoParaDiagnostico> = {}): AlunoParaDiag
     nome: "Aluno Teste",
     status: "ATIVO",
     matriculas: [{ id: "mat-1", status: "ATIVA", anoLetivo: 2027 }],
-    inscricoes: [{ id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true }],
+    inscricoes: [{ id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true, eMonografia: false }],
     ...overrides,
   };
 }
@@ -37,7 +37,7 @@ test("matricula-ativa-unica: silenciosa com uma só ATIVA e outras CONCLUIDA", (
 test("inscricao-ativa-ano-anterior: dispara quando a inscrição ativa é de uma turma mais velha que a matrícula corrente", () => {
   const aluno = alunoBase({
     matriculas: [{ id: "mat-1", status: "ATIVA", anoLetivo: 2027 }],
-    inscricoes: [{ id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação I", turmaAnoLetivo: 2026, temHorarioSlot: true }],
+    inscricoes: [{ id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação I", turmaAnoLetivo: 2026, temHorarioSlot: true, eMonografia: false }],
   });
   const violacoes = diagnosticarAluno(aluno);
   assert.ok(violacoes.some((v) => v.regra === "inscricao-ativa-ano-anterior" && v.severidade === "ERROR"));
@@ -62,8 +62,8 @@ test("sem-inscricao-ativa-se-inativo: silenciosa para aluno ATIVO", () => {
 test("uma-tentativa-ativa-por-cadeira: dispara com duas inscrições ativas na mesma cadeira curricular", () => {
   const aluno = alunoBase({
     inscricoes: [
-      { id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true },
-      { id: "insc-2", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true },
+      { id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true, eMonografia: false },
+      { id: "insc-2", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true, eMonografia: false },
     ],
   });
   const violacoes = diagnosticarAluno(aluno);
@@ -73,8 +73,8 @@ test("uma-tentativa-ativa-por-cadeira: dispara com duas inscrições ativas na m
 test("uma-tentativa-ativa-por-cadeira: silenciosa quando a tentativa antiga já está inativa", () => {
   const aluno = alunoBase({
     inscricoes: [
-      { id: "insc-1", ativa: false, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2026, temHorarioSlot: true },
-      { id: "insc-2", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true },
+      { id: "insc-1", ativa: false, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2026, temHorarioSlot: true, eMonografia: false },
+      { id: "insc-2", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: true, eMonografia: false },
     ],
   });
   assert.equal(diagnosticarAluno(aluno).filter((v) => v.regra === "uma-tentativa-ativa-por-cadeira").length, 0);
@@ -82,7 +82,7 @@ test("uma-tentativa-ativa-por-cadeira: silenciosa quando a tentativa antiga já 
 
 test("inscricao-ativa-tem-horario: dispara (WARNING) quando a turma-disciplina não tem horário", () => {
   const aluno = alunoBase({
-    inscricoes: [{ id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: false }],
+    inscricoes: [{ id: "insc-1", ativa: true, cadeiraCurricularId: "cc-1", cadeiraNome: "Programação II", turmaAnoLetivo: 2027, temHorarioSlot: false, eMonografia: false }],
   });
   const violacoes = diagnosticarAluno(aluno);
   assert.ok(violacoes.some((v) => v.regra === "inscricao-ativa-tem-horario" && v.severidade === "WARNING"));
@@ -91,4 +91,42 @@ test("inscricao-ativa-tem-horario: dispara (WARNING) quando a turma-disciplina n
 test("inscricao-ativa-tem-horario: silenciosa quando já tem horário", () => {
   const aluno = alunoBase();
   assert.equal(diagnosticarAluno(aluno).filter((v) => v.regra === "inscricao-ativa-tem-horario").length, 0);
+});
+
+test("inscricao-ativa-tem-horario: nao dispara para a monografia", () => {
+  // A monografia nao tem aulas e nem sequer aparece em Horario (§2026-09-06) — o DAAC nao lhe pode
+  // dar horario. Sem esta excecao, cada finalista gerava um aviso permanente e insoluvel.
+  const aluno = alunoBase({
+    inscricoes: [
+      {
+        id: "insc-mono",
+        ativa: true,
+        cadeiraCurricularId: "cc-mono",
+        cadeiraNome: "Monografia",
+        turmaAnoLetivo: 2027,
+        temHorarioSlot: false,
+        eMonografia: true,
+      },
+    ],
+  });
+  const violacoes = diagnosticarAluno(aluno);
+  assert.equal(violacoes.filter((v) => v.regra === "inscricao-ativa-tem-horario").length, 0);
+});
+
+test("inscricao-ativa-tem-horario: continua a disparar numa cadeira normal sem horario", () => {
+  const aluno = alunoBase({
+    inscricoes: [
+      {
+        id: "insc-1",
+        ativa: true,
+        cadeiraCurricularId: "cc-1",
+        cadeiraNome: "Programação II",
+        turmaAnoLetivo: 2027,
+        temHorarioSlot: false,
+        eMonografia: false,
+      },
+    ],
+  });
+  const violacoes = diagnosticarAluno(aluno);
+  assert.ok(violacoes.some((v) => v.regra === "inscricao-ativa-tem-horario" && v.severidade === "WARNING"));
 });

@@ -32,6 +32,8 @@ export interface InscricaoResumo {
   cadeiraNome: string;
   turmaAnoLetivo: number;
   temHorarioSlot: boolean;
+  /** Monografia — não tem aulas, logo nunca terá horário (ver regraInscricaoAtivaTemHorario). */
+  eMonografia: boolean;
 }
 
 export interface AlunoParaDiagnostico {
@@ -99,10 +101,18 @@ function regraUmaTentativaAtivaPorCadeira(aluno: AlunoParaDiagnostico): Violacao
     .map((grupo) => violacao(aluno, "uma-tentativa-ativa-por-cadeira", "ERROR", `${grupo.length} inscrições ativas para ${grupo[0].cadeiraNome} (ids: ${grupo.map((i) => i.id).join(", ")}).`));
 }
 
-/** WARNING — inscrição ativa cuja turma-disciplina ainda não tem horário construído (lacuna do DAAC, não corrupção). */
+/**
+ * WARNING — inscrição ativa cuja turma-disciplina ainda não tem horário construído (lacuna do DAAC,
+ * não corrupção).
+ *
+ * A monografia fica de fora (§2026-09-06): não tem aulas, e desde que a defesa passou a marcar-se em
+ * Finalistas ela nem sequer aparece em Horário — o DAAC não lhe *pode* dar horário. Sem esta
+ * exclusão, cada finalista gerava um aviso permanente e impossível de resolver, e um diagnóstico
+ * que avisa sempre deixa de ser lido.
+ */
 function regraInscricaoAtivaTemHorario(aluno: AlunoParaDiagnostico): Violacao[] {
   return aluno.inscricoes
-    .filter((i) => i.ativa && !i.temHorarioSlot)
+    .filter((i) => i.ativa && !i.temHorarioSlot && !i.eMonografia)
     .map((i) => violacao(aluno, "inscricao-ativa-tem-horario", "WARNING", `${i.cadeiraNome} está ativa mas a turma-disciplina não tem nenhum horário definido.`));
 }
 
