@@ -13,7 +13,7 @@ import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "
 import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from "@/lib/curriculo";
 // Com alias: createTurmaAction tem uma variável local com este nome (o ano CIVIL, outra coisa), e
 // duas leituras diferentes com o mesmo nome no mesmo ficheiro pedem um engano.
-import { anoLetivoCorrente as anoLetivoConfigurado } from "@/lib/academico";
+import { anoLetivoCorrente as anoLetivoConfigurado, dentroDoAnoLetivo } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
 import { formatDefesa, fromIsoDateTime, nomeProfessor, SALA_A_CONFIRMAR } from "@/lib/utils";
 
@@ -1242,6 +1242,24 @@ export async function marcarDefesaAction(
     // malformada tem de ser recusada, não gravada como Invalid Date.
     defesaData = fromIsoDateTime(dataTexto);
     if (!defesaData) return { error: "Data da defesa inválida." };
+
+    // O <input type="datetime-local"> não tinha `min`, e nada do lado do servidor limitava a
+    // escolha — o relógio simulado (§reportado 2026-09-07: "o clock do finalista não respeita o
+    // tempo simulado") nunca era sequer consultado. Dava para marcar uma defesa em qualquer dia de
+    // qualquer ano, incluindo no passado. Mesma dupla verificação de createProvaAction: dentro do
+    // ano letivo a decorrer, e não antes de hoje — comparado ao DIA, não à hora, porque marcar para
+    // hoje a uma hora que já passou continua a ser uma marcação válida para hoje.
+    const [agora, config] = await Promise.all([
+      getAgora(),
+      prisma.configuracaoAcademica.findUnique({ where: { id: "config" } }),
+    ]);
+    if (!dentroDoAnoLetivo(defesaData, config)) {
+      return { error: "A data da defesa tem de cair dentro do ano letivo a decorrer." };
+    }
+    const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+    if (defesaData < hoje) {
+      return { error: "Não é possível marcar uma defesa para uma data que já passou." };
+    }
   }
   // Sala sem data seria uma defesa marcada em lado nenhum, e o PDF da pauta de defesas lista quem
   // tem data — a linha apareceria lá com a data em branco.

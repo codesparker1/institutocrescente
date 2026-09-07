@@ -11,7 +11,7 @@ import { podeGerirCurriculo } from "@/lib/permissions";
 import { getFinalistas, ESTADO_FINALISTA_LABEL, type EstadoFinalista, type FinalistaItem } from "@/lib/finalistas";
 import { anoLetivoDeReferencia } from "@/lib/ano-letivo";
 import { getAgora } from "@/lib/tempo";
-import { formatAnoLetivo, formatDefesa, PERIODO_LABEL } from "@/lib/utils";
+import { formatAnoLetivo, formatDefesa, PERIODO_LABEL, toIsoDateTime } from "@/lib/utils";
 import type { Periodo } from "@/generated/prisma/client";
 import { AvisoMonografiasPendentes } from "@/components/finalistas/AvisoMonografiasPendentes";
 import { ConfirmarPagamento } from "./ConfirmarPagamento";
@@ -54,6 +54,13 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
   // null, e a página ficava vazia justamente quando havia finalistas por resolver.
   const anoLetivo = await anoLetivoDeReferencia(agora, config);
   const limite = config?.limiteOrientandosPorProfessor ?? 5;
+
+  // Limites do calendário de EditarDefesa — mesmo relógio simulado da página inteira, nunca
+  // `new Date()` direto (§reportado 2026-09-07: era isso que fazia o seletor ignorar o tempo
+  // simulado e aceitar qualquer data no passado). Início do dia, não a hora exata: a Server Action
+  // permite marcar para "hoje", mesmo a uma hora que já passou.
+  const hojeTexto = toIsoDateTime(new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()));
+  const maxDefesaTexto = config?.anoLetivoFim ? toIsoDateTime(config.anoLetivoFim) : null;
 
   const [finalistas, cursos, professores] = await Promise.all([
     anoLetivo === null
@@ -238,6 +245,8 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
                         defesaData={finalista.defesaData}
                         defesaSala={finalista.defesaSala}
                         temOrientador={finalista.orientadorId !== null}
+                        minDataTexto={hojeTexto}
+                        maxDataTexto={maxDefesaTexto}
                       />
                     ) : (
                       <span className="text-xs text-texto-suave">—</span>

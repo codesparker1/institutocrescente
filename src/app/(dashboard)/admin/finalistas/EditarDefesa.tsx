@@ -12,6 +12,15 @@ interface EditarDefesaProps {
   defesaSala: string | null;
   /** Sem orientador não se marca defesa — o passo anterior ainda não está feito. */
   temOrientador: boolean;
+  /**
+   * Limites do seletor, em hora local do relógio simulado (§reportado 2026-09-07: "o clock do
+   * finalista não respeita o tempo simulado, e permite escolher tempo no passado"). O `min`/`max`
+   * do input só orienta o calendário do browser — a Server Action é que recusa de facto uma data
+   * fora do ano letivo ou anterior a hoje; sem eles o utilizador só descobria o limite depois de
+   * submeter.
+   */
+  minDataTexto: string;
+  maxDataTexto: string | null;
 }
 
 /**
@@ -20,7 +29,14 @@ interface EditarDefesaProps {
  * Individual, e não a Avaliacao da turma-disciplina que existia antes: essa é partilhada por todos
  * os finalistas do mesmo curso e período, e fazia cada aluno ver no seu ecrã a data de outra pessoa.
  */
-export function EditarDefesa({ inscricaoId, defesaData, defesaSala, temOrientador }: EditarDefesaProps) {
+export function EditarDefesa({
+  inscricaoId,
+  defesaData,
+  defesaSala,
+  temOrientador,
+  minDataTexto,
+  maxDataTexto,
+}: EditarDefesaProps) {
   const [state, formAction, isPending] = useActionState(marcarDefesaAction, initialState);
 
   // Retirar o orientador de uma defesa já marcada é possível (o seletor tem a opção "Sem
@@ -52,6 +68,8 @@ export function EditarDefesa({ inscricaoId, defesaData, defesaSala, temOrientado
           type="datetime-local"
           name="data"
           defaultValue={defesaData ? toIsoDateTime(defesaData) : ""}
+          min={minDataTexto}
+          max={maxDataTexto ?? undefined}
           disabled={isPending}
           className={`rounded-md border px-2 py-1 text-xs text-texto ${defesaData ? "border-navy-100" : "border-gold-300 bg-gold-50"}`}
         />
