@@ -7,7 +7,6 @@ import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteCadeiraCurricularAction } from "@/actions/admin";
 import { CreateCadeiraCurricularForm } from "./CreateCadeiraCurricularForm";
 import { EditarRegrasCadeiraCurricular } from "./EditarRegrasCadeiraCurricular";
-import { MonografiaTodosOsCursos } from "./MonografiaTodosOsCursos";
 
 interface AdminCurriculoPageProps {
   searchParams: Promise<{ cursoId?: string }>;
@@ -50,26 +49,19 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
     .filter((d) => !jaNoPlano.has(d.id))
     .map((d) => ({ id: d.id, nome: d.nome, cursoOrigem: d.cursoId === cursoId ? null : d.curso.nome }));
 
-  // Cobertura da monografia em TODOS os cursos, não só no que está selecionado (§pedido do cliente
-  // 2026-09-07): a pergunta "já está em todos?" não se responde curso a curso, e era assim que se
-  // acabava com uma "Monografia" duplicada em cada um.
-  const cadeirasMonografia = await prisma.cadeiraCurricular.findMany({
-    where: { eMonografia: true },
-    select: { cursoId: true, disciplinaId: true },
-  });
-  const cursosComMonografia = new Set(cadeirasMonografia.map((c) => c.cursoId));
+  // Cobertura da monografia em TODOS os cursos, não só no selecionado: a pergunta "já está em
+  // todos?" não se responde curso a curso.
+  //
+  // Só LEITURA, de propósito. Houve aqui um botão que aplicava a monografia a todos os cursos de
+  // uma vez (§2026-09-07, removido no mesmo dia): escolher a disciplina errada no dropdown marcava
+  // uma cadeira normal como monografia em todo o sistema. Avisar que falta é útil; agir por conta
+  // própria em todos os cursos não é.
+  const cursosComMonografia = new Set(
+    (await prisma.cadeiraCurricular.findMany({ where: { eMonografia: true }, select: { cursoId: true } })).map(
+      (c) => c.cursoId,
+    ),
+  );
   const cursosEmFalta = cursos.filter((c) => !cursosComMonografia.has(c.id)).map((c) => c.nome);
-  // As que já servem de monografia primeiro: é quase sempre a escolha certa, e evita que o DAAC
-  // escolha outra sem reparar que já existe uma a fazer esse papel.
-  const disciplinasMonografia = new Set(cadeirasMonografia.map((c) => c.disciplinaId));
-  const opcoesMonografia = disciplinas
-    .map((d) => ({
-      id: d.id,
-      nome: d.nome,
-      cursoOrigem: d.curso.nome,
-      jaEMonografia: disciplinasMonografia.has(d.id),
-    }))
-    .sort((a, b) => Number(b.jaEMonografia) - Number(a.jaEMonografia) || a.nome.localeCompare(b.nome, "pt"));
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,12 +96,14 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
       </Card>
 
       {/* Fora do cartão do curso selecionado de propósito: isto é sobre TODOS os cursos. */}
-      {cursos.length > 0 ? (
-        <MonografiaTodosOsCursos
-          disciplinas={opcoesMonografia}
-          cursosEmFalta={cursosEmFalta}
-          totalCursos={cursos.length}
-        />
+      {cursosEmFalta.length > 0 ? (
+        <p className="rounded-lg border border-gold-200 bg-gold-50 px-4 py-3 text-xs text-gold-800">
+          <strong>
+            {cursosEmFalta.length} de {cursos.length} curso(s) ainda não têm monografia no último ano:
+          </strong>{" "}
+          {cursosEmFalta.join(", ")}. Escolha cada curso acima e adicione-a ao plano com o tipo{" "}
+          <strong>Monografia (defesa)</strong>.
+        </p>
       ) : null}
 
       {!curso ? (
