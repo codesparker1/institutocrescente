@@ -81,7 +81,18 @@ export function ConfirmarPagamento({
       {/* Reverter só enquanto não houver nota: depois da defesa avaliada a inscrição é registo
           académico, e apagá-la levaria a nota junto. A ação valida o mesmo do lado do servidor. */}
       {temNota ? null : (
-        <form action={reverterAction}>
+        <form
+          action={reverterAction}
+          // Reverter apaga a inscrição na monografia (orientador e defesa incluídos, se já
+          // marcados) — não é um "desfazer" trivial, é o aluno a perder a monografia atribuída até
+          // pagar outra vez. Um clique a mais no lugar errado não devia bastar (§pedido do cliente
+          // 2026-09-07: "meter uma questão para o DAAC/admin confirmar mesmo").
+          onSubmit={(e) => {
+            if (!window.confirm("Reverter a confirmação do pagamento? O aluno perde a monografia atribuída — orientador e defesa marcada, se já houver — até o pagamento ser confirmado outra vez.")) {
+              e.preventDefault();
+            }
+          }}
+        >
           <input type="hidden" name="inscricaoId" value={inscricaoId} />
           <button type="submit" disabled={aReverter} className="text-xs text-texto-suave underline hover:text-red-600 disabled:opacity-60">
             {aReverter ? "..." : "Reverter"}

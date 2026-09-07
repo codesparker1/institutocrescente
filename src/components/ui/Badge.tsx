@@ -23,7 +23,11 @@ export function Badge({ children, tone = "neutral", className, title }: BadgePro
     <span
       title={title}
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+        // whitespace-nowrap: sem isto, numa coluna espremida por outras mais largas (inputs de
+        // data/hora, seletores), o texto do badge quebra a meio e o rounded-full vira um círculo
+        // apertado sobre duas linhas em vez de uma pílula (§reportado 2026-09-07, "Defesa por
+        // marcar" a partir-se ao meio em Admin > Finalistas).
+        "inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold",
         TONE_CLASSES[tone],
         className,
       )}
