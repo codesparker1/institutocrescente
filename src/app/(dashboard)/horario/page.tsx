@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/Table";
 import { ScheduleGrid, type TurmaDisciplinaComHorario } from "@/components/horario/ScheduleGrid";
 import { PERIODO_LABEL, formatAnoLetivo, parseIntParam, toIsoDate } from "@/lib/utils";
 import { anoLetivoCorrente } from "@/lib/academico";
+import { anoLetivoDeReferencia } from "@/lib/ano-letivo";
 import { getAgora } from "@/lib/tempo";
 import { podeGerirCurriculo } from "@/lib/permissions";
 import { calcularNotaFinal, extrairNotasPorEpoca, epocasVisiveis } from "@/lib/avaliacao";
@@ -133,12 +134,18 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   // o seu horário e as suas provas (§pedido do cliente 2026-08-28). Sem ele fixado, o ecrã caía no
   // `orderBy: anoLetivo desc` e mostrava silenciosamente a turma do ano passado — deixando marcar
   // provas num ano letivo já encerrado sem nada a assinalar.
-  const anoLetivo = anoLetivoCorrente(agora, config);
+  // anoLetivoDeReferencia, não anoLetivoCorrente (§pedido do cliente 2026-09-07): entre o fim de um
+  // ano letivo e o início do seguinte — cerca de quatro meses, todos os anos — anoLetivoCorrente é
+  // null, e este ecrã fechava-se por completo. Mas é exatamente essa a altura em que o DAAC prepara
+  // o horário do ano que vai começar. O perigo original mantém-se coberto: o que não se pode é cair
+  // no `orderBy: anoLetivo desc` e marcar provas na turma do ano PASSADO sem dar por isso — e a
+  // referência é sempre o ano MAIS RECENTE que existe, nunca um já encerrado.
+  const anoLetivo = await anoLetivoDeReferencia(agora, config);
   if (anoLetivo === null) {
     return (
       <div className="flex flex-col gap-6">
         <HorarioHeader subtitle="Gerir horário de aulas e provas." view={view} baseQuery={{}} />
-        <EmptyState message="Não há ano letivo a decorrer. Defina as datas de início e fim do ano letivo em Admin → Académico → Configuração antes de marcar aulas ou provas." />
+        <EmptyState message="Ainda não existe nenhuma turma no sistema. Crie as turmas em Admin → Turmas antes de marcar aulas ou provas." />
       </div>
     );
   }

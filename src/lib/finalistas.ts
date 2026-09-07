@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 // O estado vive em academico.ts, e nao aqui, para poder ser testado: este modulo e server-only, o
 // que impede o corredor de testes (node:test/tsx) de o importar.
-import { anoLetivoCorrente, estadoDaMonografia, type EstadoFinalista } from "@/lib/academico";
+import { estadoDaMonografia, type EstadoFinalista } from "@/lib/academico";
 import type { Periodo } from "@/generated/prisma/client";
 
 export { ESTADO_FINALISTA_LABEL, type EstadoFinalista } from "@/lib/academico";
@@ -38,31 +38,6 @@ export interface FiltrosFinalistas {
   q?: string;
 }
 
-/**
- * O ano letivo a usar nos ecrãs de Finalistas quando anoLetivoCorrente(agora, config) devolve null
- * — o que acontece TODOS os anos, não só uma vez: é o intervalo entre o fim de um ciclo e o início
- * do seguinte (nesta instalação, cerca de 4 meses — Jun a Out), enquanto o DAAC não confirma as
- * datas do ano novo (§pedido do cliente 2026-09-06).
- *
- * anoLetivoCorrente responde bem a "que período está o SISTEMA a operar agora" — e é essa a
- * pergunta certa para recusar marcar provas fora de época (ver Horário). Mas Finalistas e o aviso de
- * monografias pendentes respondem a uma pergunta diferente: "que alunos existem, de facto, agora" —
- * e essa resposta já está nos dados. rolloverTurmas cria a Turma do ano novo automaticamente, sem
- * depender de o DAAC configurar nada, por isso o maior Turma.anoLetivo já existente é uma
- * referência fiável mesmo quando o sistema não sabe dizer "que ano é hoje".
- *
- * Sem este recurso, a página Finalistas ficava vazia e o aviso de monografias pendentes — pensado
- * precisamente para aparecer nesse intervalo — desaparecia sozinho, o oposto do que era suposto.
- */
-export async function anoLetivoDeReferenciaFinalistas(
-  agora: Date,
-  config: { anoLetivoInicio: Date | null; anoLetivoFim: Date | null } | null,
-): Promise<number | null> {
-  const corrente = anoLetivoCorrente(agora, config);
-  if (corrente !== null) return corrente;
-  const maisRecente = await prisma.turma.aggregate({ _max: { anoLetivo: true } });
-  return maisRecente._max.anoLetivo ?? null;
-}
 
 /**
  * Todos os alunos com matrícula ativa no ÚLTIMO ano do seu curso, no ano letivo dado, com o estado

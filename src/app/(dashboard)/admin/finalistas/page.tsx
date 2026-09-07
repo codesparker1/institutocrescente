@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Select } from "@/components/ui/Select";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { podeGerirCurriculo } from "@/lib/permissions";
-import { anoLetivoDeReferenciaFinalistas, getFinalistas, ESTADO_FINALISTA_LABEL, type EstadoFinalista, type FinalistaItem } from "@/lib/finalistas";
+import { getFinalistas, ESTADO_FINALISTA_LABEL, type EstadoFinalista, type FinalistaItem } from "@/lib/finalistas";
+import { anoLetivoDeReferencia } from "@/lib/ano-letivo";
 import { getAgora } from "@/lib/tempo";
 import { formatAnoLetivo, formatDefesa, PERIODO_LABEL } from "@/lib/utils";
 import type { Periodo } from "@/generated/prisma/client";
@@ -51,7 +52,7 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
   // Não anoLetivoCorrente diretamente (§2026-09-06): entre o fim de um ano letivo e o DAAC
   // confirmar as datas do seguinte — um intervalo recorrente, não uma exceção — essa função devolve
   // null, e a página ficava vazia justamente quando havia finalistas por resolver.
-  const anoLetivo = await anoLetivoDeReferenciaFinalistas(agora, config);
+  const anoLetivo = await anoLetivoDeReferencia(agora, config);
   const limite = config?.limiteOrientandosPorProfessor ?? 5;
 
   const [finalistas, cursos, professores] = await Promise.all([

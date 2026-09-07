@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Check } from "lucide-react";
 import { confirmarPagamentoMonografiaAction, reverterConfirmacaoMonografiaAction } from "@/actions/admin";
@@ -39,10 +40,16 @@ export function ConfirmarPagamento({
   const [confirmarState, confirmarAction, aConfirmar] = useActionState(confirmarPagamentoMonografiaAction, initialState);
   const [reverterState, reverterAction, aReverter] = useActionState(reverterConfirmacaoMonografiaAction, initialState);
 
+  // Sem monografia no plano não há botão nenhum a mostrar — mas dizer só isso deixava o DAAC sem
+  // saber que passo lhe falta, e a leitura era "o sistema não funciona" (§pedido do cliente
+  // 2026-09-07: "não tem o ticker onde o admin/daac pressiona"). O caminho vai no próprio aviso.
   if (!temMonografiaNoPlano) {
     return (
-      <span className="text-xs text-texto-suave">
-        O plano curricular deste curso não tem monografia marcada.
+      <span className="flex flex-col gap-0.5 text-xs text-texto-suave">
+        <span>Este curso ainda não tem monografia no plano curricular.</span>
+        <Link href="/admin/curriculo" className="w-fit font-semibold text-texto underline hover:text-navy-700">
+          Marcar em Plano Curricular
+        </Link>
       </span>
     );
   }

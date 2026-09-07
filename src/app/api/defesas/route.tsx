@@ -4,7 +4,8 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { podeGerirCurriculo } from "@/lib/permissions";
-import { anoLetivoDeReferenciaFinalistas, getFinalistas } from "@/lib/finalistas";
+import { getFinalistas } from "@/lib/finalistas";
+import { anoLetivoDeReferencia } from "@/lib/ano-letivo";
 import { getAgora } from "@/lib/tempo";
 import { formatAnoLetivo, formatDate, formatDateTime, formatHora, PERIODO_LABEL, SALA_A_CONFIRMAR } from "@/lib/utils";
 import { DefesasDocument } from "@/components/pdf/DefesasDocument";
@@ -33,10 +34,10 @@ export async function GET(req: Request) {
     where: { id: "config" },
     select: { anoLetivoInicio: true, anoLetivoFim: true },
   });
-  // Mesmo recurso de anoLetivoDeReferenciaFinalistas usado em Finalistas e no aviso de monografias
+  // Mesmo recurso de anoLetivoDeReferencia usado em Finalistas e no aviso de monografias
   // pendentes (§2026-09-06): o intervalo entre anos letivos não pode impedir imprimir a pauta de
   // defesas já marcadas no ano que acabou de terminar.
-  const anoLetivo = await anoLetivoDeReferenciaFinalistas(agora, config);
+  const anoLetivo = await anoLetivoDeReferencia(agora, config);
   if (anoLetivo === null) {
     return new Response("Não há nenhuma turma registada no sistema.", { status: 409 });
   }

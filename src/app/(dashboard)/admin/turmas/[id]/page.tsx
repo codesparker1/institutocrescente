@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteTurmaDisciplinaAction } from "@/actions/admin";
@@ -12,12 +13,30 @@ import { PERIODO_LABEL, formatAnoLetivo, parseIntParam } from "@/lib/utils";
 
 interface AdminTurmaDetailPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ semestre?: string }>;
+  searchParams: Promise<{ semestre?: string; aba?: string }>;
 }
+
+/** Estado da matrícula do aluno NESTA turma — não o estado geral do aluno, que pode divergir. */
+const MATRICULA_LABEL: Record<"ATIVA" | "TRANCADA" | "CONCLUIDA", string> = {
+  ATIVA: "Ativa",
+  TRANCADA: "Trancada",
+  CONCLUIDA: "Concluída",
+};
+
+const MATRICULA_TONE: Record<"ATIVA" | "TRANCADA" | "CONCLUIDA", "success" | "warning" | "neutral"> = {
+  ATIVA: "success",
+  TRANCADA: "warning",
+  CONCLUIDA: "neutral",
+};
 
 export default async function AdminTurmaDetailPage({ params, searchParams }: AdminTurmaDetailPageProps) {
   const { id } = await params;
-  const { semestre: semestreParam } = await searchParams;
+  const { semestre: semestreParam, aba: abaParam } = await searchParams;
+
+  // Duas abas (§pedido do cliente 2026-09-07): só disciplinas e professores fazia a página parecer
+  // incompleta — quem abre uma turma quer também saber quem está nela. As disciplinas continuam a
+  // ser a aba de entrada, que é o trabalho mais frequente do DAAC neste ecrã.
+  const aba = abaParam === "estudantes" ? "estudantes" : "disciplinas";
 
   const config = await prisma.configuracaoAcademica.findUnique({
     where: { id: "config" },
@@ -56,6 +75,7 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
     cadeirasJaAtribuidas,
     semProfessorNoOutroSemestre,
     turmaDisciplinasMonografia,
+    matriculas,
   ] = await Promise.all([
     prisma.professor.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     // select: CreateTurmaDisciplinaForm (Client Component) só precisa de id/semestre/disciplina.nome
@@ -86,12 +106,32 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
       include: { disciplina: true, professor: true, _count: { select: { avaliacoes: true, horarioSlots: true } } },
       orderBy: { disciplina: { nome: "asc" } },
     }),
+    // Todas as matrículas da turma, não só as ATIVA: quem trancou ou concluiu fez parte desta turma
+    // e continua a ser história dela — o estado ao lado do nome diz em que situação cada um está.
+    prisma.matricula.findMany({
+      where: { turmaId: id },
+      select: {
+        id: true,
+        status: true,
+        aluno: { select: { id: true, nome: true, numeroEstudante: true, email: true, status: true } },
+      },
+      orderBy: { aluno: { nome: "asc" } },
+    }),
   ]);
   const cadeirasAtribuidas = new Set(cadeirasJaAtribuidas.map((td) => td.cadeiraCurricularId));
   const cadeirasDisponiveis = cadeirasCurriculares.filter((c) => !cadeirasAtribuidas.has(c.id));
   const cadeirasMonografiaDisponiveis = cadeirasMonografia.filter((c) => !cadeirasAtribuidas.has(c.id));
   const outroSemestre = semestre === 1 ? 2 : 1;
   const semProfessorNaMonografia = turmaDisciplinasMonografia.filter((td) => !td.professorId).length;
+  const matriculasAtivas = matriculas.filter((m) => m.status === "ATIVA").length;
+
+  // O semestre viaja com a aba: trocar de aba não pode fazer perder o semestre que estava aberto.
+  const linkAba = (destino: "estudantes" | "disciplinas") =>
+    `/admin/turmas/${turma.id}?semestre=${semestre}&aba=${destino}`;
+  const classeAba = (destino: "estudantes" | "disciplinas") =>
+    aba === destino
+      ? "border-b-2 border-navy-700 px-4 py-2 text-sm font-semibold text-texto"
+      : "border-b-2 border-transparent px-4 py-2 text-sm font-medium text-texto-suave hover:border-navy-100 hover:text-navy-700";
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,6 +149,60 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
         </p>
       </div>
 
+      <div className="flex border-b border-navy-50">
+        <Link href={linkAba("disciplinas")} className={classeAba("disciplinas")}>
+          Disciplinas e professores
+        </Link>
+        <Link href={linkAba("estudantes")} className={classeAba("estudantes")}>
+          Lista de estudantes ({matriculasAtivas})
+        </Link>
+      </div>
+
+      {aba === "estudantes" ? (
+        <Card>
+          <CardHeader
+            title="Estudantes da turma"
+            subtitle={
+              matriculas.length === matriculasAtivas
+                ? `${matriculasAtivas} matrícula(s) ativa(s)`
+                : `${matriculasAtivas} ativa(s) de ${matriculas.length} matrícula(s) — as restantes trancaram ou concluíram`
+            }
+          />
+          {matriculas.length === 0 ? (
+            <EmptyState message="Nenhum aluno matriculado nesta turma ainda. As matrículas fazem-se na ficha do aluno ou na rematrícula." />
+          ) : (
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>Aluno</Th>
+                  <Th>Nº Estudante</Th>
+                  <Th>Email</Th>
+                  <Th>Matrícula</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {matriculas.map((m) => (
+                  <Tr key={m.id} className={m.status === "ATIVA" ? undefined : "opacity-60"}>
+                    <Td className="font-medium text-texto">
+                      <Link href={`/alunos/${m.aluno.id}`} className="hover:underline">
+                        {m.aluno.nome}
+                      </Link>
+                    </Td>
+                    <Td>{m.aluno.numeroEstudante}</Td>
+                    <Td className={m.aluno.email ? "text-xs" : "text-xs text-texto-suave italic"}>
+                      {m.aluno.email ?? "Sem email"}
+                    </Td>
+                    <Td>
+                      <Badge tone={MATRICULA_TONE[m.status]}>{MATRICULA_LABEL[m.status]}</Badge>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          )}
+        </Card>
+      ) : (
+        <>
       <Card>
         <CardHeader
           title={`Disciplinas do ${semestre}º semestre`}
@@ -271,6 +365,8 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
           </CardBody>
         </Card>
       ) : null}
+        </>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { anoLetivoDeReferenciaFinalistas, getMonografiasPendentesDeDecisao } from "@/lib/finalistas";
+import { getMonografiasPendentesDeDecisao } from "@/lib/finalistas";
+import { anoLetivoDeReferencia } from "@/lib/ano-letivo";
 import { getAgora } from "@/lib/tempo";
 import { formatAnoLetivo, formatDate } from "@/lib/utils";
 import { DecisaoTransicao } from "./DecisaoTransicao";
@@ -14,7 +15,7 @@ import { DecisaoTransicao } from "./DecisaoTransicao";
  * cobre os dois momentos e mais os que estiverem pelo meio. Um aviso que só aparecesse em duas
  * janelas podia ser fechado sem ninguém decidir nada — e o aluno ficava suspenso à mesma.
  *
- * Usa anoLetivoDeReferenciaFinalistas, não anoLetivoCorrente diretamente (§2026-09-06): o intervalo
+ * Usa anoLetivoDeReferencia, não anoLetivoCorrente diretamente (§2026-09-06): o intervalo
  * entre um ano letivo e o seguinte — TODOS os anos, não uma exceção — é justamente quando este
  * aviso mais importa, e anoLetivoCorrente fica null nesse intervalo. Sem o recurso, o aviso
  * desaparecia sozinho exatamente na altura para que foi pensado.
@@ -28,7 +29,7 @@ export async function AvisoMonografiasPendentes() {
     where: { id: "config" },
     select: { anoLetivoInicio: true, anoLetivoFim: true },
   });
-  const anoLetivo = await anoLetivoDeReferenciaFinalistas(agora, config);
+  const anoLetivo = await anoLetivoDeReferencia(agora, config);
   if (anoLetivo === null) return null;
 
   const pendentes = await getMonografiasPendentesDeDecisao(anoLetivo);
