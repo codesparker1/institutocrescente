@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { SENHA_INICIAL_PADRAO } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
-import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
+import { erroDeValidacao, extrairValores, type DeleteResult, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from "@/lib/curriculo";
@@ -150,7 +150,7 @@ export async function atualizarPercentagemAgravamentoAction(
   return {};
 }
 
-export async function deleteCursoAction(formData: FormData) {
+export async function deleteCursoAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
   try {
@@ -158,11 +158,12 @@ export async function deleteCursoAction(formData: FormData) {
     await audit(session, `Removeu o curso ${curso.nome}`, "Curso", id);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error("Não é possível remover: este curso ainda tem disciplinas ou turmas associadas.");
+      return { error: "Não é possível remover: este curso ainda tem disciplinas ou turmas associadas." };
     }
     throw error;
   }
   revalidatePath("/admin/cursos");
+  return {};
 }
 
 const DisciplinaSchema = z.object({
@@ -217,10 +218,11 @@ export async function deleteDisciplinaAction(formData: FormData) {
   });
   if (noPlanoDe.length > 0) {
     const cursos = noPlanoDe.map((c) => c.curso.nome).join(", ");
-    throw new Error(
-      `Não é possível remover: esta disciplina está no plano curricular de ${cursos}. ` +
+    return {
+      error:
+        `Não é possível remover: esta disciplina está no plano curricular de ${cursos}. ` +
         "Retire-a desses planos primeiro, em Plano Curricular.",
-    );
+    };
   }
 
   try {
@@ -228,11 +230,12 @@ export async function deleteDisciplinaAction(formData: FormData) {
     await audit(session, `Removeu a disciplina ${disciplina.nome}`, "Disciplina", id);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error("Não é possível remover: esta disciplina ainda está atribuída a turmas.");
+      return { error: "Não é possível remover: esta disciplina ainda está atribuída a turmas." };
     }
     throw error;
   }
   revalidatePath("/admin/disciplinas");
+  return {};
 }
 
 const CadeiraCurricularSchema = z.object({
@@ -427,7 +430,7 @@ export async function atualizarRegrasCadeiraCurricularAction(
   return {};
 }
 
-export async function deleteCadeiraCurricularAction(formData: FormData) {
+export async function deleteCadeiraCurricularAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
   try {
@@ -435,11 +438,16 @@ export async function deleteCadeiraCurricularAction(formData: FormData) {
     await audit(session, `Removeu ${cadeira.disciplina.nome} do plano curricular`, "CadeiraCurricular", id);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error("Não é possível remover: já existem turmas ou inscrições a usar esta cadeira do plano curricular.");
+      return {
+        error:
+          "Não é possível remover: esta cadeira já foi atribuída a turmas. Remova-a primeiro de cada turma, "
+          + "na aba Disciplinas e professores de Admin > Turmas.",
+      };
     }
     throw error;
   }
   revalidatePath("/admin/curriculo");
+  return {};
 }
 
 const ProfessorSchema = z.object({
@@ -521,7 +529,7 @@ export async function createProfessorAction(
   };
 }
 
-export async function deleteProfessorAction(formData: FormData) {
+export async function deleteProfessorAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirContas();
   const id = String(formData.get("id"));
   try {
@@ -529,11 +537,12 @@ export async function deleteProfessorAction(formData: FormData) {
     await audit(session, `Removeu o professor ${professor.nome}`, "Professor", id);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error("Não é possível remover: este professor ainda tem disciplinas atribuídas.");
+      return { error: "Não é possível remover: este professor ainda tem disciplinas atribuídas." };
     }
     throw error;
   }
   revalidatePath("/admin/professores");
+  return {};
 }
 
 const StaffSchema = z.object({
@@ -700,7 +709,7 @@ export async function createTurmaAction(
   return {};
 }
 
-export async function deleteTurmaAction(formData: FormData) {
+export async function deleteTurmaAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
   try {
@@ -708,11 +717,12 @@ export async function deleteTurmaAction(formData: FormData) {
     await audit(session, `Removeu a turma ${turma.curso.nome} - ${turma.anoCurricular}º Ano`, "Turma", id);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error("Não é possível remover: esta turma ainda tem alunos matriculados ou disciplinas atribuídas.");
+      return { error: "Não é possível remover: esta turma ainda tem alunos matriculados ou disciplinas atribuídas." };
     }
     throw error;
   }
   revalidatePath("/admin/turmas");
+  return {};
 }
 
 const TurmaDisciplinaSchema = z.object({
@@ -1291,7 +1301,7 @@ export async function decidirTransicaoMonografiaAction(
   return {};
 }
 
-export async function deleteTurmaDisciplinaAction(formData: FormData) {
+export async function deleteTurmaDisciplinaAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
   let turmaId: string;
@@ -1304,11 +1314,14 @@ export async function deleteTurmaDisciplinaAction(formData: FormData) {
     turmaId = turmaDisciplina.turmaId;
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error("Não é possível remover: esta disciplina ainda tem alunos inscritos, avaliações ou aulas registadas na turma.");
+      return {
+        error: "Não é possível remover: esta disciplina ainda tem alunos inscritos, avaliações ou aulas registadas na turma.",
+      };
     }
     throw error;
   }
   revalidatePath(`/admin/turmas/${turmaId}`);
+  return {};
 }
 
 const EmolumentoSchema = z.object({

@@ -10,7 +10,8 @@ export interface DeleteButtonFormState {
 const initialState: DeleteButtonFormState = {};
 
 interface DeleteButtonFormProps {
-  action: (formData: FormData) => Promise<void>;
+  /** Devolve `{ error }` quando não pode remover — ver a nota abaixo sobre porque não lança. */
+  action: (formData: FormData) => Promise<void | DeleteButtonFormState>;
   id: string;
   /** Estilo de texto (ex. "remover" em ScheduleGrid) em vez do ícone-padrão usado nas tabelas de admin. */
   variant?: "icon" | "link";
@@ -19,18 +20,21 @@ interface DeleteButtonFormProps {
 
 /**
  * Botão de remover partilhado por todos os ecrãs com uma tabela + eliminar-por-linha (cursos,
- * disciplinas, professores, turmas, turma-disciplina, emolumentos, provas, horário). As Server
- * Actions já apanham violações de FK e lançam um Error com mensagem amigável ("ainda tem turmas
- * associadas...") — mas um `<form action={...}>` sem useActionState não tem onde mostrar esse
- * erro, e o Error propaga como um crash a sério (500 + boundary de erro do React), não como a
- * mensagem amigável que o código já tinha pronta. Achado pela corrida do cost-meter: apagar um
- * curso com turmas dava HTTP 500 em vez da mensagem.
+ * disciplinas, professores, turmas, turma-disciplina, emolumentos, provas, horário).
+ *
+ * As Server Actions DEVOLVEM `{ error }` em vez de lançarem (§bug reportado 2026-09-07). Lançar
+ * funcionava em desenvolvimento e falhava em produção: o Next.js substitui a mensagem de qualquer
+ * exceção que saia de uma Server Action por um erro genérico com digest, e o DAAC via um crash sem
+ * explicação onde o código já tinha a frase certa escrita. Um valor devolvido são dados normais —
+ * atravessa intacto.
+ *
+ * O try/catch fica como rede: uma ação que ainda lance (ou uma falha de rede) continua a mostrar
+ * alguma coisa em vez de deixar o botão em silêncio.
  */
 export function DeleteButtonForm({ action, id, variant = "icon", className }: DeleteButtonFormProps) {
   const [state, formAction, isPending] = useActionState(async (_prev: DeleteButtonFormState, formData: FormData) => {
     try {
-      await action(formData);
-      return {};
+      return (await action(formData)) ?? {};
     } catch (error) {
       return { error: error instanceof Error ? error.message : "Não foi possível remover." };
     }

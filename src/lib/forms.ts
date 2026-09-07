@@ -9,6 +9,17 @@
 
 export type FieldErrors = Record<string, string>;
 
+/**
+ * Resultado de uma ação de remover. DEVOLVIDO, nunca lançado (§bug reportado 2026-09-07): o Next.js
+ * apaga a mensagem de qualquer exceção que saia de uma Server Action em produção e substitui-a por
+ * um erro genérico com digest. Um `throw new Error("Não é possível remover: ...")` funcionava em
+ * desenvolvimento e chegava ao utilizador final como um crash sem explicação. Um valor devolvido é
+ * dados normais — atravessa intacto.
+ */
+export interface DeleteResult {
+  error?: string;
+}
+
 export interface FormState<TValues = Record<string, string>> {
   error?: string;
   fieldErrors?: FieldErrors;

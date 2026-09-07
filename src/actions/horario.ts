@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
+import { erroDeValidacao, extrairValores, type DeleteResult, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, type SessionComUser } from "@/lib/permissions";
 import { EPOCA_LABEL, motivoAgendamentoInvalido, provaJaPassou } from "@/lib/avaliacao";
@@ -405,7 +405,7 @@ export async function editarProvaAction(
   return {};
 }
 
-export async function deleteProvaAction(formData: FormData) {
+export async function deleteProvaAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
   try {
@@ -416,9 +416,10 @@ export async function deleteProvaAction(formData: FormData) {
     await audit(session, `Removeu "${EPOCA_LABEL[prova.epoca]}" de ${prova.turmaDisciplina.disciplina.nome}`, "Avaliacao", id);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error("Não é possível remover: já existem notas lançadas para esta avaliação.");
+      return { error: "Não é possível remover: já existem notas lançadas para esta avaliação." };
     }
     throw error;
   }
   revalidatePath("/horario");
+  return {};
 }
