@@ -492,23 +492,76 @@ export async function atualizarCadeiraCurricularAction(
   return {};
 }
 
+/**
+ * Tira a cadeira do plano — e leva com ela as ofertas de turma vazias (§pedido do cliente
+ * 2026-09-07: "no caso de o DAAC adicionar uma disciplina errada, vão ter de apagar nas turmas?").
+ *
+ * Não. Adicionar uma cadeira ao plano propaga-a de imediato a todas as turmas do curso×ano, por
+ * isso uma disciplina errada nasce já espalhada por N turmas — e mandar o DAAC removê-la turma a
+ * turma para depois a poder tirar do plano era trabalho manual gerado pelo próprio sistema.
+ *
+ * O que se apaga aqui são só ofertas VAZIAS: sem inscrições, avaliações ou aulas. Havendo qualquer
+ * uma dessas, a cadeira fica — o histórico do aluno não se apaga para corrigir uma escolha do DAAC.
+ * Os slots de horário caem por cascata (são marcações de uma oferta que deixa de existir).
+ */
 export async function deleteCadeiraCurricularAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
+
+  const cadeira = await prisma.cadeiraCurricular.findUnique({
+    where: { id },
+    select: {
+      disciplina: { select: { nome: true } },
+      // Contadas também pela cadeira, e não só pelas ofertas: uma inscrição de repetição pode
+      // apontar a uma oferta criada noutra turma (ver garantirOfertaParaRepeticao).
+      _count: { select: { inscricoes: true } },
+      turmaDisciplinas: {
+        select: {
+          _count: { select: { inscricoes: true, avaliacoes: true, aulas: true, horarioSlots: true } },
+        },
+      },
+    },
+  });
+  if (!cadeira) return { error: "Cadeira não encontrada." };
+
+  const turmasComHistorico = cadeira.turmaDisciplinas.filter(
+    (td) => td._count.inscricoes > 0 || td._count.avaliacoes > 0 || td._count.aulas > 0,
+  ).length;
+  if (turmasComHistorico > 0 || cadeira._count.inscricoes > 0) {
+    return {
+      error:
+        `Não é possível remover: ${turmasComHistorico || 1} turma(s) já têm alunos inscritos, avaliações ou aulas ` +
+        "nesta cadeira. O histórico do aluno depende dela, por isso tem de ficar no plano.",
+    };
+  }
+
+  const ofertas = cadeira.turmaDisciplinas.length;
+  const slots = cadeira.turmaDisciplinas.reduce((total, td) => total + td._count.horarioSlots, 0);
+
   try {
-    const cadeira = await prisma.cadeiraCurricular.delete({ where: { id }, include: { disciplina: true } });
-    await audit(session, `Removeu ${cadeira.disciplina.nome} do plano curricular`, "CadeiraCurricular", id);
+    await prisma.$transaction([
+      prisma.turmaDisciplina.deleteMany({ where: { cadeiraCurricularId: id } }),
+      prisma.cadeiraCurricular.delete({ where: { id } }),
+    ]);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      return {
-        error:
-          "Não é possível remover: esta cadeira já foi atribuída a turmas. Remova-a primeiro de cada turma, "
-          + "na aba Disciplinas e professores de Admin > Turmas.",
-      };
+      return { error: "Não é possível remover: alguma coisa no sistema ainda depende desta cadeira." };
     }
     throw error;
   }
+
+  await audit(
+    session,
+    `Removeu ${cadeira.disciplina.nome} do plano curricular` +
+      (ofertas > 0 ? ` — ${ofertas} oferta(s) de turma vazias removidas` : "") +
+      (slots > 0 ? `, ${slots} marcação(ões) de horário` : ""),
+    "CadeiraCurricular",
+    id,
+  );
+
   revalidatePath("/admin/curriculo");
+  revalidatePath("/admin/turmas");
+  revalidatePath("/horario");
   return {};
 }
 

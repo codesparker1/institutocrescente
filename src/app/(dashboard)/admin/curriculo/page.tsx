@@ -160,10 +160,12 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                 <Thead>
                   <tr>
                     <Th>Disciplina</Th>
+                    <Th>Ano</Th>
+                    <Th>Semestre</Th>
                     <Th>Turmas a lecionar</Th>
-                    {/* Ano e semestre deixaram de ter colunas próprias: são os primeiros campos do
-                        formulário de edição, que mostra o valor gravado e é onde se corrige. */}
-                    <Th>Ano, semestre, tipo e dispensa (§4.1.1)</Th>
+                    {/* Com o formulário fechado por omissão, as colunas voltam a ser a forma de ler
+                        o plano — o formulário abre só quando se vai corrigir. */}
+                    <Th>Regras (§4.1.1) e correções</Th>
                     <Th></Th>
                   </tr>
                 </Thead>
@@ -185,6 +187,10 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                           </span>
                         ) : null}
                       </Td>
+                      <Td>{cadeira.anoCurricular}º Ano</Td>
+                      {/* O valor gravado (sempre 1) não tem significado para a monografia — ver
+                          createCadeiraCurricularAction. Mostrá-lo enganaria quem lê a lista. */}
+                      <Td>{cadeira.eMonografia ? "Ano inteiro" : `${cadeira.semestre}º Semestre`}</Td>
                       <Td>{cadeira._count.turmaDisciplinas}</Td>
                       <Td>
                         <EditarCadeiraCurricular
