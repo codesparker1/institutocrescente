@@ -99,8 +99,17 @@ export async function createHorarioSlotAction(
   // Nada impedia até aqui um professor, sala ou turma ficarem com dois horários sobrepostos no
   // mesmo dia — comb da simulação encontrou isto antes de a simulação sequer correr. Só compara
   // slots do mesmo dia (o resto não pode conflituar por definição).
+  //
+  // Restrito ao ano letivo e semestre desta oferta (§reportado 2026-09-07: "o sistema ainda está a
+  // comparar com o ano letivo antigo"). O horário nunca é copiado entre anos (nem entre semestres —
+  // ver o guard de config.semestreAtual acima), por isso o HorarioSlot de um professor no ano
+  // anterior fica na base de dados para sempre, como registo histórico. Sem este filtro, esse slot
+  // antigo continuava a "ocupar" o professor num horário onde já não lecciona nada.
   const candidatos = await prisma.horarioSlot.findMany({
-    where: { diaSemana: parsed.data.diaSemana },
+    where: {
+      diaSemana: parsed.data.diaSemana,
+      turmaDisciplina: { semestre: alvo.semestre, turma: { anoLetivo: alvo.turma.anoLetivo } },
+    },
     include: { turmaDisciplina: { include: { disciplina: true } } },
   });
   const existentes: SlotExistente[] = candidatos.map((s) => ({
