@@ -6,7 +6,7 @@ import { Select } from "@/components/ui/Select";
 import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteCadeiraCurricularAction } from "@/actions/admin";
 import { CreateCadeiraCurricularForm } from "./CreateCadeiraCurricularForm";
-import { EditarRegrasCadeiraCurricular } from "./EditarRegrasCadeiraCurricular";
+import { EditarCadeiraCurricular } from "./EditarCadeiraCurricular";
 
 interface AdminCurriculoPageProps {
   searchParams: Promise<{ cursoId?: string }>;
@@ -160,10 +160,10 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                 <Thead>
                   <tr>
                     <Th>Disciplina</Th>
-                    <Th>Ano</Th>
-                    <Th>Semestre</Th>
                     <Th>Turmas a lecionar</Th>
-                    <Th>Regras de dispensa (§4.1.1)</Th>
+                    {/* Ano e semestre deixaram de ter colunas próprias: são os primeiros campos do
+                        formulário de edição, que mostra o valor gravado e é onde se corrige. */}
+                    <Th>Ano, semestre, tipo e dispensa (§4.1.1)</Th>
                     <Th></Th>
                   </tr>
                 </Thead>
@@ -185,16 +185,16 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
                           </span>
                         ) : null}
                       </Td>
-                      <Td>{cadeira.anoCurricular}º Ano</Td>
-                      {/* O valor gravado (sempre 1) não tem significado para a monografia — ver
-                          CreateCadeiraCurricularAction. Mostrá-lo enganaria quem lê a lista. */}
-                      <Td>{cadeira.eMonografia ? "Ano inteiro" : `${cadeira.semestre}º Semestre`}</Td>
                       <Td>{cadeira._count.turmaDisciplinas}</Td>
                       <Td>
-                        <EditarRegrasCadeiraCurricular
+                        <EditarCadeiraCurricular
                           cadeiraCurricularId={cadeira.id}
+                          anoCurricular={cadeira.anoCurricular}
+                          semestre={cadeira.semestre}
+                          eMonografia={cadeira.eMonografia}
                           permiteDispensa={cadeira.permiteDispensa}
                           notaMinimaDispensa={Number(cadeira.notaMinimaDispensa)}
+                          duracaoAnos={curso.duracaoAnos}
                         />
                       </Td>
                       <Td className="text-right">

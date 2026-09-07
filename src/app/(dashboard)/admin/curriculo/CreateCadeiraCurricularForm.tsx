@@ -89,7 +89,7 @@ export function CreateCadeiraCurricularForm({ cursoId, disciplinas, duracaoAnos 
           </Select>
         </Field>
       )}
-      {/* Select e não checkbox, como em EditarRegrasCadeiraCurricular: a caixa não marcada não é
+      {/* Select e não checkbox, como em EditarCadeiraCurricular: a caixa não marcada não é
           enviada no FormData, e o valor ficaria indistinguível de "campo em falta". */}
       <Field label="Tipo" htmlFor="cc-monografia" error={state.fieldErrors?.eMonografia}>
         <Select

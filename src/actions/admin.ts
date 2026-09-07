@@ -267,14 +267,17 @@ const CadeiraCurricularSchema = z.object({
   disciplinaId: z.string().min(1, "Disciplina é obrigatória"),
   anoCurricular: z.coerce.number("Indique o ano").int().min(1, "Mínimo 1º ano").max(8, "Máximo 8º ano"),
   semestre: z.coerce.number("Indique o semestre").int().min(1, "Semestre inválido").max(2, "Semestre inválido"),
-  // Select e não checkbox: mesma armadilha do z.coerce.boolean() documentada em RegrasDispensaSchema
-  // — a string "false" também é truthy.
+  // Select e não checkbox: a caixa não marcada não é enviada no FormData, e z.coerce.boolean()
+  // tem a armadilha de a string "false" também ser truthy.
   eMonografia: z.enum(["true", "false"]).transform((v) => v === "true"),
 });
 
-const RegrasDispensaSchema = z.object({
+const EditarCadeiraCurricularSchema = z.object({
   cadeiraCurricularId: z.string().min(1),
+  anoCurricular: z.coerce.number("Indique o ano").int().min(1, "Mínimo 1º ano").max(8, "Máximo 8º ano"),
+  semestre: z.coerce.number("Indique o semestre").int().min(1, "Semestre inválido").max(2, "Semestre inválido"),
   // Select (não checkbox) para evitar a armadilha do z.coerce.boolean() com strings: "false" também é truthy.
+  eMonografia: z.enum(["true", "false"]).transform((v) => v === "true"),
   permiteDispensa: z.enum(["true", "false"]).transform((v) => v === "true"),
   notaMinimaDispensa: z.coerce.number().min(0, "Nota entre 0 e 20").max(20, "Nota entre 0 e 20"),
 });
@@ -364,31 +367,128 @@ export async function createCadeiraCurricularAction(
  * trabalho uma vez por curso, e o erro fica contido a um curso em vez de a todos.
  */
 
-export async function atualizarRegrasCadeiraCurricularAction(
+/**
+ * Corrige uma cadeira já no plano: ano, semestre, tipo e regras de dispensa (§pedido do cliente
+ * 2026-09-07, "é estúpido ter de apagar a disciplina para poder corrigir o plano curricular").
+ *
+ * Antes só as regras de dispensa se editavam. Pôr a cadeira no ano errado obrigava a removê-la e
+ * voltar a adicionar — e a remoção fica bloqueada assim que a cadeira chega às turmas, o que
+ * acontece automaticamente no instante em que se cria. O erro mais fácil de cometer era o único
+ * impossível de desfazer.
+ */
+export async function atualizarCadeiraCurricularAction(
   _prevState: { error?: string },
   formData: FormData,
 ): Promise<{ error?: string }> {
   const session = await requireGerirCurriculo();
-  const parsed = RegrasDispensaSchema.safeParse({
+  const parsed = EditarCadeiraCurricularSchema.safeParse({
     cadeiraCurricularId: formData.get("cadeiraCurricularId"),
+    anoCurricular: formData.get("anoCurricular"),
+    semestre: formData.get("semestre"),
+    eMonografia: formData.get("eMonografia"),
     permiteDispensa: formData.get("permiteDispensa"),
     notaMinimaDispensa: formData.get("notaMinimaDispensa"),
   });
-  if (!parsed.success) return { error: "Dados inválidos." };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
 
-  const cadeira = await prisma.cadeiraCurricular.update({
+  const cadeira = await prisma.cadeiraCurricular.findUnique({
     where: { id: parsed.data.cadeiraCurricularId },
-    data: { permiteDispensa: parsed.data.permiteDispensa, notaMinimaDispensa: parsed.data.notaMinimaDispensa },
-    include: { disciplina: true },
+    include: {
+      disciplina: { select: { nome: true } },
+      curso: { select: { duracaoAnos: true } },
+      turmaDisciplinas: {
+        select: {
+          id: true,
+          turma: { select: { anoCurricular: true } },
+          _count: { select: { inscricoes: true, avaliacoes: true, aulas: true } },
+        },
+      },
+    },
   });
+  if (!cadeira) return { error: "Cadeira não encontrada." };
+
+  if (parsed.data.anoCurricular > cadeira.curso.duracaoAnos) {
+    return {
+      error: `Este curso dura ${cadeira.curso.duracaoAnos} ano(s) — não pode ter cadeiras no ${parsed.data.anoCurricular}º ano.`,
+    };
+  }
+
+  // A monografia dura o ano inteiro: o semestre gravado é arbitrário e nunca deve ser 2. Mesma
+  // barreira de createCadeiraCurricularAction — o formulário esconde a pergunta, isto é o que conta.
+  const semestre = parsed.data.eMonografia ? 1 : parsed.data.semestre;
+
+  const mudaEstrutura =
+    parsed.data.anoCurricular !== cadeira.anoCurricular ||
+    semestre !== cadeira.semestre ||
+    parsed.data.eMonografia !== cadeira.eMonografia;
+
+  // As regras de dispensa mudam sempre — são copiadas para cada inscrição, e alterá-las aqui só
+  // afeta quem se inscrever daqui para a frente. Ano, semestre e tipo é outra história: mexem em
+  // ofertas de turma que podem já ter notas e presenças penduradas.
+  if (mudaEstrutura) {
+    const comHistorico = cadeira.turmaDisciplinas.filter(
+      (td) => td._count.inscricoes > 0 || td._count.avaliacoes > 0 || td._count.aulas > 0,
+    );
+    if (comHistorico.length > 0) {
+      return {
+        error:
+          `Não é possível mudar o ano, o semestre ou o tipo: ${comHistorico.length} turma(s) já têm alunos inscritos, ` +
+          "avaliações ou aulas nesta cadeira. As regras de dispensa continuam editáveis.",
+      };
+    }
+  }
+
+  // Ofertas coladas a turmas do ano antigo. Sem inscrições nem avaliações (garantido acima), são
+  // só a propagação automática do plano — apagá-las e deixar a sincronização recriá-las no ano
+  // certo é o mesmo que aconteceria se a cadeira tivesse sido criada bem à primeira.
+  const ofertasNoAnoErrado = cadeira.turmaDisciplinas
+    .filter((td) => td.turma.anoCurricular !== parsed.data.anoCurricular)
+    .map((td) => td.id);
+
+  try {
+    await prisma.$transaction([
+      prisma.turmaDisciplina.deleteMany({ where: { id: { in: ofertasNoAnoErrado } } }),
+      // TurmaDisciplina.semestre é uma cópia do da cadeira; sem isto ficava a apontar para o antigo.
+      prisma.turmaDisciplina.updateMany({ where: { cadeiraCurricularId: cadeira.id }, data: { semestre } }),
+      prisma.cadeiraCurricular.update({
+        where: { id: cadeira.id },
+        data: {
+          anoCurricular: parsed.data.anoCurricular,
+          semestre,
+          eMonografia: parsed.data.eMonografia,
+          permiteDispensa: parsed.data.permiteDispensa,
+          notaMinimaDispensa: parsed.data.notaMinimaDispensa,
+        },
+      }),
+    ]);
+  } catch (error) {
+    if (isUniqueConstraintViolation(error)) {
+      return {
+        error: `${cadeira.disciplina.nome} já está no plano deste curso no ${parsed.data.anoCurricular}º ano, ${semestre}º semestre.`,
+      };
+    }
+    throw error;
+  }
+
+  // As turmas do ano novo recebem a oferta sem esperar pela rede de segurança diária — mesma
+  // propagação imediata de createCadeiraCurricularAction.
+  const agora = await getAgora();
+  const ofertas = await sincronizarTurmasComPlanoCurricular(agora.getFullYear());
+
   await audit(
     session,
-    `Atualizou as regras de dispensa de ${cadeira.disciplina.nome} (${cadeira.anoCurricular}º ano): ${parsed.data.permiteDispensa ? `dispensa a partir de ${parsed.data.notaMinimaDispensa}` : "sem dispensa"}`,
+    mudaEstrutura
+      ? `Corrigiu ${cadeira.disciplina.nome} no plano curricular: ${cadeira.anoCurricular}º ano/${cadeira.semestre}º sem./${cadeira.eMonografia ? "monografia" : "normal"} → ${parsed.data.anoCurricular}º ano/${semestre}º sem./${parsed.data.eMonografia ? "monografia" : "normal"}${
+          ofertasNoAnoErrado.length > 0 ? ` — ${ofertasNoAnoErrado.length} oferta(s) de turma reposicionada(s)` : ""
+        }${ofertas > 0 ? `, ${ofertas} recriada(s)` : ""}`
+      : `Atualizou as regras de dispensa de ${cadeira.disciplina.nome} (${cadeira.anoCurricular}º ano): ${parsed.data.permiteDispensa ? `dispensa a partir de ${parsed.data.notaMinimaDispensa}` : "sem dispensa"}`,
     "CadeiraCurricular",
     cadeira.id,
   );
 
   revalidatePath("/admin/curriculo");
+  revalidatePath("/admin/turmas");
+  if (parsed.data.eMonografia !== cadeira.eMonografia) revalidatePath("/admin/finalistas");
   return {};
 }
 
