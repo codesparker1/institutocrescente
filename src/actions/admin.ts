@@ -8,7 +8,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { SENHA_INICIAL_PADRAO } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores, type DeleteResult, type FormState } from "@/lib/forms";
-import { isForeignKeyViolation } from "@/lib/prisma-errors";
+import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from "@/lib/curriculo";
 // Com alias: createTurmaAction tem uma variável local com este nome (o ano CIVIL, outra coisa), e
@@ -192,9 +192,33 @@ export async function createDisciplinaAction(
   try {
     const disciplina = await prisma.disciplina.create({ data: parsed.data });
     await audit(session, `Criou a disciplina ${disciplina.nome}`, "Disciplina", disciplina.id);
-  } catch {
+  } catch (error) {
+    // `Disciplina.codigo` é único em TODO o sistema, não por curso. Quem tenta criar a monografia
+    // para o segundo curso com o mesmo código bate aqui — e a mensagem antiga ("código já existe?")
+    // era um palpite entre parênteses que não dizia nem qual é a disciplina nem o que fazer a
+    // seguir (§reportado 2026-09-07: "não me permite criar a monografia para os outros cursos").
+    //
+    // A resposta certa quase nunca é escolher outro código: é reutilizar a disciplina que já existe.
+    // Uma disciplina serve vários cursos desde 2026-09-02 — o que é por curso é a CADEIRA
+    // CURRICULAR, criada em Plano Curricular.
+    if (isUniqueConstraintViolation(error)) {
+      const existente = await prisma.disciplina.findUnique({
+        where: { codigo: parsed.data.codigo },
+        select: { nome: true, curso: { select: { nome: true } } },
+      });
+      return {
+        fieldErrors: {
+          codigo: existente
+            ? `O código ${parsed.data.codigo} já é de "${existente.nome}" (criada em ${existente.curso.nome}). ` +
+              "Não precisa de a criar outra vez: vá a Plano Curricular, escolha este curso e adicione-a " +
+              'a partir de "De outros cursos (partilhada)".'
+            : `O código ${parsed.data.codigo} já está em uso por outra disciplina.`,
+        },
+        values: extrairValores(formData, CAMPOS_DISCIPLINA),
+      };
+    }
     return {
-      error: "Não foi possível criar a disciplina (código já existe?).",
+      error: "Não foi possível criar a disciplina.",
       values: extrairValores(formData, CAMPOS_DISCIPLINA),
     };
   }

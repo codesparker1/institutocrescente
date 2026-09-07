@@ -56,12 +56,18 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
   // uma vez (§2026-09-07, removido no mesmo dia): escolher a disciplina errada no dropdown marcava
   // uma cadeira normal como monografia em todo o sistema. Avisar que falta é útil; agir por conta
   // própria em todos os cursos não é.
-  const cursosComMonografia = new Set(
-    (await prisma.cadeiraCurricular.findMany({ where: { eMonografia: true }, select: { cursoId: true } })).map(
-      (c) => c.cursoId,
-    ),
-  );
+  const cadeirasMonografia = await prisma.cadeiraCurricular.findMany({
+    where: { eMonografia: true },
+    select: { cursoId: true, disciplina: { select: { nome: true } } },
+  });
+  const cursosComMonografia = new Set(cadeirasMonografia.map((c) => c.cursoId));
   const cursosEmFalta = cursos.filter((c) => !cursosComMonografia.has(c.id)).map((c) => c.nome);
+  // Nomear a disciplina que já faz esse papel noutro curso responde à pergunta que vem logo a
+  // seguir — "crio uma nova?". Não: é a mesma, adicionada ao plano deste curso. Criar outra bate
+  // no código único da Disciplina, e era esse o beco reportado a 2026-09-07.
+  const nomesMonografia = [...new Set(cadeirasMonografia.map((c) => c.disciplina.nome))].sort((a, b) =>
+    a.localeCompare(b, "pt"),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,6 +109,13 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
           </strong>{" "}
           {cursosEmFalta.join(", ")}. Escolha cada curso acima e adicione-a ao plano com o tipo{" "}
           <strong>Monografia (defesa)</strong>.
+          {nomesMonografia.length > 0 ? (
+            <>
+              {" "}
+              Use a mesma disciplina que já serve noutro curso ({nomesMonografia.join(", ")}) — está no seletor, em
+              &quot;De outros cursos (partilhada)&quot;. Não crie uma nova em Disciplinas.
+            </>
+          ) : null}
         </p>
       ) : null}
 
