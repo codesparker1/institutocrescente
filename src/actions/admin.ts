@@ -326,6 +326,79 @@ export async function createCadeiraCurricularAction(
   return {};
 }
 
+const MonografiaTodosOsCursosSchema = z.object({ disciplinaId: z.string().min(1, "Escolha a disciplina") });
+
+/**
+ * Põe a MESMA disciplina de monografia no último ano de todos os cursos que ainda não a têm
+ * (§pedido do cliente 2026-09-07: "todos os cursos no seu último ano têm a monografia, para evitar
+ * ter a mesma disciplina repetida em cursos diferentes").
+ *
+ * Uma disciplina só, partilhada — não uma "Monografia" por curso. O que se repete é a CADEIRA
+ * CURRICULAR (uma por curso, porque é ela que carrega o ano, a turma, o professor e a pauta); a
+ * DEFINIÇÃO da disciplina fica única no sistema. É a mesma partilha que o plano curricular já
+ * permitia à mão desde 2026-09-02, feita aqui de uma vez em vez de curso a curso.
+ *
+ * Nunca mexe num curso que já tenha monografia, mesmo que seja outra disciplina: essa é uma decisão
+ * que alguém tomou, e sobrepor-lhe esta seria apagá-la em silêncio.
+ */
+export async function aplicarMonografiaATodosOsCursosAction(
+  _prevState: { error?: string; sucesso?: string },
+  formData: FormData,
+): Promise<{ error?: string; sucesso?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = MonografiaTodosOsCursosSchema.safeParse({ disciplinaId: formData.get("disciplinaId") });
+  if (!parsed.success) return { error: "Escolha a disciplina que serve de monografia." };
+
+  const [disciplina, cursos, comMonografia] = await Promise.all([
+    prisma.disciplina.findUnique({ where: { id: parsed.data.disciplinaId }, select: { nome: true } }),
+    prisma.curso.findMany({ select: { id: true, nome: true, duracaoAnos: true } }),
+    prisma.cadeiraCurricular.findMany({ where: { eMonografia: true }, select: { cursoId: true } }),
+  ]);
+  if (!disciplina) return { error: "Disciplina não encontrada." };
+  if (cursos.length === 0) return { error: "Não há cursos cadastrados." };
+
+  const jaTem = new Set(comMonografia.map((c) => c.cursoId));
+  const alvos = cursos.filter((c) => !jaTem.has(c.id));
+  if (alvos.length === 0) return { sucesso: "Todos os cursos já tinham monografia no último ano." };
+
+  const criadas = await prisma.cadeiraCurricular.createMany({
+    data: alvos.map((c) => ({
+      cursoId: c.id,
+      disciplinaId: parsed.data.disciplinaId,
+      // O último ano de CADA curso — não um número fixo: os cursos não duram todos o mesmo.
+      anoCurricular: c.duracaoAnos,
+      // Arbitrário e sem significado numa monografia (dura o ano inteiro) — ver createCadeiraCurricularAction.
+      semestre: 1,
+      eMonografia: true,
+      // Sem dispensa: não há P1/P2 de onde saísse a média que dispensa.
+      permiteDispensa: false,
+    })),
+    // A disciplina pode já estar no plano do curso noutro ano — nesse caso o @@unique não colide,
+    // mas se colidir (mesmo ano e semestre) é porque já lá está: saltar em vez de rebentar tudo.
+    skipDuplicates: true,
+  });
+
+  // Mesma propagação imediata de createCadeiraCurricularAction: as turmas já criadas do ano
+  // corrente recebem a oferta sem esperar pela rede de segurança diária.
+  const agora = await getAgora();
+  const ofertas = await sincronizarTurmasComPlanoCurricular(agora.getFullYear());
+
+  await audit(
+    session,
+    `Aplicou ${disciplina.nome} como monografia ao último ano de ${criadas.count} curso(s): ${alvos.map((c) => c.nome).join(", ")}${
+      ofertas > 0 ? ` — propagada a ${ofertas} turma(s)` : ""
+    }`,
+    "CadeiraCurricular",
+  );
+
+  revalidatePath("/admin/curriculo");
+  revalidatePath("/admin/turmas");
+  revalidatePath("/admin/finalistas");
+  return {
+    sucesso: `${disciplina.nome} aplicada ao último ano de ${criadas.count} curso(s).`,
+  };
+}
+
 export async function atualizarRegrasCadeiraCurricularAction(
   _prevState: { error?: string },
   formData: FormData,

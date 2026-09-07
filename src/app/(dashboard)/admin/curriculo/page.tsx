@@ -7,6 +7,7 @@ import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteCadeiraCurricularAction } from "@/actions/admin";
 import { CreateCadeiraCurricularForm } from "./CreateCadeiraCurricularForm";
 import { EditarRegrasCadeiraCurricular } from "./EditarRegrasCadeiraCurricular";
+import { MonografiaTodosOsCursos } from "./MonografiaTodosOsCursos";
 
 interface AdminCurriculoPageProps {
   searchParams: Promise<{ cursoId?: string }>;
@@ -49,6 +50,27 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
     .filter((d) => !jaNoPlano.has(d.id))
     .map((d) => ({ id: d.id, nome: d.nome, cursoOrigem: d.cursoId === cursoId ? null : d.curso.nome }));
 
+  // Cobertura da monografia em TODOS os cursos, não só no que está selecionado (§pedido do cliente
+  // 2026-09-07): a pergunta "já está em todos?" não se responde curso a curso, e era assim que se
+  // acabava com uma "Monografia" duplicada em cada um.
+  const cadeirasMonografia = await prisma.cadeiraCurricular.findMany({
+    where: { eMonografia: true },
+    select: { cursoId: true, disciplinaId: true },
+  });
+  const cursosComMonografia = new Set(cadeirasMonografia.map((c) => c.cursoId));
+  const cursosEmFalta = cursos.filter((c) => !cursosComMonografia.has(c.id)).map((c) => c.nome);
+  // As que já servem de monografia primeiro: é quase sempre a escolha certa, e evita que o DAAC
+  // escolha outra sem reparar que já existe uma a fazer esse papel.
+  const disciplinasMonografia = new Set(cadeirasMonografia.map((c) => c.disciplinaId));
+  const opcoesMonografia = disciplinas
+    .map((d) => ({
+      id: d.id,
+      nome: d.nome,
+      cursoOrigem: d.curso.nome,
+      jaEMonografia: disciplinasMonografia.has(d.id),
+    }))
+    .sort((a, b) => Number(b.jaEMonografia) - Number(a.jaEMonografia) || a.nome.localeCompare(b.nome, "pt"));
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -80,6 +102,15 @@ export default async function AdminCurriculoPage({ searchParams }: AdminCurricul
           </form>
         </CardBody>
       </Card>
+
+      {/* Fora do cartão do curso selecionado de propósito: isto é sobre TODOS os cursos. */}
+      {cursos.length > 0 ? (
+        <MonografiaTodosOsCursos
+          disciplinas={opcoesMonografia}
+          cursosEmFalta={cursosEmFalta}
+          totalCursos={cursos.length}
+        />
+      ) : null}
 
       {!curso ? (
         <EmptyState message="Nenhum curso cadastrado. Crie um curso primeiro em Admin > Cursos." />
