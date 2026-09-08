@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState, useActionState } from "react";
+import { useState, useActionState } from "react";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { criarTentativaRepeticaoAction, type CriarTentativaRepeticaoState } from "@/actions/curriculo";
-import { nomeProfessor } from "@/lib/utils";
+import { formatAnoLetivo, nomeProfessor } from "@/lib/utils";
 
 const initialState: CriarTentativaRepeticaoState = {};
 
-interface CadeiraAtiva {
+interface CadeiraRepetivel {
   cadeiraCurricularId: string;
   disciplinaNome: string;
+  /** Estado da tentativa mais recente ("Reprovado", "Em curso", ...) — mostrado ao lado do nome. */
+  estadoLabel: string;
+  reprovada: boolean;
 }
 
 interface Oferta {
@@ -18,28 +21,25 @@ interface Oferta {
   cadeiraCurricularId: string;
   disciplina: { nome: string };
   professor: { nome: string } | null;
-  turma: { anoCurricular: number; curso: { nome: string } };
+  turma: { anoCurricular: number; anoLetivo: number; curso: { nome: string } };
 }
 
 interface RepeticaoFormProps {
   alunoId: string;
-  cadeirasAtivas: CadeiraAtiva[];
+  /** Já vem sem duplicados e com as reprovadas primeiro — ver a nota em alunos/[id]/page.tsx. */
+  cadeiras: CadeiraRepetivel[];
   ofertas: Oferta[];
 }
 
-export function RepeticaoForm({ alunoId, cadeirasAtivas, ofertas }: RepeticaoFormProps) {
+export function RepeticaoForm({ alunoId, cadeiras, ofertas }: RepeticaoFormProps) {
   const [state, formAction, isPending] = useActionState(criarTentativaRepeticaoAction, initialState);
-  const cadeirasUnicas = useMemo(() => {
-    const vistas = new Set<string>();
-    return cadeirasAtivas.filter((c) => {
-      if (vistas.has(c.cadeiraCurricularId)) return false;
-      vistas.add(c.cadeiraCurricularId);
-      return true;
-    });
-  }, [cadeirasAtivas]);
-
-  const [cadeiraSelecionada, setCadeiraSelecionada] = useState(cadeirasUnicas[0]?.cadeiraCurricularId ?? "");
+  const [cadeiraSelecionada, setCadeiraSelecionada] = useState(cadeiras[0]?.cadeiraCurricularId ?? "");
   const ofertasDaCadeira = ofertas.filter((o) => o.cadeiraCurricularId === cadeiraSelecionada);
+
+  // Dois grupos, e não uma lista corrida: o motivo normal de vir aqui é uma cadeira reprovada, e a
+  // separação evita escolher uma cadeira em curso por engano quando as duas se chamam parecido.
+  const reprovadas = cadeiras.filter((c) => c.reprovada);
+  const outras = cadeiras.filter((c) => !c.reprovada);
 
   return (
     <form action={formAction} className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end">
@@ -49,11 +49,24 @@ export function RepeticaoForm({ alunoId, cadeirasAtivas, ofertas }: RepeticaoFor
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-texto">Cadeira</label>
         <Select value={cadeiraSelecionada} onChange={(e) => setCadeiraSelecionada(e.target.value)}>
-          {cadeirasUnicas.map((c) => (
-            <option key={c.cadeiraCurricularId} value={c.cadeiraCurricularId}>
-              {c.disciplinaNome}
-            </option>
-          ))}
+          {reprovadas.length > 0 ? (
+            <optgroup label="Reprovadas">
+              {reprovadas.map((c) => (
+                <option key={c.cadeiraCurricularId} value={c.cadeiraCurricularId}>
+                  {c.disciplinaNome}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          {outras.length > 0 ? (
+            <optgroup label="Outras cadeiras do percurso">
+              {outras.map((c) => (
+                <option key={c.cadeiraCurricularId} value={c.cadeiraCurricularId}>
+                  {c.disciplinaNome} — {c.estadoLabel}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </Select>
       </div>
 
@@ -65,7 +78,8 @@ export function RepeticaoForm({ alunoId, cadeirasAtivas, ofertas }: RepeticaoFor
           ) : (
             ofertasDaCadeira.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.turma.curso.nome} · {o.turma.anoCurricular}º Ano · {nomeProfessor(o.professor)}
+                {formatAnoLetivo(o.turma.anoLetivo)} · {o.turma.curso.nome} · {o.turma.anoCurricular}º Ano ·{" "}
+                {nomeProfessor(o.professor)}
               </option>
             ))
           )}

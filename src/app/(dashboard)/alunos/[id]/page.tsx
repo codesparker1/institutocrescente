@@ -24,7 +24,7 @@ import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas, podeMarcarDesistencia, podeReativarDesistente } from "@/lib/permissions";
-import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
+import { calcularNotaFinal, extrairNotasPorEpoca, ESTADO_LABEL } from "@/lib/avaliacao";
 import { COLUNAS_EPOCA, notaDaEpoca } from "@/components/notas/ColunasNotas";
 import { getAgora } from "@/lib/tempo";
 import type { AlunoStatus, CobrancaTipo, Epoca } from "@/generated/prisma/client";
@@ -133,9 +133,35 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   const mesesChaves = new Set(estadoFinanceiro.meses.map((mes) => chaveMes(mes.mesReferencia)));
   const multasOrfas = estadoFinanceiro.multas.filter((m) => !m.mesReferencia || !mesesChaves.has(chaveMes(m.mesReferencia)));
 
-  const cadeirasAtivas = inscricoes
-    .filter((i) => i.ativa)
-    .map((i) => ({ cadeiraCurricularId: i.cadeiraCurricularId, disciplinaNome: i.turmaDisciplina.disciplina.nome }));
+  // Candidatas à repetição manual: uma por cadeira, no estado da tentativa MAIS RECENTE (as
+  // inscrições já vêm ordenadas por ativa/tentativa desc, por isso a primeira de cada cadeira é a
+  // que conta). Antes filtrava-se por `i.ativa` — e isso escondia exatamente aquilo que se vem cá
+  // fazer (§reportado 2026-09-08: "só me deixa repetir cadeiras do ano atual e não as disciplinas
+  // que o estudante reprovou"): a tentativa reprovada é desativada no momento da rematrícula, logo
+  // nunca chegava a aparecer na lista.
+  //
+  // A monografia fica de fora porque criarTentativaRepeticaoAction a recusa — é atribuída em
+  // Finalistas, depois do pagamento. Oferecê-la aqui seria uma opção que só dá erro.
+  const ultimaInscricaoPorCadeira = new Map<string, (typeof inscricoes)[number]>();
+  for (const inscricao of inscricoes) {
+    if (!ultimaInscricaoPorCadeira.has(inscricao.cadeiraCurricularId)) {
+      ultimaInscricaoPorCadeira.set(inscricao.cadeiraCurricularId, inscricao);
+    }
+  }
+  const cadeirasParaRepetir = [...ultimaInscricaoPorCadeira.values()]
+    .filter((i) => !i.eMonografiaAplicada)
+    .map((i) => {
+      const estado = resultadoDaInscricao(i).estado;
+      return {
+        cadeiraCurricularId: i.cadeiraCurricularId,
+        disciplinaNome: i.turmaDisciplina.disciplina.nome,
+        estadoLabel: ESTADO_LABEL[estado],
+        reprovada: estado === "REPROVADO",
+      };
+    })
+    // Reprovadas primeiro: são o motivo de este formulário existir. As outras ficam disponíveis
+    // (mudar de turma a meio do ano, corrigir uma inscrição), mas fora do caminho.
+    .sort((a, b) => Number(b.reprovada) - Number(a.reprovada) || a.disciplinaNome.localeCompare(b.disciplinaNome, "pt"));
 
   // select, não include: RepeticaoForm (Client Component) só precisa de id/nome — Curso.valorPropina
   // é Decimal e o Next.js recusa-se a serializar Decimal ao passar de Server para Client Component
@@ -143,14 +169,18 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   // porque só DAAC/ADMIN chegam aqui (podeRepetir) e o DAAC só ganhou acesso a /alunos hoje.
   const ofertas = podeRepetir
     ? await prisma.turmaDisciplina.findMany({
-        where: { cadeiraCurricularId: { in: cadeirasAtivas.map((c) => c.cadeiraCurricularId) } },
+        where: { cadeiraCurricularId: { in: cadeirasParaRepetir.map((c) => c.cadeiraCurricularId) } },
         select: {
           id: true,
           cadeiraCurricularId: true,
           disciplina: { select: { nome: true } },
           professor: { select: { nome: true } },
-          turma: { select: { anoCurricular: true, curso: { select: { nome: true } } } },
+          // anoLetivo no rótulo (§2026-09-08): a mesma cadeira tem oferta em vários anos letivos, e
+          // sem o ano as opções ficavam indistinguíveis — dava para inscrever o aluno na turma do
+          // ano passado sem dar por isso. Ordenado do mais recente para trás, pela mesma razão.
+          turma: { select: { anoCurricular: true, anoLetivo: true, curso: { select: { nome: true } } } },
         },
+        orderBy: { turma: { anoLetivo: "desc" } },
       })
     : [];
 
@@ -520,7 +550,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
               cadeiras reprovadas, e desde 2026-08-28 cria até a oferta em falta. Isto fica como
               válvula de escape manual (repetir a meio do ano, corrigir uma repetição falhada), por
               isso passa a último e recolhido, em vez de parecer o fluxo principal. */}
-          {podeRepetir && cadeirasAtivas.length > 0 ? (
+          {podeRepetir && cadeirasParaRepetir.length > 0 ? (
             <details className="group border-t border-navy-50 pt-4">
               <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-texto-suave hover:text-navy-600">
                 <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
@@ -530,7 +560,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                 Normalmente não é preciso: a rematrícula inscreve sozinha as cadeiras reprovadas. Use isto só para corrigir
                 uma repetição que falhou, ou para inscrever fora da janela de matrículas.
               </p>
-              <RepeticaoForm alunoId={aluno.id} cadeirasAtivas={cadeirasAtivas} ofertas={ofertas} />
+              <RepeticaoForm alunoId={aluno.id} cadeiras={cadeirasParaRepetir} ofertas={ofertas} />
             </details>
           ) : null}
         </div>
