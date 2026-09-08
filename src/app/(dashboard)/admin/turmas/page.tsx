@@ -44,6 +44,30 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
     orderBy: [{ anoLetivo: "desc" }, { curso: { nome: "asc" } }, { anoCurricular: "asc" }],
   });
 
+  // "Alunos" só contava Matricula — um repetente nunca tem Matricula na turma onde repete (§reportado
+  // 2026-09-09: "na lista de turmas mostra 0 alunos no 1º ano, mas a lista de estudantes já mostra o
+  // aluno repetido"). Mesma definição de "tem gente" já usada em admin/turmas/[id] e Horário e
+  // Provas: soma quem tem InscricaoCadeira ativa numa TurmaDisciplina desta turma, mesmo sem
+  // Matricula nela — sem contar duas vezes quem já tem as duas coisas.
+  const turmaIds = turmas.map((t) => t.id);
+  const [matriculasPorTurma, inscricoesRepeticao] = await Promise.all([
+    prisma.matricula.findMany({ where: { turmaId: { in: turmaIds } }, select: { turmaId: true, alunoId: true } }),
+    prisma.inscricaoCadeira.findMany({
+      where: { ativa: true, turmaDisciplina: { turmaId: { in: turmaIds } } },
+      select: { alunoId: true, turmaDisciplina: { select: { turmaId: true } } },
+    }),
+  ]);
+  const matriculadoEm = new Set(matriculasPorTurma.map((m) => `${m.turmaId}:${m.alunoId}`));
+  const repetentesPorTurma = new Map<string, Set<string>>();
+  for (const inscricao of inscricoesRepeticao) {
+    const turmaId = inscricao.turmaDisciplina.turmaId;
+    const chave = `${turmaId}:${inscricao.alunoId}`;
+    if (matriculadoEm.has(chave)) continue;
+    const alunosRepetentes = repetentesPorTurma.get(turmaId) ?? new Set<string>();
+    alunosRepetentes.add(inscricao.alunoId);
+    repetentesPorTurma.set(turmaId, alunosRepetentes);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -114,7 +138,17 @@ export default async function AdminTurmasPage({ searchParams }: AdminTurmasPageP
                       ) : null}
                     </Td>
                     <Td>{turma._count.turmaDisciplinas}</Td>
-                    <Td>{turma._count.matriculas}</Td>
+                    <Td>
+                      {turma._count.matriculas + (repetentesPorTurma.get(turma.id)?.size ?? 0)}
+                      {repetentesPorTurma.has(turma.id) ? (
+                        <span
+                          className="ml-1.5 text-xs text-texto-suave"
+                          title="Inclui alunos a repetir uma cadeira aqui sem estarem matriculados nesta turma"
+                        >
+                          ({turma._count.matriculas} matr. + {repetentesPorTurma.get(turma.id)!.size} repetente(s))
+                        </span>
+                      ) : null}
+                    </Td>
                     <Td className="text-right">
                       <DeleteButtonForm action={deleteTurmaAction} id={turma.id} />
                     </Td>
