@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { requireGerirCurriculo } from "@/lib/permissions";
 import { backfillFrequenciasParaInscricoes } from "@/lib/curriculo";
+import { recalcularAgravamentoPendentes } from "@/lib/financeiro";
+import { getAgora } from "@/lib/tempo";
 
 const CriarTentativaRepeticaoSchema = z.object({
   alunoId: z.string().min(1),
@@ -39,7 +41,7 @@ export async function criarTentativaRepeticaoAction(
     prisma.aluno.findUnique({ where: { id: parsed.data.alunoId } }),
     prisma.turmaDisciplina.findUnique({
       where: { id: parsed.data.turmaDisciplinaId },
-      include: { disciplina: true, cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true, eMonografia: true } } },
+      include: { disciplina: true, cadeiraCurricular: { select: { permiteDispensa: true, notaMinimaDispensa: true, eMonografia: true, semestre: true } } },
     }),
     prisma.inscricaoCadeira.findMany({
       where: { alunoId: parsed.data.alunoId, cadeiraCurricularId: parsed.data.cadeiraCurricularId },
@@ -66,11 +68,21 @@ export async function criarTentativaRepeticaoAction(
   const tentativaAtiva = tentativasAnteriores.find((t) => t.ativa);
   const proximaTentativa = (tentativasAnteriores[0]?.tentativa ?? 0) + 1;
 
+  // Esta cadeira já contava para o agravamento por repetição, ou é nova a entrar na conta agora?
+  // Se já havia uma tentativa ATIVA com tentativa > 1, já era uma repetição antes desta ação — só
+  // se está a corrigir a turma de destino, não a acrescentar mais uma cadeira à lista. Só conta
+  // como nova quando a tentativa ativa anterior era a 1ª (a cadeira estava a ser cursada pela
+  // primeira vez) ou não havia nenhuma (§reportado 2026-09-09: "quero que atualize para o aluno já
+  // existe" — inscrever por aqui nunca tinha mexido em Aluno.cadeirasReprovadasAnoAnterior, por
+  // isso a mensalidade de quem repetia só por este formulário nunca via o agravamento).
+  const cadeiraJaContava = tentativaAtiva !== undefined && tentativaAtiva.tentativa > 1;
+  const eSemestre2 = turmaDisciplina.cadeiraCurricular.semestre === 2;
+
   const novaInscricao = await prisma.$transaction(async (tx) => {
     if (tentativaAtiva) {
       await tx.inscricaoCadeira.update({ where: { id: tentativaAtiva.id }, data: { ativa: false } });
     }
-    return tx.inscricaoCadeira.create({
+    const inscricao = await tx.inscricaoCadeira.create({
       data: {
         alunoId: parsed.data.alunoId,
         cadeiraCurricularId: parsed.data.cadeiraCurricularId,
@@ -84,17 +96,33 @@ export async function criarTentativaRepeticaoAction(
         notaMinimaDispensaAplicada: turmaDisciplina.cadeiraCurricular.notaMinimaDispensa,
       },
     });
+    if (!cadeiraJaContava) {
+      await tx.aluno.update({
+        where: { id: parsed.data.alunoId },
+        data: {
+          cadeirasReprovadasAnoAnterior: { increment: 1 },
+          ...(eSemestre2 ? { cadeirasReprovadasSemestre2AnoAnterior: { increment: 1 } } : {}),
+        },
+      });
+    }
+    return inscricao;
   });
 
   // O aluno entra a meio do ano na disciplina de destino — sem isto fica invisível na marcação de
   // presença das aulas já dadas, apesar de já aparecer na pauta (roster por InscricaoCadeira).
   await backfillFrequenciasParaInscricoes([{ id: novaInscricao.id, turmaDisciplinaId: novaInscricao.turmaDisciplinaId }]);
 
+  // Reflete já na mensalidade ainda por vencer — mesmo princípio de atualizarPercentagemAgravamentoAction
+  // (§pedido do cliente 2026-09-09: ver a mudança sem esperar pela rematrícula seguinte).
+  const mensalidadesAtualizadas = cadeiraJaContava ? 0 : await recalcularAgravamentoPendentes(await getAgora());
+
   await registrarAuditoria({
     userId: session.user.id,
     userName: session.user.name ?? session.user.email ?? "Utilizador",
     userRole: session.user.role,
-    action: `Inscreveu ${aluno.nome} na ${proximaTentativa}ª tentativa de ${turmaDisciplina.disciplina.nome} (repetição)`,
+    action:
+      `Inscreveu ${aluno.nome} na ${proximaTentativa}ª tentativa de ${turmaDisciplina.disciplina.nome} (repetição)` +
+      (mensalidadesAtualizadas > 0 ? ` — ${mensalidadesAtualizadas} mensalidade(s) por vencer recalculada(s)` : ""),
     entityType: "InscricaoCadeira",
     entityId: parsed.data.alunoId,
   });
