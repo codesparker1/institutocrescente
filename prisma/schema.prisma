@@ -126,7 +126,14 @@ model Aluno {
   /// Nº de cadeiras que ficaram REPROVADO na última rematrícula processada (processarRematriculaAction)
   /// — alimenta o agravamento por cadeira em repetição na propina (§pedido do cliente 2026-08-18).
   /// Continua > 0 enquanto o aluno andar a repetir essas cadeiras, mesmo tendo avançado de ano.
+  /// Total das duas — inclui as do campo abaixo, não é só o 1º semestre.
   cadeirasReprovadasAnoAnterior Int                @default(0)
+  /// Subconjunto do campo acima que é de 2º semestre — só serve para o agravamento poder ser
+  /// atrasado até esse semestre (ConfiguracaoFinanceira.agravamentoSoNoSemestreDaCadeira,
+  /// §pedido do cliente 2026-09-08: "um aluno reprovou numa disciplina de 2º semestre, deve pagar
+  /// o agravamento desde Outubro?"). Aplicado em aplicarAgravamentoSemestre2 quando o 2º semestre
+  /// abre; até lá, gerarPropinasAnoLetivo já pré-gera o ano só com a diferença (1º semestre).
+  cadeirasReprovadasSemestre2AnoAnterior Int      @default(0)
 
   matriculas  Matricula[]
   cobrancas   Cobranca[]
@@ -512,6 +519,11 @@ model ConfiguracaoFinanceira {
   /// — editado em Admin > Preços, não em Admin > Financeiro > Configuração, mas guardado aqui porque
   /// gerarCobrancasDoDia já carrega esta linha a cada geração de propinas (evita outra query no hot path).
   percentagemAgravamentoPorCadeira Decimal   @default(0) @db.Decimal(5, 2)
+  /// false (defeito) = agravamento fixo o ano letivo inteiro, tratado como custo administrativo de
+  /// repetir, não o custo de uma cadeira concreta — comportamento de sempre. true = uma cadeira de
+  /// 2º semestre só agrava a partir do 2º semestre, não desde o 1º mês (§pedido do cliente
+  /// 2026-09-08, "será possível meter um sistema de escolha na configuração académica").
+  agravamentoSoNoSemestreDaCadeira Boolean   @default(false)
   /// Multa por rematrícula tardia — confirmada pela ADMIN fora da janela de matrícula
   /// (§pedido do cliente 2026-08). 0 = desligada (defeito). Nasce como Cobranca MULTA órfã,
   /// presa ao aluno, confirmável/reversível só pela ADMIN (toggleMultaAction).

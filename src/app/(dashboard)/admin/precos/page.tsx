@@ -3,6 +3,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td } from "@/components/ui/Table";
 import { PrecoPropinaCell } from "./PrecoPropinaCell";
 import { PercentagemAgravamentoForm } from "./PercentagemAgravamentoForm";
+import { AgravamentoSoNoSemestreForm } from "./AgravamentoSoNoSemestreForm";
 import type { CategoriaEstudante } from "@/generated/prisma/client";
 
 const CATEGORIAS: CategoriaEstudante[] = ["NORMAL", "BOLSEIRO_INAGBE", "COMPARTICIPADA"];
@@ -65,8 +66,9 @@ export default async function AdminPrecosPage() {
           title="Agravamento por cadeira em repetição"
           subtitle="Aplicado sobre o valor base da mensalidade de quem ainda arrasta cadeiras reprovadas do ano anterior"
         />
-        <CardBody>
+        <CardBody className="flex flex-col gap-4">
           <PercentagemAgravamentoForm valorInicial={Number(config?.percentagemAgravamentoPorCadeira ?? 0)} />
+          <AgravamentoSoNoSemestreForm valorInicial={config?.agravamentoSoNoSemestreDaCadeira ?? false} />
         </CardBody>
       </Card>
     </div>

@@ -269,7 +269,7 @@ export async function garantirOfertaParaRepeticao(params: {
   cursoId: string;
   periodo: Periodo;
   anoLetivo: number;
-}): Promise<{ id: string; cadeiraCurricular: { permiteDispensa: boolean; notaMinimaDispensa: Decimal; eMonografia: boolean } } | null> {
+}): Promise<{ id: string; cadeiraCurricular: { permiteDispensa: boolean; notaMinimaDispensa: Decimal; eMonografia: boolean; semestre: number } } | null> {
   const { cadeiraCurricularId, cursoId, periodo, anoLetivo } = params;
 
   const cadeira = await prisma.cadeiraCurricular.findUnique({
@@ -305,7 +305,12 @@ export async function garantirOfertaParaRepeticao(params: {
 
   return {
     id: oferta.id,
-    cadeiraCurricular: { permiteDispensa: cadeira.permiteDispensa, notaMinimaDispensa: cadeira.notaMinimaDispensa, eMonografia: cadeira.eMonografia },
+    cadeiraCurricular: {
+      permiteDispensa: cadeira.permiteDispensa,
+      notaMinimaDispensa: cadeira.notaMinimaDispensa,
+      eMonografia: cadeira.eMonografia,
+      semestre: cadeira.semestre,
+    },
   };
 }
 

@@ -150,6 +150,49 @@ export async function atualizarPercentagemAgravamentoAction(
   return {};
 }
 
+const AgravamentoSoNoSemestreSchema = z.object({
+  // Select e não checkbox: a caixa não marcada não é enviada no FormData.
+  soNoSemestreDaCadeira: z.enum(["true", "false"]).transform((v) => v === "true"),
+});
+
+/**
+ * Liga/desliga ConfiguracaoFinanceira.agravamentoSoNoSemestreDaCadeira (§pedido do cliente
+ * 2026-09-08: "será possível meter um sistema de escolha na configuração académica?"). Desligado
+ * (defeito) mantém o comportamento de sempre: agravamento fixo o ano inteiro. Ligado, uma cadeira
+ * de 2º semestre só agrava a partir do 2º — aplicarAgravamentoSemestre2 (chamado por
+ * alterarSemestreAction) é que aplica a diferença quando esse semestre abre.
+ */
+export async function atualizarAgravamentoSoNoSemestreAction(
+  _prevState: { error?: string },
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await requireGerirCurriculo();
+  const parsed = AgravamentoSoNoSemestreSchema.safeParse({ soNoSemestreDaCadeira: formData.get("soNoSemestreDaCadeira") });
+  if (!parsed.success) return { error: "Escolha inválida." };
+
+  const anterior = await prisma.configuracaoFinanceira.findUnique({ where: { id: "config" } });
+  await prisma.configuracaoFinanceira.upsert({
+    where: { id: "config" },
+    create: { id: "config", agravamentoSoNoSemestreDaCadeira: parsed.data.soNoSemestreDaCadeira, updatedPorId: session.user.id },
+    update: { agravamentoSoNoSemestreDaCadeira: parsed.data.soNoSemestreDaCadeira, updatedPorId: session.user.id },
+  });
+  await audit(
+    session,
+    `Alterou quando o agravamento por repetição começa a contar para: ${parsed.data.soNoSemestreDaCadeira ? "só a partir do semestre da cadeira" : "desde o início do ano"}`,
+    "ConfiguracaoFinanceira",
+    "config",
+    anterior
+      ? {
+          valorAnterior: anterior.agravamentoSoNoSemestreDaCadeira ? "só no semestre da cadeira" : "desde o início do ano",
+          valorNovo: parsed.data.soNoSemestreDaCadeira ? "só no semestre da cadeira" : "desde o início do ano",
+        }
+      : undefined,
+  );
+
+  revalidatePath("/admin/precos");
+  return {};
+}
+
 export async function deleteCursoAction(formData: FormData): Promise<DeleteResult> {
   const session = await requireGerirCurriculo();
   const id = String(formData.get("id"));
