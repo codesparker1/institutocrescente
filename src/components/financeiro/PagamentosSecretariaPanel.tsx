@@ -6,6 +6,7 @@ import { confirmarPagamentosEmLoteAction, registarEmolumentosEmLoteAction } from
 import { PropinasMensais } from "./PropinasMensais";
 import { MultasPendentes } from "./MultasPendentes";
 import { EmolumentosPagos } from "./EmolumentosPagos";
+import { Disclosure } from "@/components/ui/Disclosure";
 import type { EstadoFinanceiroAluno, EmolumentoCatalogo, EmolumentoPago } from "@/lib/financeiro";
 
 type Tab = "propinas" | "emolumentos";
@@ -63,8 +64,12 @@ export function PagamentosSecretariaPanel({
     estado.multas.filter((m) => m.status === "PENDENTE" && m.mesReferencia).map((m) => [chaveMes(m.mesReferencia!), m]),
   );
 
+  // Junta ano atual + histórico: uma mensalidade antiga ainda pendente tem de continuar
+  // selecionável para pagamento — só sai da vista PRINCIPAL, nunca da possibilidade de a confirmar
+  // (§pedido do cliente 2026-09-09).
+  const todosOsMeses = [...estado.meses, ...estado.mesesHistorico];
   const valorPorIdPropina = new Map(
-    estado.meses
+    todosOsMeses
       .filter((mes) => mes.status === "PENDENTE")
       .map((mes) => {
         if (isAdmin) return [mes.id, mes.valorDevido] as const;
@@ -79,8 +84,9 @@ export function PagamentosSecretariaPanel({
   // não existe) — só relevante para Secretaria/DAAC, que veem a mensalidade e a multa embutidas
   // numa única lista e por isso precisam de uma secção à parte para as multas "órfãs". Para ADMIN a
   // lista de multas já é sempre uma secção própria (todas, órfãs ou não).
-  const mesesChaves = new Set(estado.meses.map((mes) => chaveMes(mes.mesReferencia)));
+  const mesesChaves = new Set(todosOsMeses.map((mes) => chaveMes(mes.mesReferencia)));
   const multasOrfas = estado.multas.filter((m) => !m.mesReferencia || !mesesChaves.has(chaveMes(m.mesReferencia)));
+  const historicoTemPendente = estado.mesesHistorico.some((m) => m.status === "PENDENTE");
 
   function toggleSelecionadoPropina(id: string) {
     setErro(null);
@@ -188,6 +194,28 @@ export function PagamentosSecretariaPanel({
               podeReverter={isAdmin}
             />
           </div>
+
+          {estado.mesesHistorico.length > 0 ? (
+            <Disclosure
+              title="Histórico de pagamento"
+              subtitle={
+                historicoTemPendente
+                  ? "Ainda há mensalidades de anos anteriores por pagar — continuam selecionáveis abaixo."
+                  : `${estado.mesesHistorico.length} mensalidade(s) de anos anteriores, todas pagas.`
+              }
+              defaultOpen={historicoTemPendente}
+            >
+              <PropinasMensais
+                meses={estado.mesesHistorico}
+                multas={isAdmin ? [] : estado.multas}
+                editable
+                selecionados={selecionadosPropinas}
+                onToggleSelecionado={toggleSelecionadoPropina}
+                onAtualizado={onAtualizado}
+                podeReverter={isAdmin}
+              />
+            </Disclosure>
+          ) : null}
 
           {isAdmin ? (
             // ADMIN: mensalidade e multa são sempre secções e checkboxes independentes — tickar a

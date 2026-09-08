@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { PropinasMensais } from "@/components/financeiro/PropinasMensais";
 import { formatCurrency } from "@/lib/utils";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
@@ -11,12 +12,15 @@ export default async function MinhasPropinasPage() {
   if (session.user.role !== "ALUNO" || !session.user.alunoId) redirect("/dashboard");
 
   const estadoFinanceiro = await getEstadoFinanceiroAluno(session.user.alunoId);
+  // Aberto por omissão só quando ainda há algo por pagar de um ano anterior — nunca esconder
+  // dívida atrás de um clique que ninguém é obrigado a dar (§pedido do cliente 2026-09-09).
+  const historicoTemPendente = estadoFinanceiro.mesesHistorico.some((m) => m.status === "PENDENTE");
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-bold text-texto">Minhas Propinas</h1>
-        <p className="text-sm text-texto-suave">Histórico completo das suas mensalidades.</p>
+        <p className="text-sm text-texto-suave">Mensalidades do ano letivo atual.</p>
       </div>
 
       <Card>
@@ -48,6 +52,20 @@ export default async function MinhasPropinasPage() {
           <PropinasMensais meses={estadoFinanceiro.meses} multas={estadoFinanceiro.multas} editable={false} />
         </CardBody>
       </Card>
+
+      {estadoFinanceiro.mesesHistorico.length > 0 ? (
+        <Disclosure
+          title="Histórico de pagamento"
+          subtitle={
+            historicoTemPendente
+              ? "Ainda há mensalidades de anos anteriores por pagar."
+              : `${estadoFinanceiro.mesesHistorico.length} mensalidade(s) de anos anteriores, todas pagas.`
+          }
+          defaultOpen={historicoTemPendente}
+        >
+          <PropinasMensais meses={estadoFinanceiro.mesesHistorico} editable={false} />
+        </Disclosure>
+      ) : null}
     </div>
   );
 }

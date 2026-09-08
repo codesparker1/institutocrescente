@@ -129,8 +129,11 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
 
   // Multas sem mensalidade correspondente no mesmo mês ficam de fora do merge de
   // PropinasMensais (mesmo tratamento de PagamentosSecretariaPanel) — só essas aparecem na lista
-  // separada abaixo, em vez de todas.
-  const mesesChaves = new Set(estadoFinanceiro.meses.map((mes) => chaveMes(mes.mesReferencia)));
+  // separada abaixo, em vez de todas. Junta meses + mesesHistorico: uma multa de um ano anterior
+  // não é "órfã" só por o mês estar no histórico, e sem isto aparecia duplicada nas duas secções.
+  const mesesChaves = new Set(
+    [...estadoFinanceiro.meses, ...estadoFinanceiro.mesesHistorico].map((mes) => chaveMes(mes.mesReferencia)),
+  );
   const multasOrfas = estadoFinanceiro.multas.filter((m) => !m.mesReferencia || !mesesChaves.has(chaveMes(m.mesReferencia)));
 
   // Rematrícula (§4.2/Fase 8b) — resumo do ano corrente e janela de matrícula. Calculado aqui em
@@ -199,8 +202,10 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   // As mesmas condições que processarRematriculaAction verifica, calculadas aqui para o cartão
   // poder dizer o que falta em vez de oferecer um botão que vai recusar. DEVENDO (vencida além da
   // tolerância), não qualquer PENDENTE: gerarPropinasAnoLetivo pré-gera o ano letivo inteiro e a
-  // maioria dos meses ainda nem venceu — ver a nota na própria action.
-  const saldoPropinasDevendo = estadoFinanceiro.meses
+  // maioria dos meses ainda nem venceu — ver a nota na própria action. Meses + mesesHistorico: uma
+  // dívida de um ano anterior continua a travar a rematrícula, mesmo já não estando na vista
+  // principal da lista de mensalidades.
+  const saldoPropinasDevendo = [...estadoFinanceiro.meses, ...estadoFinanceiro.mesesHistorico]
     .filter((m) => m.estadoVisual === "DEVENDO")
     .reduce((soma, m) => soma + (m.valorDevido - m.valorPago), 0);
   // A MESMA condição do DesistenciaForm (ATIVO ou TRANCADO + permissão) — se divergir, a página
@@ -355,6 +360,20 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           <MultasPendentes multas={multasOrfas} editable={podeEditarFinanceiroAqui} />
         </CardBody>
       </Card>
+
+      {estadoFinanceiro.mesesHistorico.length > 0 ? (
+        <Disclosure
+          title="Histórico de pagamento"
+          subtitle={
+            estadoFinanceiro.mesesHistorico.some((m) => m.status === "PENDENTE")
+              ? "Ainda há mensalidades de anos anteriores por pagar."
+              : `${estadoFinanceiro.mesesHistorico.length} mensalidade(s) de anos anteriores, todas pagas.`
+          }
+          defaultOpen={estadoFinanceiro.mesesHistorico.some((m) => m.status === "PENDENTE")}
+        >
+          <PropinasMensais meses={estadoFinanceiro.mesesHistorico} editable={podeEditarFinanceiroAqui} />
+        </Disclosure>
+      ) : null}
 
       {/* Rematrícula, mudança de curso e desistência ocupavam três cartões grandes sempre abertos,
           entre a Situação Financeira e o Percurso Curricular — empurravam para baixo o que se

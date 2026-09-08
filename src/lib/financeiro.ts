@@ -623,13 +623,24 @@ export interface EstadoFinanceiroAluno {
   totalPago: number;
   /** Só o que já venceu além da tolerância e continua por pagar — não o calendário do ano inteiro. */
   saldoEmDivida: number;
+  /** Do ano letivo atual (a matrícula ATIVA) — o que se mostra por omissão. */
   meses: PropinaMes[];
+  /**
+   * De matrículas anteriores (§pedido do cliente 2026-09-09: "assim que faz a rematrícula e está
+   * tudo pago, só aparece a mensalidade do ano letivo atual, o resto vai para o histórico" — evita
+   * a lista crescer um ano atrás do outro). Continua com o que estiver PENDENTE: nunca esconder
+   * dívida, só o que já está resolvido é que sai da vista principal.
+   *
+   * Sem matrícula ATIVA (aluno trancado, por exemplo), fica vazio e tudo cai em `meses` — não há
+   * "ano atual" a distinguir de quem já não está matriculado em lado nenhum.
+   */
+  mesesHistorico: PropinaMes[];
   multas: CobrancaAvulsa[];
 }
 
 /** Histórico financeiro completo de um aluno — usado pela ficha do aluno e pela sua própria página financeira. */
 export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoFinanceiroAluno> {
-  const [config, cobrancas] = await Promise.all([
+  const [config, cobrancas, matriculaAtiva] = await Promise.all([
     getConfiguracaoFinanceira(),
     prisma.cobranca.findMany({
       // Histórico completo mostra PROPINA+MULTA (a multa órfã tem de continuar visível na ficha,
@@ -638,13 +649,15 @@ export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoF
       include: { registadoPor: true },
       orderBy: { mesReferencia: "asc" },
     }),
+    prisma.matricula.findFirst({ where: { alunoId, status: "ATIVA" }, select: { id: true } }),
   ]);
   const agora = await getAgora();
 
-  const meses: PropinaMes[] = cobrancas
+  const mesesTodos = cobrancas
     .filter((c) => c.tipo === "PROPINA")
     .map((c) => ({
       id: c.id,
+      matriculaId: c.matriculaId,
       mesReferencia: c.mesReferencia!,
       descricao: c.descricao,
       valorDevido: Number(c.valorDevido),
@@ -654,6 +667,10 @@ export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoF
       registadoPorNome: c.registadoPor?.name ?? null,
       estadoVisual: estadoCobrancaVisual(c.status, c.dataVencimento, config.toleranciaDias, agora),
     }));
+  // `matriculaId` só serviu para separar acima — PropinaMes não o expõe, não há consumidor que
+  // precise dele fora daqui.
+  const meses: PropinaMes[] = matriculaAtiva ? mesesTodos.filter((m) => m.matriculaId === matriculaAtiva.id) : mesesTodos;
+  const mesesHistorico: PropinaMes[] = matriculaAtiva ? mesesTodos.filter((m) => m.matriculaId !== matriculaAtiva.id) : [];
 
   const multas: CobrancaAvulsa[] = cobrancas
     .filter((c) => c.tipo === "MULTA")
@@ -681,7 +698,7 @@ export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoF
     .filter((c) => c.status === "PENDENTE" && ehVencidoAlemDaTolerancia(c.dataVencimento, config.toleranciaDias, agora))
     .reduce((soma, c) => soma + (Number(c.valorDevido) - Number(c.valorPago)), 0);
 
-  return { totalDevido, totalPago, saldoEmDivida, meses, multas };
+  return { totalDevido, totalPago, saldoEmDivida, meses, mesesHistorico, multas };
 }
 
 export interface EmolumentoCatalogo {
