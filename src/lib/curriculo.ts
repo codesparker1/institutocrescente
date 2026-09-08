@@ -362,16 +362,26 @@ function inicioDoDia(data: Date): Date {
  * possíveis aqui — tira o acesso a quem não fez nada de errado.
  *
  * O rollover das turmas e das datas NÃO depende disto e continua a acontecer no fim do ano letivo
- * (ver o after() abaixo): as turmas do ano novo têm de existir ANTES de as matrículas abrirem,
- * senão não há para onde rematricular.
+ * (ver o trabalho devolvido abaixo): as turmas do ano novo têm de existir ANTES de as matrículas
+ * abrirem, senão não há para onde rematricular.
  *
  * Mesmo padrão preguiçoso de garantirCobrancasGeradas (financeiro.ts): corre no máximo uma vez
  * por dia civil, reclamando o "turno" com um updateMany condicional. Sem cron horário.
+ *
+ * Devolve o trabalho pesado (rollover + suspensão) por fazer, em vez de o agendar aqui com
+ * `after()` (§reportado 2026-09-08 e 2026-08-23 — a mesma "propina fantasma" reapareceu). O
+ * layout do dashboard tem de o correr ANTES de garantirCobrancasGeradas, na MESMA chamada a
+ * `after()`: os `after()` do Next correm com concorrência infinita (ver AfterContext/PQueue),
+ * por isso dois `after()` SEPARADOS — um por função — não têm ordem nenhuma entre si, por mais
+ * que os `await` que os registam estejam em ordem. A correção de 2026-08-23 só reordenou esses
+ * `await`, que só ordena o passo síncrono de reclamar o dia — o trabalho pesado, cada um no seu
+ * `after()`, continuava a correr em paralelo. Devolver o trabalho e deixar o chamador compor um
+ * único `after()` sequencial é o que torna a ordem real, não só aparente.
  */
-export async function garantirSuspensaoAutomatica(): Promise<void> {
+export async function garantirSuspensaoAutomatica(): Promise<(() => Promise<void>) | null> {
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
   // Ambas as datas: o ano novo e as datas novas derivam-se do intervalo antigo, não do calendário.
-  if (!config?.anoLetivoFim || !config.anoLetivoInicio) return;
+  if (!config?.anoLetivoFim || !config.anoLetivoInicio) return null;
 
   const agora = await getAgora();
 
@@ -392,10 +402,10 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   // Dois gatilhos distintos, deliberadamente separados — a regra vive em trabalhoDeFimDeAno
   // (lib/academico.ts), onde é testável, e a nota lá explica porquê.
   const { rollover: precisaRollover, suspender: precisaSuspender } = trabalhoDeFimDeAno(agora, config);
-  if (!precisaRollover && !precisaSuspender) return;
+  if (!precisaRollover && !precisaSuspender) return null;
 
   if (config.ultimaSuspensaoEm && inicioDoDia(config.ultimaSuspensaoEm).getTime() === inicioDoDia(agora).getTime()) {
-    return;
+    return null;
   }
 
   const reclamado = await prisma.configuracaoAcademica.updateMany({
@@ -405,12 +415,12 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
     },
     data: { ultimaSuspensaoEm: agora },
   });
-  if (reclamado.count === 0) return;
+  if (reclamado.count === 0) return null;
 
   // O ano novo é o que acabou + 1, lido da configuração — não o ano civil de hoje. Ver nota em
   // rolloverTurmas: o job corre no primeiro acesso depois do fim do ano letivo, e essa data pode
   // cair em qualquer altura do ano civil.
-  // Fixados fora do closure: dentro de after() o TypeScript já não vê o guarda de null acima.
+  // Fixados fora do closure devolvido: lá dentro o TypeScript já não vê o guarda de null acima.
   const { anoLetivoInicio, anoLetivoFim, matriculaInicio, matriculaFim } = config;
 
   // Depois do rollover, a config já aponta ao ano novo: o ano corrente é o do início configurado, e
@@ -419,7 +429,7 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
   const anoLetivoCorrenteConfig = anoLetivoInicio.getFullYear();
   const anoLetivoNovo = precisaRollover ? anoLetivoCorrenteConfig + 1 : anoLetivoCorrenteConfig;
 
-  after(async () => {
+  return async () => {
     if (precisaRollover) {
       await rolloverTurmas(anoLetivoNovo);
       // Sem avançar as datas, a configuração continuava a apontar para o ano que acabou:
@@ -450,7 +460,7 @@ export async function garantirSuspensaoAutomatica(): Promise<void> {
     if (precisaSuspender) {
       await suspenderNaoRematriculados(anoLetivoNovo);
     }
-  });
+  };
 }
 
 /**

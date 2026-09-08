@@ -1,5 +1,4 @@
 import "server-only";
-import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { CategoriaEstudante, Periodo } from "@/generated/prisma/client";
 import { ehVencidoAlemDaTolerancia, mesDentroDoAnoLetivo } from "@/lib/divida";
@@ -121,19 +120,23 @@ export async function gerarPropinasAnoLetivo(params: GerarPropinasAnoLetivoParam
  * o "turno" com um updateMany condicional (0 linhas afetadas = outro request já tratou disto hoje).
  * Nunca cron horário — mataria o scale-to-zero do Neon.
  *
- * A geração pesada corre em `after()` (fora do request-response), não bloqueada no render do
- * dashboard. Só o claim (um updateMany rápido) é síncrono — evita que o primeiro pedido a seguir
- * a uma virada de dia fique preso atrás de um findMany+createMany sobre todas as matrículas
- * ativas, e liberta a ligação à BD do pool mais depressa sob concorrência (achado na simulação de
- * ano caótico: p99 em picos de tráfego batia sempre nos marcos com viragem de dia, nunca nos
- * outros, e em rotas diferentes — sinal de um custo partilhado no layout, não de N+1 na rota).
+ * A geração pesada não corre aqui — é devolvida como um trabalho por fazer, para o layout do
+ * dashboard a encadear DEPOIS de garantirSuspensaoAutomatica ter mesmo terminado, não só depois de
+ * ter sido chamada (§reportado 2026-09-08, a mesma "propina fantasma" de 2026-08-28: um matriculado
+ * de um ano letivo já fechado com uma PROPINA nova gerada em seu nome). Ver a nota grande em
+ * garantirSuspensaoAutomatica (lib/curriculo.ts) sobre porque dois `after()` separados não bastam.
+ * Só o claim (um updateMany rápido) é síncrono aqui — evita que o primeiro pedido a seguir a uma
+ * virada de dia fique preso atrás de um findMany+createMany sobre todas as matrículas ativas, e
+ * liberta a ligação à BD do pool mais depressa sob concorrência (achado na simulação de ano
+ * caótico: p99 em picos de tráfego batia sempre nos marcos com viragem de dia, nunca nos outros, e
+ * em rotas diferentes — sinal de um custo partilhado no layout, não de N+1 na rota).
  */
-export async function garantirCobrancasGeradas(): Promise<void> {
+export async function garantirCobrancasGeradas(): Promise<(() => Promise<void>) | null> {
   const config = await getConfiguracaoFinanceira();
   const agora = await getAgora();
 
   if (config.ultimaGeracaoEm && inicioDoDia(config.ultimaGeracaoEm).getTime() === inicioDoDia(agora).getTime()) {
-    return;
+    return null;
   }
 
   const reclamado = await prisma.configuracaoFinanceira.updateMany({
@@ -143,7 +146,7 @@ export async function garantirCobrancasGeradas(): Promise<void> {
     },
     data: { ultimaGeracaoEm: agora },
   });
-  if (reclamado.count === 0) return;
+  if (reclamado.count === 0) return null;
 
   // Fora do ano letivo não há propina a cobrar: o mês corrente pode ser anterior ao arranque das
   // aulas (agosto, com o ano a começar em outubro) ou posterior ao fim — e cobrava na mesma, por
@@ -155,7 +158,7 @@ export async function garantirCobrancasGeradas(): Promise<void> {
   });
   const gerarPropinas = mesDentroDoAnoLetivo(agora, configAcademica);
 
-  after(() =>
+  return () =>
     gerarCobrancasDoDia(
       agora,
       config.diaVencimento,
@@ -164,8 +167,7 @@ export async function garantirCobrancasGeradas(): Promise<void> {
       Number(config.percentagemAgravamentoPorCadeira),
       gerarPropinas,
       anoLetivoCorrente(agora, configAcademica),
-    ),
-  );
+    );
 }
 
 
