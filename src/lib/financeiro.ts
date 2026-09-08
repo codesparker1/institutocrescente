@@ -59,7 +59,7 @@ export function calcularValorPropina(valorBase: number, cadeirasReprovadas: numb
  * — não faz sentido cobrar por ela já. `cadeirasReprovadasAnoAnterior` guarda sempre o TOTAL (não
  * muda com a opção), e `cadeirasReprovadasSemestre2AnoAnterior` o subconjunto de 2º semestre; a
  * diferença dá as de 1º semestre, que contam desde sempre. As de 2º só se juntam quando o sistema
- * já está no 2º semestre — nesse momento aplicarAgravamentoSemestre2 atualiza de uma vez as
+ * já está no 2º semestre — nesse momento recalcularAgravamentoPendentes atualiza de uma vez as
  * mensalidades por vencer, e esta função só continua a manter a mesma conta nos meses seguintes.
  */
 export function calcularCadeirasReprovadasEfetivas(
@@ -141,32 +141,36 @@ export async function gerarPropinasAnoLetivo(params: GerarPropinasAnoLetivoParam
 }
 
 /**
- * Ao abrir o 2º semestre, acrescenta às mensalidades ainda por vencer o agravamento das cadeiras
- * reprovadas de 2º semestre que até aqui ficaram de fora (§pedido do cliente 2026-09-08, ver
- * calcularCadeirasReprovadasEfetivas). Chamada por alterarSemestreAction ao mudar 1º → 2º — não
- * corre sozinha, porque essa mudança é uma decisão manual do DAAC, não uma data do calendário.
+ * Recalcula do zero o agravamento das mensalidades AINDA POR VENCER, com as regras atuais —
+ * chamada sempre que algo que decide o valor do agravamento muda: a percentagem
+ * (atualizarPercentagemAgravamentoAction), a opção agravamentoSoNoSemestreDaCadeira
+ * (atualizarAgravamentoSoNoSemestreAction), ou a abertura do 2º semestre (alterarSemestreAction).
  *
- * Sem efeito se a opção estiver desligada: nesse caso `gerarPropinasAnoLetivo` já pré-gerou o ano
- * inteiro com o total, e não há nada para corrigir.
+ * §pedido do cliente 2026-09-09: "vou testar em tempo real... quando guarda, o sistema atualiza" —
+ * antes só a rematrícula seguinte via a mudança; para testar as duas formas (desde o início vs. só
+ * no semestre da cadeira) sem esperar por isso, guardar tinha de já mexer no que está por pagar.
  *
  * Só toca em PROPINA PENDENTE com `mesReferencia` a partir do mês corrente (inclusive) — meses já
  * vencidos ou pagos são facto histórico, a mesma regra de "uma nota já lançada não se reabre"
- * aplicada à cobrança. Recalcula do zero com o TOTAL de cadeiras reprovadas (as duas metades já
- * contam a partir de agora), não soma o agravamento antigo ao novo — evita compor um valor errado
- * se esta função correr mais que uma vez no mesmo ano (não devia, mas custa zero garantir).
+ * aplicada à cobrança. Recalcula sempre do zero (nunca soma ao valor antigo), por isso é seguro
+ * chamar mais que uma vez — repetir com a mesma configuração não muda nada.
  *
  * Devolve quantas mensalidades foram corrigidas, para a auditoria poder dizer se fez alguma coisa.
  */
-export async function aplicarAgravamentoSemestre2(agora: Date): Promise<number> {
-  const config = await getConfiguracaoFinanceira();
-  if (!config.agravamentoSoNoSemestreDaCadeira) return 0;
+export async function recalcularAgravamentoPendentes(agora: Date): Promise<number> {
+  const [config, configAcademica] = await Promise.all([
+    getConfiguracaoFinanceira(),
+    prisma.configuracaoAcademica.findUnique({ where: { id: "config" }, select: { semestreAtual: true } }),
+  ]);
+  const semestreAtual = configAcademica?.semestreAtual ?? 1;
 
   const alunos = await prisma.aluno.findMany({
-    where: { status: "ATIVO", cadeirasReprovadasSemestre2AnoAnterior: { gt: 0 } },
+    where: { status: "ATIVO", cadeirasReprovadasAnoAnterior: { gt: 0 } },
     select: {
       id: true,
       categoria: true,
       cadeirasReprovadasAnoAnterior: true,
+      cadeirasReprovadasSemestre2AnoAnterior: true,
       matriculas: {
         where: { status: "ATIVA" },
         select: { turma: { select: { anoCurricular: true } } },
@@ -188,7 +192,13 @@ export async function aplicarAgravamentoSemestre2(agora: Date): Promise<number> 
     const valorBase = precoPorChave.get(`${aluno.categoria}:${anoCurricular}`);
     if (valorBase === undefined) continue; // mesma regra de gerarCobrancasDoDia: sem preço, não inventa valor
 
-    const { valorDevido, descricao } = calcularValorPropina(valorBase, aluno.cadeirasReprovadasAnoAnterior, percentagem);
+    const cadeirasEfetivas = calcularCadeirasReprovadasEfetivas(
+      aluno.cadeirasReprovadasAnoAnterior,
+      aluno.cadeirasReprovadasSemestre2AnoAnterior,
+      config.agravamentoSoNoSemestreDaCadeira,
+      semestreAtual,
+    );
+    const { valorDevido, descricao } = calcularValorPropina(valorBase, cadeirasEfetivas, percentagem);
     const resultado = await prisma.cobranca.updateMany({
       where: { alunoId: aluno.id, tipo: "PROPINA", status: "PENDENTE", mesReferencia: { gte: inicioMesAtual } },
       data: { valorDevido, descricao },
@@ -308,7 +318,7 @@ async function gerarCobrancasDoDia(
     }
     // Enquanto o 1º semestre decorre e a opção está ligada, uma cadeira reprovada de 2º semestre
     // ainda não tem aulas nenhumas — não entra no agravamento deste mês. calcularCadeirasReprovadasEfetivas
-    // documenta o porquê; aplicarAgravamentoSemestre2 acrescenta a diferença quando o 2º semestre abrir.
+    // documenta o porquê; recalcularAgravamentoPendentes acrescenta a diferença quando o 2º semestre abrir.
     const cadeirasReprovadas = calcularCadeirasReprovadasEfetivas(
       m.aluno.cadeirasReprovadasAnoAnterior,
       m.aluno.cadeirasReprovadasSemestre2AnoAnterior,

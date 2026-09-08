@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Input } from "@/components/ui/Input";
 import { atualizarPercentagemAgravamentoAction } from "@/actions/admin";
 
-const initialState: { error?: string } = {};
+const initialState: { error?: string; sucesso?: string } = {};
 
 interface PercentagemAgravamentoFormProps {
   valorInicial: number;
@@ -30,6 +30,7 @@ export function PercentagemAgravamentoForm({ valorInicial }: PercentagemAgravame
       />
       <span className="text-sm text-texto">% por cadeira em repetição</span>
       {state.error ? <p className="text-xs text-red-600">{state.error}</p> : null}
+      {state.sucesso ? <p className="text-xs text-green-700">{state.sucesso}</p> : null}
     </form>
   );
 }

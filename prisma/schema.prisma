@@ -131,7 +131,7 @@ model Aluno {
   /// Subconjunto do campo acima que é de 2º semestre — só serve para o agravamento poder ser
   /// atrasado até esse semestre (ConfiguracaoFinanceira.agravamentoSoNoSemestreDaCadeira,
   /// §pedido do cliente 2026-09-08: "um aluno reprovou numa disciplina de 2º semestre, deve pagar
-  /// o agravamento desde Outubro?"). Aplicado em aplicarAgravamentoSemestre2 quando o 2º semestre
+  /// o agravamento desde Outubro?"). Aplicado em recalcularAgravamentoPendentes quando o 2º semestre
   /// abre; até lá, gerarPropinasAnoLetivo já pré-gera o ano só com a diferença (1º semestre).
   cadeirasReprovadasSemestre2AnoAnterior Int      @default(0)
 

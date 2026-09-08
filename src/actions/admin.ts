@@ -15,6 +15,7 @@ import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from 
 // duas leituras diferentes com o mesmo nome no mesmo ficheiro pedem um engano.
 import { anoLetivoCorrente as anoLetivoConfigurado, dentroDoAnoLetivo } from "@/lib/academico";
 import { getAgora } from "@/lib/tempo";
+import { recalcularAgravamentoPendentes } from "@/lib/financeiro";
 import { formatDefesa, fromIsoDateTime, nomeProfessor, SALA_A_CONFIRMAR } from "@/lib/utils";
 
 async function audit(
@@ -123,11 +124,15 @@ const PercentagemAgravamentoSchema = z.object({
  * atualizado a cada rematrícula) — §pedido do cliente 2026-08-18. Guardada em ConfiguracaoFinanceira
  * (garantirCobrancasGeradas já carrega essa linha), mas editada aqui em Admin > Preços, ao lado do
  * resto do preçário da propina.
+ *
+ * Recalcula logo as mensalidades ainda por vencer (§pedido do cliente 2026-09-09: "quando guarda, o
+ * sistema atualiza") — sem isto, só a rematrícula seguinte de cada aluno é que via a percentagem
+ * nova; quem já tinha o ano pré-gerado ficava com o valor antigo até lá.
  */
 export async function atualizarPercentagemAgravamentoAction(
-  _prevState: { error?: string },
+  _prevState: { error?: string; sucesso?: string },
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; sucesso?: string }> {
   const session = await requireGerirCurriculo();
   const parsed = PercentagemAgravamentoSchema.safeParse({ percentagem: formData.get("percentagem") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Percentagem inválida." };
@@ -138,16 +143,19 @@ export async function atualizarPercentagemAgravamentoAction(
     create: { id: "config", percentagemAgravamentoPorCadeira: parsed.data.percentagem, updatedPorId: session.user.id },
     update: { percentagemAgravamentoPorCadeira: parsed.data.percentagem, updatedPorId: session.user.id },
   });
+  const agora = await getAgora();
+  const mensalidadesAtualizadas = await recalcularAgravamentoPendentes(agora);
   await audit(
     session,
-    `Atualizou o agravamento por cadeira em repetição para ${parsed.data.percentagem}%`,
+    `Atualizou o agravamento por cadeira em repetição para ${parsed.data.percentagem}%` +
+      (mensalidadesAtualizadas > 0 ? ` — ${mensalidadesAtualizadas} mensalidade(s) por vencer recalculada(s)` : ""),
     "ConfiguracaoFinanceira",
     "config",
     anterior ? { valorAnterior: `${Number(anterior.percentagemAgravamentoPorCadeira)}%`, valorNovo: `${parsed.data.percentagem}%` } : undefined,
   );
 
   revalidatePath("/admin/precos");
-  return {};
+  return mensalidadesAtualizadas > 0 ? { sucesso: `${mensalidadesAtualizadas} mensalidade(s) por vencer atualizada(s).` } : {};
 }
 
 const AgravamentoSoNoSemestreSchema = z.object({
@@ -159,13 +167,17 @@ const AgravamentoSoNoSemestreSchema = z.object({
  * Liga/desliga ConfiguracaoFinanceira.agravamentoSoNoSemestreDaCadeira (§pedido do cliente
  * 2026-09-08: "será possível meter um sistema de escolha na configuração académica?"). Desligado
  * (defeito) mantém o comportamento de sempre: agravamento fixo o ano inteiro. Ligado, uma cadeira
- * de 2º semestre só agrava a partir do 2º — aplicarAgravamentoSemestre2 (chamado por
- * alterarSemestreAction) é que aplica a diferença quando esse semestre abre.
+ * de 2º semestre só agrava a partir do 2º.
+ *
+ * Recalcula logo as mensalidades ainda por vencer, nos dois sentidos (§pedido do cliente 2026-09-09:
+ * "vou testar em tempo real... quando guarda, o sistema atualiza"): ligar tira já o agravamento das
+ * cadeiras de 2º semestre de quem ainda está no 1º; desligar põe-no já de volta. Sem isto, só se via
+ * o efeito na rematrícula seguinte, ou quando o 2º semestre abrisse — tarde de mais para testar.
  */
 export async function atualizarAgravamentoSoNoSemestreAction(
-  _prevState: { error?: string },
+  _prevState: { error?: string; sucesso?: string },
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; sucesso?: string }> {
   const session = await requireGerirCurriculo();
   const parsed = AgravamentoSoNoSemestreSchema.safeParse({ soNoSemestreDaCadeira: formData.get("soNoSemestreDaCadeira") });
   if (!parsed.success) return { error: "Escolha inválida." };
@@ -176,9 +188,12 @@ export async function atualizarAgravamentoSoNoSemestreAction(
     create: { id: "config", agravamentoSoNoSemestreDaCadeira: parsed.data.soNoSemestreDaCadeira, updatedPorId: session.user.id },
     update: { agravamentoSoNoSemestreDaCadeira: parsed.data.soNoSemestreDaCadeira, updatedPorId: session.user.id },
   });
+  const agora = await getAgora();
+  const mensalidadesAtualizadas = await recalcularAgravamentoPendentes(agora);
   await audit(
     session,
-    `Alterou quando o agravamento por repetição começa a contar para: ${parsed.data.soNoSemestreDaCadeira ? "só a partir do semestre da cadeira" : "desde o início do ano"}`,
+    `Alterou quando o agravamento por repetição começa a contar para: ${parsed.data.soNoSemestreDaCadeira ? "só a partir do semestre da cadeira" : "desde o início do ano"}` +
+      (mensalidadesAtualizadas > 0 ? ` — ${mensalidadesAtualizadas} mensalidade(s) por vencer recalculada(s)` : ""),
     "ConfiguracaoFinanceira",
     "config",
     anterior
@@ -190,7 +205,7 @@ export async function atualizarAgravamentoSoNoSemestreAction(
   );
 
   revalidatePath("/admin/precos");
-  return {};
+  return mensalidadesAtualizadas > 0 ? { sucesso: `${mensalidadesAtualizadas} mensalidade(s) por vencer atualizada(s).` } : {};
 }
 
 export async function deleteCursoAction(formData: FormData): Promise<DeleteResult> {

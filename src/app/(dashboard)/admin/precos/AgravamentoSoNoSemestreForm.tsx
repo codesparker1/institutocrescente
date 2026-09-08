@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Select } from "@/components/ui/Select";
 import { atualizarAgravamentoSoNoSemestreAction } from "@/actions/admin";
 
-const initialState: { error?: string } = {};
+const initialState: { error?: string; sucesso?: string } = {};
 
 interface AgravamentoSoNoSemestreFormProps {
   valorInicial: boolean;
@@ -31,10 +31,12 @@ export function AgravamentoSoNoSemestreForm({ valorInicial }: AgravamentoSoNoSem
       </div>
       <p className="text-xs text-texto-suave">
         Uma cadeira reprovada de 2º semestre ainda não tem aulas nenhumas enquanto o 1º decorre. Com &quot;Só a
-        partir do semestre da cadeira&quot;, o agravamento dessa cadeira só entra na mensalidade quando o DAAC abrir
-        o 2º semestre em Configuração Académica.
+        partir do semestre da cadeira&quot;, o agravamento dessa cadeira só entra na mensalidade a partir de quando o
+        DAAC abrir o 2º semestre em Configuração Académica. Guardar aqui já atualiza as mensalidades ainda por
+        vencer com a escolha atual.
       </p>
       {state.error ? <p className="text-xs text-red-600">{state.error}</p> : null}
+      {state.sucesso ? <p className="text-xs text-green-700">{state.sucesso}</p> : null}
     </form>
   );
 }

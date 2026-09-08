@@ -7,7 +7,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireGerirCurriculo, requireRegistarPagamento, requireMarcarDesistencia, requireReativarDesistente } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, backfillFrequenciasParaInscricoes, garantirOfertaParaRepeticao } from "@/lib/curriculo";
-import { getEstadoFinanceiroAluno, gerarPropinasAnoLetivo, aplicarAgravamentoSemestre2 } from "@/lib/financeiro";
+import { getEstadoFinanceiroAluno, gerarPropinasAnoLetivo, recalcularAgravamentoPendentes } from "@/lib/financeiro";
 import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { formatCurrency, fromIsoDate } from "@/lib/utils";
 import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente } from "@/lib/academico";
@@ -149,7 +149,7 @@ export async function alterarSemestreAction(formData: FormData): Promise<void> {
     // aqui não tinham aulas nenhumas (§pedido do cliente 2026-09-08, ver
     // ConfiguracaoFinanceira.agravamentoSoNoSemestreDaCadeira). Sem efeito se a opção estiver
     // desligada, ou se ninguém tiver cadeiras de 2º semestre em repetição.
-    mensalidadesAgravadas = await aplicarAgravamentoSemestre2(agora);
+    mensalidadesAgravadas = await recalcularAgravamentoPendentes(agora);
   }
 
   await prisma.configuracaoAcademica.update({
@@ -432,7 +432,7 @@ export async function processarRematriculaAction(
   // Quantas das REPROVADAS (não das aprovadas repetidas por ANO_INTEIRO — essas não são "está a
   // repetir por ter chumbado") são de 2º semestre — §pedido do cliente 2026-09-08: enquanto o 1º
   // semestre decorre, essas cadeiras ainda não têm aulas nenhumas, e com a opção ligada só entram
-  // no agravamento a partir do 2º (ver calcularCadeirasReprovadasEfetivas/aplicarAgravamentoSemestre2).
+  // no agravamento a partir do 2º (ver calcularCadeirasReprovadasEfetivas/recalcularAgravamentoPendentes).
   const idsReprovadas = new Set(reprovadas.map((r) => r.inscricao.id));
   const cadeirasReprovadasSemestre2 = repeticoesResolvidas.filter(
     (r) =>
@@ -465,7 +465,7 @@ export async function processarRematriculaAction(
         // Alimenta o agravamento por cadeira em repetição na propina (garantirCobrancasGeradas) —
         // atualizado a cada rematrícula, mesmo para 0 (aluno que deixou de repetir cadeiras deixa
         // de pagar o agravamento a partir do mês seguinte). Sempre o TOTAL, independente da opção
-        // de só agravar no semestre da cadeira — é aplicarAgravamentoSemestre2 que decide quando é
+        // de só agravar no semestre da cadeira — é recalcularAgravamentoPendentes que decide quando é
         // que a metade de 2º semestre entra em jogo, não este valor.
         cadeirasReprovadasAnoAnterior: reprovadas.length,
         cadeirasReprovadasSemestre2AnoAnterior: cadeirasReprovadasSemestre2,
