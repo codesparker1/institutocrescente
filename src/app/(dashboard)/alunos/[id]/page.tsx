@@ -371,7 +371,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
           }
           defaultOpen={estadoFinanceiro.mesesHistorico.some((m) => m.status === "PENDENTE")}
         >
-          <PropinasMensais meses={estadoFinanceiro.mesesHistorico} editable={podeEditarFinanceiroAqui} />
+          <PropinasMensais meses={estadoFinanceiro.mesesHistorico} multas={estadoFinanceiro.multas} editable={podeEditarFinanceiroAqui} />
         </Disclosure>
       ) : null}
 

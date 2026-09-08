@@ -63,7 +63,7 @@ export default async function MinhasPropinasPage() {
           }
           defaultOpen={historicoTemPendente}
         >
-          <PropinasMensais meses={estadoFinanceiro.mesesHistorico} editable={false} />
+          <PropinasMensais meses={estadoFinanceiro.mesesHistorico} multas={estadoFinanceiro.multas} editable={false} />
         </Disclosure>
       ) : null}
     </div>
