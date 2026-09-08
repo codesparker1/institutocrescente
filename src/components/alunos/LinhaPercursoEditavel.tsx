@@ -25,6 +25,14 @@ interface LinhaPercursoEditavelProps {
   tentativa: number;
   ativa: boolean;
   creditada: boolean;
+  /**
+   * A monografia usa a mesma tabela (P1/P2/Exame/Recurso/Ex.Especial) mas só a coluna "Exame" tem
+   * sentido — é onde a nota da defesa se grava (§decisão do schema, ver CadeiraCurricular.eMonografia).
+   * Sem aviso nenhum, um DAAC a corrigir esta linha via Gestão de Matrícula (§pedido do cliente
+   * 2026-09-09) via 4 colunas vazias sem saber porquê, ou se falta preenchê-las. O atalho normal
+   * para lançar esta nota é em Finalistas (LancarNotaDefesa) — isto fica como via alternativa.
+   */
+  eMonografia: boolean;
   instituicaoOrigemCreditado: string | null;
   notasPorEpoca: Record<Epoca, NotaDeEpoca | null>;
   notaFrequencia: number | null;
@@ -54,6 +62,7 @@ export function LinhaPercursoEditavel({
   tentativa,
   ativa,
   creditada,
+  eMonografia,
   instituicaoOrigemCreditado,
   notasPorEpoca,
   notaFrequencia,
@@ -72,6 +81,14 @@ export function LinhaPercursoEditavel({
   const celulaDisciplina = (
     <Td className="font-medium text-texto">
       {disciplinaNome}
+      {eMonografia ? (
+        <span
+          className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700"
+          title='Nota única — grava-se na coluna "Exame". Atalho mais direto: Finalistas.'
+        >
+          Monografia — nota em &quot;Exame&quot;
+        </span>
+      ) : null}
       {tentativa > 1 ? (
         <span className="ml-2 rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
           {tentativa}ª tentativa

@@ -20,6 +20,8 @@ export interface FinalistaItem {
   estado: EstadoFinalista;
   /** null enquanto o pagamento não estiver confirmado — é a inscrição que não existe ainda. */
   inscricaoId: string | null;
+  /** Para lancarNotaDefesaAction (§2026-09-09) — a nota grava-se na Avaliacao desta turma-disciplina. */
+  turmaDisciplinaId: string | null;
   disciplinaNome: string | null;
   confirmadaEm: Date | null;
   confirmadaPorNome: string | null;
@@ -132,6 +134,7 @@ export async function getFinalistas(anoLetivo: number, filtros: FiltrosFinalista
       turmaId: turma.id,
       estado: estadoDaMonografia(temNoPlano, inscricao, notaFinal),
       inscricaoId: inscricao?.id ?? null,
+      turmaDisciplinaId: inscricao?.turmaDisciplinaId ?? null,
       disciplinaNome: inscricao?.turmaDisciplina.disciplina.nome ?? null,
       confirmadaEm: inscricao?.monografiaConfirmadaEm ?? null,
       confirmadaPorNome: inscricao?.monografiaConfirmadaPor?.name ?? null,

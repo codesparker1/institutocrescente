@@ -17,6 +17,7 @@ import { AvisoMonografiasPendentes } from "@/components/finalistas/AvisoMonograf
 import { ConfirmarPagamento } from "./ConfirmarPagamento";
 import { EditarOrientador } from "./EditarOrientador";
 import { EditarDefesa } from "./EditarDefesa";
+import { LancarNotaDefesa } from "./LancarNotaDefesa";
 
 const TONE_ESTADO: Record<EstadoFinalista, "neutral" | "success" | "warning" | "danger" | "info"> = {
   SEM_MONOGRAFIA_NO_PLANO: "neutral",
@@ -100,7 +101,7 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
         <h1 className="text-xl font-bold text-texto">Finalistas</h1>
         <p className="text-sm text-texto-suave">
           Alunos no último ano do curso. A monografia é atribuída ao confirmar o pagamento; depois disso atribui-se o
-          orientador e marca-se a defesa. A nota lança-se em Notas e Frequência.
+          orientador, marca-se a defesa e lança-se a nota — tudo aqui mesmo.
         </p>
       </div>
 
@@ -261,7 +262,13 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
                     ) : null}
                   </Td>
                   <Td className="font-semibold text-texto">
-                    {finalista.notaFinal !== null ? finalista.notaFinal.toFixed(1) : "—"}
+                    {/* Só depois de haver orientador — sem cadeira/turma-disciplina ligada não há
+                        onde gravar a nota, e mostrar o controlo antes disso levaria a um erro. */}
+                    {finalista.inscricaoId && finalista.turmaDisciplinaId ? (
+                      <LancarNotaDefesa inscricaoId={finalista.inscricaoId} notaFinal={finalista.notaFinal} />
+                    ) : (
+                      <span className="text-texto-suave">—</span>
+                    )}
                   </Td>
                 </Tr>
               ))}

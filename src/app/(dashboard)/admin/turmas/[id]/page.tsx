@@ -125,6 +125,37 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
   const semProfessorNaMonografia = turmaDisciplinasMonografia.filter((td) => !td.professorId).length;
   const matriculasAtivas = matriculas.filter((m) => m.status === "ATIVA").length;
 
+  // Quem repete uma cadeira NESTA turma sem estar matriculado nela (§reportado 2026-09-09: "o
+  // sistema não reconhece alguém a repetir como parte da turma, então a turma aparece vazia") — um
+  // aluno de 2º ano repetindo uma cadeira do 1º assiste às aulas aqui, mas a sua Matricula continua
+  // presa à turma do ano em que está, não a esta (ver garantirOfertaParaRepeticao/
+  // criarTentativaRepeticaoAction: repetição nunca cria Matricula nova). "Lista de estudantes"
+  // media só por Matricula, e por isso nunca via esta gente — a turma parecia vazia com alunos
+  // sentados nela todos os dias.
+  const alunoIdsMatriculados = new Set(matriculas.map((m) => m.aluno.id));
+  const inscricoesRepeticao = await prisma.inscricaoCadeira.findMany({
+    where: {
+      ativa: true,
+      turmaDisciplina: { turmaId: id },
+      alunoId: { notIn: [...alunoIdsMatriculados] },
+    },
+    select: {
+      alunoId: true,
+      aluno: { select: { id: true, nome: true, numeroEstudante: true, email: true, status: true } },
+      turmaDisciplina: { select: { disciplina: { select: { nome: true } } } },
+    },
+    orderBy: { aluno: { nome: "asc" } },
+  });
+  const repetentesPorAluno = new Map<string, { aluno: (typeof inscricoesRepeticao)[number]["aluno"]; disciplinas: string[] }>();
+  for (const inscricao of inscricoesRepeticao) {
+    const existente = repetentesPorAluno.get(inscricao.alunoId);
+    const disciplinaNome = inscricao.turmaDisciplina.disciplina.nome;
+    if (existente) existente.disciplinas.push(disciplinaNome);
+    else repetentesPorAluno.set(inscricao.alunoId, { aluno: inscricao.aluno, disciplinas: [disciplinaNome] });
+  }
+  const repetentes = [...repetentesPorAluno.values()];
+  const totalEstudantesTurma = matriculasAtivas + repetentes.length;
+
   // O semestre viaja com a aba: trocar de aba não pode fazer perder o semestre que estava aberto.
   const linkAba = (destino: "estudantes" | "disciplinas") =>
     `/admin/turmas/${turma.id}?semestre=${semestre}&aba=${destino}`;
@@ -154,7 +185,7 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
           Disciplinas e professores
         </Link>
         <Link href={linkAba("estudantes")} className={classeAba("estudantes")}>
-          Lista de estudantes ({matriculasAtivas})
+          Lista de estudantes ({totalEstudantesTurma})
         </Link>
       </div>
 
@@ -163,12 +194,13 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
           <CardHeader
             title="Estudantes da turma"
             subtitle={
-              matriculas.length === matriculasAtivas
+              (matriculas.length === matriculasAtivas
                 ? `${matriculasAtivas} matrícula(s) ativa(s)`
-                : `${matriculasAtivas} ativa(s) de ${matriculas.length} matrícula(s) — as restantes trancaram ou concluíram`
+                : `${matriculasAtivas} ativa(s) de ${matriculas.length} matrícula(s) — as restantes trancaram ou concluíram`) +
+              (repetentes.length > 0 ? ` · ${repetentes.length} a repetir cadeira(s) aqui` : "")
             }
           />
-          {matriculas.length === 0 ? (
+          {matriculas.length === 0 && repetentes.length === 0 ? (
             <EmptyState message="Nenhum aluno matriculado nesta turma ainda. As matrículas fazem-se na ficha do aluno ou na rematrícula." />
           ) : (
             <Table>
@@ -194,6 +226,27 @@ export default async function AdminTurmaDetailPage({ params, searchParams }: Adm
                     </Td>
                     <Td>
                       <Badge tone={MATRICULA_TONE[m.status]}>{MATRICULA_LABEL[m.status]}</Badge>
+                    </Td>
+                  </Tr>
+                ))}
+                {/* Sem Matricula nesta turma — repete uma cadeira aqui, mas está formalmente
+                    matriculado noutra (o seu ano de entrada). O nome da(s) disciplina(s) fica no
+                    lugar do estado de matrícula, que não existe para eles nesta turma. */}
+                {repetentes.map(({ aluno, disciplinas }) => (
+                  <Tr key={aluno.id}>
+                    <Td className="font-medium text-texto">
+                      <Link href={`/alunos/${aluno.id}`} className="hover:underline">
+                        {aluno.nome}
+                      </Link>
+                    </Td>
+                    <Td>{aluno.numeroEstudante}</Td>
+                    <Td className={aluno.email ? "text-xs" : "text-xs text-texto-suave italic"}>
+                      {aluno.email ?? "Sem email"}
+                    </Td>
+                    <Td>
+                      <Badge tone="info" title={`Repete ${disciplinas.join(", ")} nesta turma`}>
+                        Repete: {disciplinas.join(", ")}
+                      </Badge>
                     </Td>
                   </Tr>
                 ))}

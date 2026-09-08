@@ -506,6 +506,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
                                     tentativa={inscricao.tentativa}
                                     ativa={inscricao.ativa}
                                     creditada={inscricao.creditada}
+                                    eMonografia={inscricao.eMonografiaAplicada}
                                     instituicaoOrigemCreditado={inscricao.instituicaoOrigemCreditado}
                                     notasPorEpoca={Object.fromEntries(
                                       COLUNAS_EPOCA.map((c) => [c.epoca, notaDaEpoca(inscricao, c.epoca)]),

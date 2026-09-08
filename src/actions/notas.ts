@@ -316,6 +316,75 @@ export async function guardarNotaHistoricaAction(_prevState: GuardarNotaHistoric
   return {};
 }
 
+const LancarNotaDefesaSchema = z.object({
+  inscricaoId: z.string().min(1),
+  nota: z.coerce.number("Indique a nota").min(0, "Nota entre 0 e 20").max(20, "Nota entre 0 e 20"),
+});
+
+export interface LancarNotaDefesaState {
+  error?: string;
+}
+
+/**
+ * Lança (ou corrige) a nota única da defesa de uma monografia — atalho para DAAC/ADMIN a partir de
+ * Finalistas ou da ficha do aluno, sem ter de abrir Notas, escolher a turma e encontrar a coluna da
+ * monografia (§pedido do cliente 2026-09-09: "capacidade de introduzir notas a partir da página
+ * finalista... ou indo na gestão de matrícula").
+ *
+ * Grava sempre na época EXAME — decisão documentada em CadeiraCurricular.eMonografia: a defesa não
+ * pertence à cascata P1→P2→Exame→Recurso→Especial, mas usa essa coluna de armazenamento por
+ * decisão deliberada (ver o schema). Recusa qualquer inscrição que não seja de monografia — não é
+ * um atalho genérico de lançamento, é só para isto; para as restantes cadeiras continua a valer a
+ * pauta do professor ou guardarNotaHistoricaAction na ficha do aluno.
+ *
+ * `requireGerirCurriculo` (DAAC/ADMIN) e não `podeLancarNota`: a nota da defesa nunca é do
+ * professor/orientador (ver lancarNotasEmLoteAction), por isso não faz sentido chamar a função que
+ * o deixaria passar noutras cadeiras — aqui a regra é sempre a mesma, sem casos a distinguir.
+ */
+export async function lancarNotaDefesaAction(
+  _prevState: LancarNotaDefesaState,
+  formData: FormData,
+): Promise<LancarNotaDefesaState> {
+  const session = await requireGerirCurriculo();
+  const parsed = LancarNotaDefesaSchema.safeParse({
+    inscricaoId: formData.get("inscricaoId"),
+    nota: formData.get("nota"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Nota inválida." };
+
+  const inscricao = await prisma.inscricaoCadeira.findUnique({
+    where: { id: parsed.data.inscricaoId },
+    select: { id: true, alunoId: true, turmaDisciplinaId: true, eMonografiaAplicada: true, aluno: { select: { nome: true } } },
+  });
+  if (!inscricao) return { error: "Inscrição não encontrada." };
+  if (!inscricao.eMonografiaAplicada) {
+    return { error: "Esta inscrição não é de uma monografia — lance a nota pela pauta da disciplina." };
+  }
+
+  const avaliacaoExistente = await prisma.avaliacao.findUnique({
+    where: { turmaDisciplinaId_epoca: { turmaDisciplinaId: inscricao.turmaDisciplinaId, epoca: "EXAME" } },
+  });
+  const avaliacao = avaliacaoExistente ?? (await criarAvaliacaoEmFalta(inscricao.turmaDisciplinaId, "EXAME", "A confirmar"));
+
+  await gravarNotasEAtualizarOrfas([{ avaliacaoId: avaliacao.id, inscricaoCadeiraId: inscricao.id, valor: parsed.data.nota }]);
+
+  await registrarAuditoria({
+    userId: session.user.id,
+    userName: session.user.name ?? session.user.email ?? "Utilizador",
+    userRole: session.user.role,
+    action: `Lançou a nota da defesa de ${inscricao.aluno.nome}: ${parsed.data.nota}`,
+    entityType: "Nota",
+    entityId: inscricao.id,
+  });
+
+  revalidatePath("/admin/finalistas");
+  revalidatePath(`/alunos/${inscricao.alunoId}`);
+  revalidatePath("/alunos");
+  revalidatePath("/finalista");
+  revalidatePath("/minhas-notas");
+  return {};
+}
+
 export interface CreditarCadeiraState {
   error?: string;
 }
