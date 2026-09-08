@@ -298,7 +298,21 @@ export async function verificarBloqueioAluno(alunoId: string): Promise<EstadoBlo
   ]);
 
   const agora = await getAgora();
-  const mesesPendentes: MesPendente[] = cobrancasPendentes.map((c) => ({
+
+  // Só as VENCIDAS além da tolerância entram na conta (§reportado 2026-09-08: "está a juntar de
+  // novo todas as mensalidades, mesmo as que ainda não venceram"). gerarPropinasAnoLetivo pré-gera
+  // o ano letivo inteiro assim que o aluno entra numa turma (§pedido do cliente 2026-08-18,
+  // "capacidade de pagar meses em avanço") — a maioria das cobranças PENDENTE nunca chegou a
+  // vencer, e cobrancasPendentes (a query acima) inclui-as todas. Sem este filtro, "propinas em
+  // atraso" e "dívida" cresciam com meses futuros que ninguém deixou de pagar.
+  //
+  // Mesma regra usada em toda a parte (estadoCobrancaVisual, e o gate de rematrícula em
+  // academico.ts, que já a documentava): DEVENDO é vencido além da tolerância, não qualquer
+  // PENDENTE.
+  const cobrancasVencidas = cobrancasPendentes.filter((c) =>
+    ehVencidoAlemDaTolerancia(c.dataVencimento, config.toleranciaDias, agora),
+  );
+  const mesesPendentes: MesPendente[] = cobrancasVencidas.map((c) => ({
     propinaId: c.id,
     mesReferencia: c.mesReferencia ?? c.dataVencimento,
     valorDevido: Number(c.valorDevido),
@@ -309,9 +323,7 @@ export async function verificarBloqueioAluno(alunoId: string): Promise<EstadoBlo
   const saldoEmDivida = mesesPendentes.reduce((soma, m) => soma + (m.valorDevido - m.valorPago), 0);
   const saldoMultas = multasPendentes.reduce((soma, m) => soma + (Number(m.valorDevido) - Number(m.valorPago)), 0);
 
-  const temMesVencido = cobrancasPendentes.some((c) =>
-    ehVencidoAlemDaTolerancia(c.dataVencimento, config.toleranciaDias, agora),
-  );
+  const temMesVencido = cobrancasVencidas.length > 0;
 
   return {
     // Só a propina bloqueia — `multasPendentes` não entra aqui de propósito (§financeiro-tipos).
@@ -493,8 +505,10 @@ export interface CobrancaAvulsa {
 }
 
 export interface EstadoFinanceiroAluno {
+  /** Total agendado para o ano letivo inteiro (§gerarPropinasAnoLetivo) — informativo, não é o que se deve agora. */
   totalDevido: number;
   totalPago: number;
+  /** Só o que já venceu além da tolerância e continua por pagar — não o calendário do ano inteiro. */
   saldoEmDivida: number;
   meses: PropinaMes[];
   multas: CobrancaAvulsa[];
@@ -545,7 +559,16 @@ export async function getEstadoFinanceiroAluno(alunoId: string): Promise<EstadoF
   const totalDevido = cobrancas.reduce((soma, c) => soma + Number(c.valorDevido), 0);
   const totalPago = cobrancas.reduce((soma, c) => soma + Number(c.valorPago), 0);
 
-  return { totalDevido, totalPago, saldoEmDivida: totalDevido - totalPago, meses, multas };
+  // "Dívida" != totalDevido - totalPago: essa conta soma o ano letivo INTEIRO, incluindo os meses
+  // que gerarPropinasAnoLetivo pré-gera e ainda nem venceram (§pedido do cliente 2026-08-18, pagar
+  // meses em avanço). O aluno lia "158.000 em dívida" quando só um mês estava mesmo atrasado — o
+  // resto era o calendário do ano todo (§reportado 2026-09-08). Mesma regra de
+  // verificarBloqueioAluno: só conta o que já venceu além da tolerância.
+  const saldoEmDivida = cobrancas
+    .filter((c) => c.status === "PENDENTE" && ehVencidoAlemDaTolerancia(c.dataVencimento, config.toleranciaDias, agora))
+    .reduce((soma, c) => soma + (Number(c.valorDevido) - Number(c.valorPago)), 0);
+
+  return { totalDevido, totalPago, saldoEmDivida, meses, multas };
 }
 
 export interface EmolumentoCatalogo {
