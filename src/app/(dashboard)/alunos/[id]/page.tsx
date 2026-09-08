@@ -24,7 +24,7 @@ import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
 import { estadoCobrancaVisual } from "@/lib/estado-cobranca";
 import { podeRegistarPagamento, podeGerirCurriculo, podeGerirDocumentos, podeGerirContas, podeMarcarDesistencia, podeReativarDesistente } from "@/lib/permissions";
-import { calcularNotaFinal, extrairNotasPorEpoca, ESTADO_LABEL } from "@/lib/avaliacao";
+import { calcularNotaFinal, extrairNotasPorEpoca } from "@/lib/avaliacao";
 import { COLUNAS_EPOCA, notaDaEpoca } from "@/components/notas/ColunasNotas";
 import { getAgora } from "@/lib/tempo";
 import type { AlunoStatus, CobrancaTipo, Epoca } from "@/generated/prisma/client";
@@ -133,12 +133,21 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
   const mesesChaves = new Set(estadoFinanceiro.meses.map((mes) => chaveMes(mes.mesReferencia)));
   const multasOrfas = estadoFinanceiro.multas.filter((m) => !m.mesReferencia || !mesesChaves.has(chaveMes(m.mesReferencia)));
 
-  // Candidatas à repetição manual: uma por cadeira, no estado da tentativa MAIS RECENTE (as
-  // inscrições já vêm ordenadas por ativa/tentativa desc, por isso a primeira de cada cadeira é a
-  // que conta). Antes filtrava-se por `i.ativa` — e isso escondia exatamente aquilo que se vem cá
-  // fazer (§reportado 2026-09-08: "só me deixa repetir cadeiras do ano atual e não as disciplinas
-  // que o estudante reprovou"): a tentativa reprovada é desativada no momento da rematrícula, logo
-  // nunca chegava a aparecer na lista.
+  // Rematrícula (§4.2/Fase 8b) — resumo do ano corrente e janela de matrícula. Calculado aqui em
+  // cima (não só mais abaixo) porque a repetição manual, logo a seguir, também precisa do ano
+  // letivo atual — só oferece turma dele, não do curso inteiro (§2026-09-08).
+  const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
+  const agora = await getAgora();
+  // Para distinguir, na pauta, um semestre a decorrer de um já encerrado: num encerrado
+  // "Em curso"/"Em recurso" mentem, porque não vai entrar mais nota nenhuma (ver rotuloEstado).
+  const anoLetivoAtual = anoLetivoCorrente(agora, configAcademica);
+
+  // Candidatas à repetição manual: só as REPROVADAS (§reportado 2026-09-08: "porque mostra cadeiras
+  // em curso e aprovadas? o aluno deve repetir a que teve negativa"). Uma por cadeira, no estado da
+  // tentativa MAIS RECENTE — as inscrições já vêm ordenadas por ativa/tentativa desc, por isso a
+  // primeira de cada cadeira é a que conta. Não filtra por `i.ativa`: a tentativa reprovada é
+  // desativada no momento da rematrícula, e era isso que escondia a própria cadeira que se vem
+  // repetir aqui (§reportado antes, 2026-09-08: "só me deixa repetir cadeiras do ano atual").
   //
   // A monografia fica de fora porque criarTentativaRepeticaoAction a recusa — é atribuída em
   // Finalistas, depois do pagamento. Oferecê-la aqui seria uma opção que só dá erro.
@@ -149,47 +158,33 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
     }
   }
   const cadeirasParaRepetir = [...ultimaInscricaoPorCadeira.values()]
-    .filter((i) => !i.eMonografiaAplicada)
-    .map((i) => {
-      const estado = resultadoDaInscricao(i).estado;
-      return {
-        cadeiraCurricularId: i.cadeiraCurricularId,
-        disciplinaNome: i.turmaDisciplina.disciplina.nome,
-        estadoLabel: ESTADO_LABEL[estado],
-        reprovada: estado === "REPROVADO",
-      };
-    })
-    // Reprovadas primeiro: são o motivo de este formulário existir. As outras ficam disponíveis
-    // (mudar de turma a meio do ano, corrigir uma inscrição), mas fora do caminho.
-    .sort((a, b) => Number(b.reprovada) - Number(a.reprovada) || a.disciplinaNome.localeCompare(b.disciplinaNome, "pt"));
+    .filter((i) => !i.eMonografiaAplicada && resultadoDaInscricao(i).estado === "REPROVADO")
+    .map((i) => ({ cadeiraCurricularId: i.cadeiraCurricularId, disciplinaNome: i.turmaDisciplina.disciplina.nome }))
+    .sort((a, b) => a.disciplinaNome.localeCompare(b.disciplinaNome, "pt"));
 
   // select, não include: RepeticaoForm (Client Component) só precisa de id/nome — Curso.valorPropina
   // é Decimal e o Next.js recusa-se a serializar Decimal ao passar de Server para Client Component
   // (mesmo cuidado já aplicado a outrosCursos/MudarCursoForm, mais abaixo). Ficou latente até agora
   // porque só DAAC/ADMIN chegam aqui (podeRepetir) e o DAAC só ganhou acesso a /alunos hoje.
+  //
+  // Só o ano letivo ATUAL (§2026-09-08: "repetir no ano letivo/turma corrente") — sem isto a mesma
+  // cadeira aparecia com uma opção por cada ano em que já teve turma, e a maioria delas já fechou.
+  // Sem professor no select: deixou de aparecer no rótulo (a pergunta era "quem lecciona", que aqui
+  // não interessa — o DAAC atribui-o depois, como em qualquer oferta nova).
   const ofertas = podeRepetir
     ? await prisma.turmaDisciplina.findMany({
-        where: { cadeiraCurricularId: { in: cadeirasParaRepetir.map((c) => c.cadeiraCurricularId) } },
+        where: {
+          cadeiraCurricularId: { in: cadeirasParaRepetir.map((c) => c.cadeiraCurricularId) },
+          ...(anoLetivoAtual !== null ? { turma: { anoLetivo: anoLetivoAtual } } : {}),
+        },
         select: {
           id: true,
           cadeiraCurricularId: true,
           disciplina: { select: { nome: true } },
-          professor: { select: { nome: true } },
-          // anoLetivo no rótulo (§2026-09-08): a mesma cadeira tem oferta em vários anos letivos, e
-          // sem o ano as opções ficavam indistinguíveis — dava para inscrever o aluno na turma do
-          // ano passado sem dar por isso. Ordenado do mais recente para trás, pela mesma razão.
-          turma: { select: { anoCurricular: true, anoLetivo: true, curso: { select: { nome: true } } } },
+          turma: { select: { anoCurricular: true, curso: { select: { nome: true } } } },
         },
-        orderBy: { turma: { anoLetivo: "desc" } },
       })
     : [];
-
-  // Rematrícula (§4.2/Fase 8b) — resumo do ano corrente e janela de matrícula.
-  const configAcademica = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
-  const agora = await getAgora();
-  // Para distinguir, na pauta, um semestre a decorrer de um já encerrado: num encerrado
-  // "Em curso"/"Em recurso" mentem, porque não vai entrar mais nota nenhuma (ver rotuloEstado).
-  const anoLetivoAtual = anoLetivoCorrente(agora, configAcademica);
   const semestreAtualConfig = configAcademica?.semestreAtual === 2 ? 2 : 1;
   const dentroDaJanela = Boolean(
     configAcademica?.matriculaInicio &&
