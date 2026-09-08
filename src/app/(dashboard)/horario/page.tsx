@@ -150,10 +150,18 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
     );
   }
 
+  // "Tem gente" = tem Matricula OU tem quem repita uma cadeira aqui sem estar matriculado nesta
+  // turma (§reportado 2026-09-09, mesmo caso do admin/turmas/[id]: "não me deixa escolher o
+  // primeiro ano, que agora só tem uma pessoa" — essa pessoa era um repetente, e as três queries
+  // abaixo só olhavam a Matricula.turmaId, a mesma lacuna já corrigida na página da turma).
+  const turmaTemGente = {
+    OR: [{ matriculas: { some: {} } }, { turmaDisciplinas: { some: { inscricoes: { some: { ativa: true } } } } }],
+  };
+
   // Só entram cursos com turmas DESTE ano letivo e com alunos matriculados — marcar aulas ou provas
   // numa turma vazia não serve para nada, e o ecrã enchia-se de combinações que nunca existiram.
   const cursos = await prisma.curso.findMany({
-    where: { turmas: { some: { anoLetivo, matriculas: { some: {} } } } },
+    where: { turmas: { some: { anoLetivo, ...turmaTemGente } } },
     orderBy: { nome: "asc" },
   });
   const cursoId = cursos.some((c) => c.id === params.cursoId) ? params.cursoId! : (cursos[0]?.id ?? "");
@@ -163,7 +171,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
   // curso têm turma aberta, e o seletor mostrava sempre 1º a 6º Ano mesmo num curso de 4 anos.
   const turmasComAlunos = cursoId
     ? await prisma.turma.findMany({
-        where: { cursoId, anoLetivo, matriculas: { some: {} } },
+        where: { cursoId, anoLetivo, ...turmaTemGente },
         select: { anoCurricular: true, periodo: true },
         distinct: ["anoCurricular", "periodo"],
         orderBy: [{ anoCurricular: "asc" }, { periodo: "asc" }],
@@ -195,7 +203,7 @@ export default async function HorarioPage({ searchParams }: HorarioPageProps) {
             anoLetivo,
             anoCurricular,
             periodo: periodo as "MATUTINO" | "VESPERTINO" | "NOTURNO",
-            matriculas: { some: {} },
+            ...turmaTemGente,
           },
           include: { curso: true, turmaDisciplinas: { include: TURMA_DISCIPLINA_INCLUDE } },
         })
