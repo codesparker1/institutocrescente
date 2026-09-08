@@ -34,13 +34,27 @@ const CATEGORIA_TONE: Record<CategoriaEstudante, "neutral" | "info"> = {
 
 const TAMANHO_PAGINA = 25;
 
+const ESTADO_LABEL: Record<AlunoStatus, string> = {
+  ATIVO: "Ativos",
+  TRANCADO: "Trancados",
+  FORMADO: "Formados",
+  DESISTENTE: "Desistentes",
+};
+
 interface AlunosPageProps {
-  searchParams: Promise<{ q?: string; curso?: string; ano?: string; periodo?: string; pagina?: string }>;
+  searchParams: Promise<{ q?: string; curso?: string; ano?: string; periodo?: string; estado?: string; pagina?: string }>;
 }
 
 export default async function AlunosPage({ searchParams }: AlunosPageProps) {
-  const { q, curso, ano, periodo, pagina } = await searchParams;
+  const { q, curso, ano, periodo, estado, pagina } = await searchParams;
   const paginaAtual = Math.max(1, parseIntParam(pagina) ?? 1);
+
+  // Por omissão só ATIVO — a lista completa de sempre (trancados, formados, desistentes incluídos)
+  // é ruído para o uso do dia a dia, que é quase sempre "os alunos que estão cá agora"
+  // (§pedido do cliente 2026-09-08). "estado=TODOS" é a escolha explícita de ver tudo — sem isto
+  // como opção à parte, não haveria como voltar a ver quem já saiu do ciclo ativo.
+  const estadoFiltro: AlunoStatus | null =
+    estado === "TODOS" ? null : estado && estado in ESTADO_LABEL ? (estado as AlunoStatus) : "ATIVO";
 
   const session = await auth();
   // Nova matrícula é domínio financeiro/secretaria (createAlunoAction exige podeRegistarPagamento)
@@ -77,6 +91,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
     ];
   }
   if (curso) where.curso = curso;
+  if (estadoFiltro) where.status = estadoFiltro;
   const anoCurricular = parseIntParam(ano);
   if (anoCurricular !== undefined) where.anoCurricular = anoCurricular;
   if (periodo) {
@@ -101,6 +116,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
   if (curso) queryBase.set("curso", curso);
   if (ano) queryBase.set("ano", ano);
   if (periodo) queryBase.set("periodo", periodo);
+  if (estado) queryBase.set("estado", estado);
 
   function hrefParaPagina(p: number): string {
     const query = new URLSearchParams(queryBase);
@@ -137,13 +153,16 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
         <CardHeader
           title="Lista de alunos"
           subtitle={
-            totalAlunos === 0
+            (totalAlunos === 0
               ? "0 resultados"
-              : `A mostrar ${(paginaValida - 1) * TAMANHO_PAGINA + 1}–${Math.min(paginaValida * TAMANHO_PAGINA, totalAlunos)} de ${totalAlunos}`
+              : `A mostrar ${(paginaValida - 1) * TAMANHO_PAGINA + 1}–${Math.min(paginaValida * TAMANHO_PAGINA, totalAlunos)} de ${totalAlunos}`) +
+            // Sem isto, "0 resultados" com o filtro por omissão (só ativos) lia-se como "não há
+            // alunos", quando pode só significar que os que há estão todos trancados/formados.
+            (estadoFiltro ? ` · ${ESTADO_LABEL[estadoFiltro].toLowerCase()}` : " · todos os estados")
           }
         />
         <CardBody className="flex flex-col gap-4">
-          <form className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
+          <form className="grid grid-cols-1 gap-3 sm:grid-cols-6 sm:items-end">
             <Input type="search" name="q" defaultValue={q} placeholder="Nome, nº ou email..." className="sm:col-span-2" />
             <Select name="curso" defaultValue={curso ?? ""}>
               <option value="">Todos os cursos</option>
@@ -167,9 +186,20 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
               <option value="VESPERTINO">Vespertino</option>
               <option value="NOTURNO">Noturno</option>
             </Select>
+            {/* Sem valor próprio quando estadoFiltro é ATIVO por omissão (nenhum `estado` na URL) —
+                o defaultValue tem de refletir isso, senão o select mostraria "Todos os estados"
+                selecionado enquanto a lista, por baixo, já só mostra os ativos. */}
+            <Select name="estado" defaultValue={estado ?? "ATIVO"}>
+              <option value="TODOS">Todos os estados</option>
+              {Object.entries(ESTADO_LABEL).map(([valor, label]) => (
+                <option key={valor} value={valor}>
+                  {label}
+                </option>
+              ))}
+            </Select>
             <button
               type="submit"
-              className="rounded-lg bg-navy-700 px-4 py-2 text-sm font-semibold text-gold-100 hover:bg-navy-800 sm:col-span-5 sm:w-fit"
+              className="rounded-lg bg-navy-700 px-4 py-2 text-sm font-semibold text-gold-100 hover:bg-navy-800 sm:col-span-6 sm:w-fit"
             >
               Filtrar
             </button>
