@@ -13,9 +13,14 @@ import { CelulaNota, COLUNAS_EPOCA, notaDaEpoca } from "@/components/notas/Colun
 import { anoLetivoCorrente, inscricoesVisiveisAoAluno, semestreFechado } from "@/lib/academico";
 import { formatAnoLetivo } from "@/lib/utils";
 import { getAgora } from "@/lib/tempo";
+import { SeletorCursoNotas } from "@/components/alunos/SeletorCursoNotas";
 
+interface MinhasNotasPageProps {
+  searchParams: Promise<{ curso?: string }>;
+}
 
-export default async function MinhasNotasPage() {
+export default async function MinhasNotasPage({ searchParams }: MinhasNotasPageProps) {
+  const { curso: cursoParam } = await searchParams;
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ALUNO" || !session.user.alunoId) redirect("/dashboard");
@@ -149,6 +154,18 @@ export default async function MinhasNotasPage() {
     (a, b) => a.anoCurricular - b.anoCurricular || a.curso.localeCompare(b.curso),
   );
 
+  // Dropdown de curso (§pedido do cliente 2026-09-09): quem mudou de curso ou já terminou um e
+  // começou outro (iniciarNovoCursoAction) tinha os dois percursos misturados na mesma lista. O
+  // curso ATUAL do aluno (aluno.curso — o de agora, ou o último se já FORMADO) vem sempre primeiro
+  // na lista, e é o selecionado por omissão; só muda quando o próprio aluno escolhe outro no
+  // dropdown, e mesmo aí só entre cursos onde ele tem mesmo cadeiras (nunca uma lista vazia).
+  const todosOsCursos = [...new Set(gruposOrdenados.map((g) => g.curso))];
+  const cursos = aluno && todosOsCursos.includes(aluno.curso)
+    ? [aluno.curso, ...todosOsCursos.filter((c) => c !== aluno.curso)]
+    : todosOsCursos;
+  const cursoSelecionado = cursoParam && todosOsCursos.includes(cursoParam) ? cursoParam : (cursos[0] ?? null);
+  const gruposDoCursoSelecionado = gruposOrdenados.filter((g) => g.curso === cursoSelecionado);
+
   // Referência de "que ano letivo é o corrente" para decidir se um semestre já fechou — NÃO
   // anoLetivoCorrente(agora, config) diretamente (§reportado 2026-09-09: "2026/2027 diz 1º Semestre
   // · a decorrer", um ano já terminado). anoLetivoCorrente fica null de propósito no intervalo entre
@@ -169,12 +186,21 @@ export default async function MinhasNotasPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-bold text-texto">Minhas Notas</h1>
-        <p className="text-sm text-texto-suave">As suas notas, organizadas por ano do curso e semestre.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-texto">Minhas Notas</h1>
+          <p className="text-sm text-texto-suave">As suas notas, organizadas por ano do curso e semestre.</p>
+        </div>
+        {/* Só aparece com mais de um curso — mudou de curso ou fez uma segunda licenciatura
+            (iniciarNovoCursoAction). Para a maioria dos alunos, com um curso só, o dropdown não
+            teria escolha nenhuma para oferecer. */}
+        {cursos.length > 1 ? <SeletorCursoNotas cursos={cursos} cursoSelecionado={cursoSelecionado!} /> : null}
       </div>
 
-      {previewPorSemestre.size > 0 ? (
+      {/* A pré-visualização é sempre do curso ATUAL do aluno (aluno.curso/anoCurricular) — só faz
+          sentido enquanto for esse o curso escolhido no dropdown; a navegar para um curso antigo já
+          terminado não há "próximo ano" nenhum a prever. */}
+      {previewPorSemestre.size > 0 && cursoSelecionado === aluno?.curso ? (
         <div className="flex flex-col gap-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-suave">
             {aluno!.curso} · {aluno!.anoCurricular}º Ano (previsão — turma ainda por criar)
@@ -206,10 +232,10 @@ export default async function MinhasNotasPage() {
         </div>
       ) : null}
 
-      {grupos.size === 0 && previewPorSemestre.size === 0 ? (
+      {gruposDoCursoSelecionado.length === 0 && previewPorSemestre.size === 0 ? (
         <EmptyState message="Sem cadeiras inscritas." />
       ) : (
-        gruposOrdenados.map((grupo) => {
+        gruposDoCursoSelecionado.map((grupo) => {
           const semestres = [...grupo.inscricoesPorSemestre.keys()].sort((a, b) => a - b);
           return (
             <div key={grupo.label} className="flex flex-col gap-4">
