@@ -137,7 +137,20 @@ export default async function MinhasNotasPage() {
     lista.push(grupo);
     anosLetivos.set(grupo.anoLetivo, lista);
   }
-  const anosOrdenados = [...anosLetivos.keys()].sort((a, b) => b - a);
+  // Ordem cronológica (mais antigo primeiro) — §reportado 2026-09-09: o histórico académico lê-se
+  // do início para o fim, como o Percurso Curricular na ficha do aluno; o mais recente a abrir por
+  // omissão faria sentido para uma caixa de entrada, não para um percurso.
+  const anosOrdenados = [...anosLetivos.keys()].sort((a, b) => a - b);
+
+  // Referência de "que ano é o corrente" para decidir se um semestre já fechou — NÃO
+  // anoLetivoCorrente(agora, config) diretamente (§reportado 2026-09-09: "2026/2027 diz 1º Semestre
+  // · a decorrer", um ano já terminado). anoLetivoCorrente fica null de propósito no intervalo entre
+  // o fim de um ano letivo e o DAAC configurar o seguinte (mesmo motivo documentado em
+  // AlunoDashboard/anoLetivoDoAluno) — e semestreFechado, sem um ano corrente para comparar, trata
+  // tudo como "ainda não fechou", incluindo anos letivos há muito terminados. O ano letivo mais
+  // recente ONDE ESTE ALUNO TEM CADEIRAS já responde à pergunta "isto é ainda o ano dele" sem
+  // depender do relógio global do sistema.
+  const anoLetivoReferencia = anosOrdenados.length > 0 ? anosOrdenados[anosOrdenados.length - 1] : anoLetivoAtual;
 
   const previewPorSemestre = new Map<number, typeof previewCurriculo>();
   for (const cadeira of previewCurriculo) {
@@ -214,7 +227,7 @@ export default async function MinhasNotasPage() {
                     const inscricoesSemestre = grupo.inscricoesPorSemestre.get(semestre)!;
                     const fechado = semestreFechado(
                       { anoLetivo: grupo.anoLetivo, semestre },
-                      { anoLetivo: anoLetivoAtual, semestreAtual },
+                      { anoLetivo: anoLetivoReferencia, semestreAtual },
                     );
                     return (
                       <Card key={semestre}>
