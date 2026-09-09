@@ -37,6 +37,13 @@ export interface NotaDeEpoca {
  * A nota de uma época, para a sua própria coluna. Distingue três casos que a leitura em coluna
  * torna importantes: nota lançada, época agendada mas ainda sem nota ("—"), e época que nem sequer
  * se aplica a esta cadeira (fica vazia, não "—", para a linha não sugerir que falta algo).
+ *
+ * `epocasRelevantes` (de epocasVisiveis) fecha o terceiro caso para cadeiras JÁ RESOLVIDAS
+ * (§reportado 2026-09-09: "as notas foram atribuídas nessa disciplina mas ainda aparece como se
+ * ainda não tivesse sido"). O Exame/Recurso/Ex.Especial de uma turma-disciplina são agendados para
+ * a turma inteira, não por aluno — quem foi dispensado ao P1/P2 via "—" nessas três colunas, a
+ * dizer "agendada, à espera de nota", quando para ele já não vai acontecer nada. Sem o parâmetro o
+ * comportamento é o antigo, para os chamadores que não sabem o estado da cadeira.
  */
 export function notaDaEpoca(
   inscricao: {
@@ -44,9 +51,11 @@ export function notaDaEpoca(
     turmaDisciplina: { avaliacoes: { epoca: Epoca }[] };
   },
   epoca: Epoca,
+  epocasRelevantes?: ReadonlySet<Epoca>,
 ): NotaDeEpoca | null {
   const nota = inscricao.notas.find((n) => n.avaliacao.epoca === epoca);
   if (nota) return { valor: Number(nota.valor), automatica: nota.automatica };
+  if (epocasRelevantes && !epocasRelevantes.has(epoca)) return null;
   const agendada = inscricao.turmaDisciplina.avaliacoes.some((av) => av.epoca === epoca);
   return agendada ? { valor: null, automatica: false } : null;
 }

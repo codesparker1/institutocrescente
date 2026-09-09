@@ -64,6 +64,8 @@ export interface LinhaHistorico {
 
 export interface SemestreHistorico {
   semestre: number;
+  /** "2026/2027" — em que ano letivo este semestre foi frequentado. */
+  anoLetivoLabel: string;
   /** "Engenharia Informática · 2º Ano" — o mesmo rótulo que o aluno vê no ecrã. */
   turmaLabel: string;
   linhas: LinhaHistorico[];
@@ -75,7 +77,8 @@ export interface HistoricoNotasDocumentProps {
   alunoNome: string;
   numeroEstudante: string;
   curso: string;
-  anoLetivoLabel: string;
+  /** "2º Ano" — o ano DO CURSO que esta folha cobre. */
+  anoLabel: string;
   dataEmissao: string;
   seccoes: SemestreHistorico[];
 }
@@ -97,12 +100,13 @@ function TableHeader() {
 }
 
 /**
- * Histórico de notas de UM aluno num ano académico, para o próprio imprimir (§pedido do cliente
- * 2026-09-09: "quando eles estão a ver as suas notas, a ideia é que podem imprimir de cada ano
- * académico").
+ * Histórico de notas de UM aluno num ano do curso, para o próprio imprimir (§pedido do cliente
+ * 2026-09-09: "quando eles estão a ver as suas notas, a ideia é que podem imprimir de cada ano").
  *
- * Uma folha por ano letivo, e não o percurso inteiro: é assim que o documento serve para o que os
- * alunos costumam precisar dele — entregar o comprovativo de um ano concreto.
+ * Uma folha por ano do curso, e não o percurso inteiro: é assim que o documento serve para o que os
+ * alunos costumam precisar dele — entregar o comprovativo de um ano concreto. Cada secção diz em
+ * que ano letivo aquele semestre foi frequentado, que é o que distingue a cadeira repetida da
+ * original sem partir a folha em duas.
  */
 export function HistoricoNotasDocument({
   instituicaoNome,
@@ -110,7 +114,7 @@ export function HistoricoNotasDocument({
   alunoNome,
   numeroEstudante,
   curso,
-  anoLetivoLabel,
+  anoLabel,
   dataEmissao,
   seccoes,
 }: HistoricoNotasDocumentProps) {
@@ -130,7 +134,7 @@ export function HistoricoNotasDocument({
           <View style={styles.headerDivider} />
 
           <View style={styles.titleBar}>
-            <Text style={styles.titleBarText}>HISTÓRICO DE NOTAS — {anoLetivoLabel}</Text>
+            <Text style={styles.titleBarText}>HISTÓRICO DE NOTAS — {anoLabel}</Text>
           </View>
 
           <View style={styles.metaGrid}>
@@ -147,8 +151,8 @@ export function HistoricoNotasDocument({
               <Text style={styles.metaValue}>{curso}</Text>
             </View>
             <View style={[styles.metaItem, { borderBottomWidth: 0 }]}>
-              <Text style={styles.metaLabel}>Ano letivo</Text>
-              <Text style={styles.metaValue}>{anoLetivoLabel}</Text>
+              <Text style={styles.metaLabel}>Ano do curso</Text>
+              <Text style={styles.metaValue}>{anoLabel}</Text>
             </View>
             <View style={[styles.metaItem, { borderRightWidth: 0, borderBottomWidth: 0 }]}>
               <Text style={styles.metaLabel}>Data de emissão</Text>
@@ -158,9 +162,11 @@ export function HistoricoNotasDocument({
         </View>
 
         {seccoes.map((seccao) => (
-          <View key={`${seccao.turmaLabel}-${seccao.semestre}`} wrap={false}>
+          <View key={`${seccao.anoLetivoLabel}-${seccao.semestre}`} wrap={false}>
             <Text style={styles.seccaoTitulo}>{seccao.turmaLabel}</Text>
-            <Text style={styles.seccaoSubtitulo}>{seccao.semestre}º Semestre</Text>
+            <Text style={styles.seccaoSubtitulo}>
+              {seccao.semestre}º Semestre · {seccao.anoLetivoLabel}
+            </Text>
             <View style={styles.table}>
               <TableHeader />
               {seccao.linhas.map((linha) => (
