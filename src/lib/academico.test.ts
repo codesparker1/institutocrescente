@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, motivoRematriculaIndisponivel, semestreFechado, estadoDaMonografia } from "./academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, motivoRematriculaIndisponivel, semestreFechado, estadoDaMonografia, inscricoesVisiveisAoAluno } from "./academico";
 
 test("reprovações dentro do limite avança de ano", () => {
   const r = decidirRematricula({ reprovacoes: 2, limiteReprovacoes: 2, anoCurricular: 1 });
@@ -282,4 +282,44 @@ test("nota lançada fecha em CONCLUIDA mesmo que a data da defesa seja apagada d
 test("uma monografia negativa também está concluída — uma só chance", () => {
   // §decisão do cliente 2026-09-04: negativa fecha REPROVADO, sem recurso. Não volta a "por marcar".
   assert.equal(estadoDaMonografia(true, { orientadorId: "p1", defesaData: new Date(2027, 5, 12) }, 8), "CONCLUIDA");
+});
+
+test("inscricoesVisiveisAoAluno: repeticao aprovada esconde a tentativa reprovada anterior", () => {
+  const visiveis = inscricoesVisiveisAoAluno([
+    { disciplinaId: "d1", tentativa: 1, aprovado: false },
+    { disciplinaId: "d1", tentativa: 2, aprovado: true },
+  ]);
+  assert.deepEqual(
+    visiveis.map((i) => i.tentativa),
+    [2],
+    "so a tentativa onde aprovou fica a vista",
+  );
+});
+
+test("inscricoesVisiveisAoAluno: repeticao ainda por avaliar mantem as duas a vista", () => {
+  const visiveis = inscricoesVisiveisAoAluno([
+    { disciplinaId: "d1", tentativa: 1, aprovado: false },
+    { disciplinaId: "d1", tentativa: 2, aprovado: null },
+  ]);
+  assert.equal(visiveis.length, 2, "sem resultado na repeticao, a reprovacao anterior continua a ser a situacao real");
+});
+
+test("inscricoesVisiveisAoAluno: segunda reprovacao nao esconde a primeira", () => {
+  const visiveis = inscricoesVisiveisAoAluno([
+    { disciplinaId: "d1", tentativa: 1, aprovado: false },
+    { disciplinaId: "d1", tentativa: 2, aprovado: false },
+  ]);
+  assert.equal(visiveis.length, 2);
+});
+
+test("inscricoesVisiveisAoAluno: uma disciplina aprovada nao afeta outra", () => {
+  const visiveis = inscricoesVisiveisAoAluno([
+    { disciplinaId: "d1", tentativa: 1, aprovado: false },
+    { disciplinaId: "d1", tentativa: 2, aprovado: true },
+    { disciplinaId: "d2", tentativa: 1, aprovado: false },
+  ]);
+  assert.deepEqual(
+    visiveis.map((i) => `${i.disciplinaId}:${i.tentativa}`),
+    ["d1:2", "d2:1"],
+  );
 });

@@ -150,6 +150,23 @@ export const PERIODO_LABEL: Record<string, string> = {
   NOTURNO: "Noturno",
 };
 
+/**
+ * Como se lê cada AlunoStatus nos ecrãs. O enum cru aparecia à vista nos badges de Alunos e da
+ * ficha do aluno, e "TRANCADO" lia-se como "o aluno trancou o ano" — §reportado 2026-09-09:
+ * "aparecem alunos que não trancaram o ano a aparecer como trancados". Ninguém tranca o ano neste
+ * sistema: TRANCADO é escrito num único sítio (suspenderNaoRematriculados), e significa sempre
+ * "não veio renovar a matrícula depois de a janela fechar". O rótulo passa a dizer isso.
+ *
+ * Record<string, string> e não Record<AlunoStatus, string> pela mesma razão de PERIODO_LABEL:
+ * utils.ts é importado por código de cliente, e não deve arrastar os tipos gerados do Prisma.
+ */
+export const STATUS_ALUNO_LABEL: Record<string, string> = {
+  ATIVO: "Ativo",
+  TRANCADO: "Matrícula suspensa",
+  FORMADO: "Formado",
+  DESISTENTE: "Desistente",
+};
+
 const JS_DAY_TO_DIA_SEMANA = ["DOMINGO", "SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"];
 
 // `agora` como parâmetro (nunca lido internamente) para os chamadores do servidor poderem passar

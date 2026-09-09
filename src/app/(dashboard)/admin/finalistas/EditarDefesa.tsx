@@ -21,6 +21,11 @@ interface EditarDefesaProps {
    */
   minDataTexto: string;
   maxDataTexto: string | null;
+  /**
+   * Defesa já realizada e classificada: a data passa a registo do que aconteceu, não agenda
+   * (§pedido do cliente 2026-09-09). A Server Action recusa na mesma.
+   */
+  defendida: boolean;
 }
 
 /**
@@ -36,8 +41,19 @@ export function EditarDefesa({
   temOrientador,
   minDataTexto,
   maxDataTexto,
+  defendida,
 }: EditarDefesaProps) {
   const [state, formAction, isPending] = useActionState(marcarDefesaAction, initialState);
+
+  // Antes do guarda de orientador: uma defesa já classificada fica em texto mesmo que alguém tenha
+  // entretanto retirado o orientador — o que aconteceu, aconteceu.
+  if (defendida) {
+    return (
+      <span className="text-xs text-texto" title="A defesa já foi classificada — a data ficou registada.">
+        {defesaData ? formatDefesa(defesaData, defesaSala) : "Sem data registada"}
+      </span>
+    );
+  }
 
   // Retirar o orientador de uma defesa já marcada é possível (o seletor tem a opção "Sem
   // orientador"). Nesse caso a data continua à vista, em texto: escondê-la faria desaparecer do

@@ -20,6 +20,14 @@ interface EditarOrientadorProps {
   professores: OpcaoProfessor[];
   /** 0 = sem limite. Só serve para o rótulo "3/5"; quem valida é a Server Action. */
   limite: number;
+  /** Nome do orientador atual — o que fica à vista quando a defesa já está classificada. */
+  orientadorNome: string | null;
+  /**
+   * Defesa já realizada e classificada: quem orientou passa a ser registo histórico e deixa de se
+   * poder trocar (§pedido do cliente 2026-09-09). A Server Action recusa na mesma — isto só evita
+   * oferecer um seletor que só daria erro.
+   */
+  defendida: boolean;
 }
 
 /**
@@ -27,8 +35,23 @@ interface EditarOrientadorProps {
  * Mesmo molde de EditarProfessorTurmaDisciplina: form não-controlado com defaultValue, erro
  * inline, tudo desativado enquanto grava.
  */
-export function EditarOrientador({ inscricaoId, orientadorAtualId, professores, limite }: EditarOrientadorProps) {
+export function EditarOrientador({
+  inscricaoId,
+  orientadorAtualId,
+  professores,
+  limite,
+  orientadorNome,
+  defendida,
+}: EditarOrientadorProps) {
   const [state, formAction, isPending] = useActionState(atribuirOrientadorAction, initialState);
+
+  if (defendida) {
+    return (
+      <span className="text-xs text-texto" title="A defesa já foi classificada — o orientador ficou registado.">
+        {orientadorNome ?? "Sem orientador"}
+      </span>
+    );
+  }
 
   return (
     <form action={formAction} className="flex items-center gap-1.5">

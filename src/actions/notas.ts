@@ -251,6 +251,13 @@ const EPOCA_CAMPO: Record<Epoca, string> = {
 
 export interface GuardarNotaHistoricaState {
   error?: string;
+  /**
+   * Marca de sucesso para a linha se poder fechar sozinha (§reportado 2026-09-09: "guarda mas
+   * depois não sai do modo editar"). Sem ela o formulário não tem como distinguir "ainda não
+   * submeti" de "gravou bem" — `error` está vazio nos dois casos. Cada gravação devolve um objeto
+   * NOVO, e é essa identidade que faz o efeito do cliente correr de novo em cada submissão.
+   */
+  ok?: boolean;
 }
 
 /**
@@ -313,7 +320,7 @@ export async function guardarNotaHistoricaAction(_prevState: GuardarNotaHistoric
 
   revalidatePath(`/alunos`);
   revalidatePath(`/minhas-notas`);
-  return {};
+  return { ok: true };
 }
 
 const LancarNotaDefesaSchema = z.object({
@@ -323,6 +330,8 @@ const LancarNotaDefesaSchema = z.object({
 
 export interface LancarNotaDefesaState {
   error?: string;
+  /** Mesma marca de sucesso de GuardarNotaHistoricaState — ver a nota lá. */
+  ok?: boolean;
 }
 
 /**
@@ -382,7 +391,7 @@ export async function lancarNotaDefesaAction(
   revalidatePath("/alunos");
   revalidatePath("/finalista");
   revalidatePath("/minhas-notas");
-  return {};
+  return { ok: true };
 }
 
 export interface CreditarCadeiraState {

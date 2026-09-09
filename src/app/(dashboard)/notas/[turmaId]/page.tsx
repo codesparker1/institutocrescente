@@ -71,6 +71,30 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
     orderBy: { disciplina: { nome: "asc" } },
   });
 
+  // §reportado 2026-09-09: "o número de avaliações está estranho — num estudante mete 5, noutro
+  // meti 2 e diz-me que são 5". A coluna "Avaliações" contava Avaliacao, que é por DISCIPLINA e
+  // época (no máximo 5), e não por aluno: bastava um aluno ter as cinco épocas para a disciplina
+  // inteira passar a dizer 5, independentemente de quantas notas cada um tem. O número estava certo
+  // e a pergunta que respondia é que era outra. Passa a haver duas colunas com nomes que dizem o que
+  // são — "Épocas", e o progresso real do lançamento, que é o que se vem cá ver.
+  const idsTurmaDisciplina = [...turma.turmaDisciplinas, ...turmaDisciplinasMonografia].map((td) => td.id);
+  const inscricoesDasDisciplinas = await prisma.inscricaoCadeira.findMany({
+    where: { turmaDisciplinaId: { in: idsTurmaDisciplina }, ativa: true },
+    select: { turmaDisciplinaId: true, _count: { select: { notas: true } } },
+  });
+  const progressoPorDisciplina = new Map<string, { total: number; comNota: number }>();
+  for (const inscricao of inscricoesDasDisciplinas) {
+    const atual = progressoPorDisciplina.get(inscricao.turmaDisciplinaId) ?? { total: 0, comNota: 0 };
+    atual.total += 1;
+    if (inscricao._count.notas > 0) atual.comNota += 1;
+    progressoPorDisciplina.set(inscricao.turmaDisciplinaId, atual);
+  }
+  function progresso(turmaDisciplinaId: string): string {
+    const p = progressoPorDisciplina.get(turmaDisciplinaId);
+    if (!p || p.total === 0) return "Sem alunos";
+    return `${p.comNota} de ${p.total}`;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -114,7 +138,14 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
               <tr>
                 <Th>Disciplina</Th>
                 <Th>Professor</Th>
-                <Th>Avaliações</Th>
+                <Th>
+                  <span title="Quantas das 5 épocas (P1, P2, Exame, Recurso, Exame Especial) já têm prova nesta disciplina. É da disciplina, não de cada aluno.">
+                    Épocas
+                  </span>
+                </Th>
+                <Th>
+                  <span title="Alunos inscritos com pelo menos uma nota lançada.">Alunos com nota</span>
+                </Th>
               </tr>
             </Thead>
             <Tbody>
@@ -127,6 +158,7 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
                   </Td>
                   <Td className={td.professor ? undefined : "text-texto-suave italic"}>{nomeProfessor(td.professor)}</Td>
                   <Td>{td._count.avaliacoes}</Td>
+                  <Td>{progresso(td.id)}</Td>
                 </Tr>
               ))}
             </Tbody>
@@ -144,7 +176,14 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
               <tr>
                 <Th>Disciplina</Th>
                 <Th>Professor</Th>
-                <Th>Avaliações</Th>
+                <Th>
+                  <span title="Numa monografia só a coluna da defesa é usada — as outras épocas não se aplicam.">
+                    Épocas
+                  </span>
+                </Th>
+                <Th>
+                  <span title="Finalistas com a nota da defesa já lançada.">Alunos com nota</span>
+                </Th>
               </tr>
             </Thead>
             <Tbody>
@@ -157,6 +196,7 @@ export default async function NotasTurmaPage({ params, searchParams }: NotasTurm
                   </Td>
                   <Td className={td.professor ? undefined : "text-texto-suave italic"}>{nomeProfessor(td.professor)}</Td>
                   <Td>{td._count.avaliacoes}</Td>
+                  <Td>{progresso(td.id)}</Td>
                 </Tr>
               ))}
             </Tbody>

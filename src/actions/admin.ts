@@ -1048,10 +1048,21 @@ export async function atribuirOrientadorAction(
 
   const antes = await prisma.inscricaoCadeira.findUnique({
     where: { id: parsed.data.inscricaoId },
-    include: { aluno: { select: { nome: true } }, orientador: { select: { nome: true } } },
+    include: {
+      aluno: { select: { nome: true } },
+      orientador: { select: { nome: true } },
+      _count: { select: { notas: true } },
+    },
   });
   if (!antes) return { error: "Inscrição não encontrada." };
   if (!antes.eMonografiaAplicada) return { error: "Esta cadeira não é uma monografia — não tem orientador." };
+  // Depois da defesa feita, quem orientou é registo histórico (§pedido do cliente 2026-09-09).
+  // Trocar o orientador aqui reescreveria a autoria de uma monografia já defendida e já classificada
+  // — e a pauta de defesas impressa deixaria de bater certo com o que está na base. Para corrigir um
+  // engano real, apaga-se a nota primeiro; a ordem passa a ser explícita em vez de acidental.
+  if (antes._count.notas > 0) {
+    return { error: "A defesa já foi realizada e classificada — o orientador já não pode ser alterado." };
+  }
   if (antes.orientadorId === novoOrientadorId) return {};
 
   let nomeNovo: string | null = null;
@@ -1287,10 +1298,17 @@ export async function marcarDefesaAction(
 
   const inscricao = await prisma.inscricaoCadeira.findUnique({
     where: { id: parsed.data.inscricaoId },
-    include: { aluno: { select: { nome: true } } },
+    include: { aluno: { select: { nome: true } }, _count: { select: { notas: true } } },
   });
   if (!inscricao) return { error: "Inscrição não encontrada." };
   if (!inscricao.eMonografiaAplicada) return { error: "Esta cadeira não é uma monografia — não tem defesa." };
+  // A data de uma defesa que já aconteceu é registo, não agenda (§pedido do cliente 2026-09-09).
+  // Além disso a validação abaixo recusa datas passadas: com a nota já lançada, qualquer gravação
+  // aqui ou falhava com uma mensagem que não explicava nada, ou empurrava para o futuro a data de
+  // um acto já realizado.
+  if (inscricao._count.notas > 0) {
+    return { error: "A defesa já foi realizada e classificada — a data já não pode ser alterada." };
+  }
 
   const dataTexto = parsed.data.data.trim();
   const sala = parsed.data.sala.trim();

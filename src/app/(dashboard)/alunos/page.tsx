@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { podeRegistarPagamento } from "@/lib/permissions";
 import { getAgora } from "@/lib/tempo";
-import { formatDate, parseIntParam } from "@/lib/utils";
+import { formatDate, parseIntParam, STATUS_ALUNO_LABEL } from "@/lib/utils";
 import type { AlunoStatus, CategoriaEstudante, Prisma } from "@/generated/prisma/client";
 
 const STATUS_TONE: Record<AlunoStatus, "success" | "warning" | "neutral" | "danger"> = {
@@ -34,9 +34,11 @@ const CATEGORIA_TONE: Record<CategoriaEstudante, "neutral" | "info"> = {
 
 const TAMANHO_PAGINA = 25;
 
+// Plural, para o filtro ("mostrar os ..."). O singular, usado nos badges, vive em
+// STATUS_ALUNO_LABEL (lib/utils.ts) — a nota lá explica porque é que TRANCADO não se lê "trancado".
 const ESTADO_LABEL: Record<AlunoStatus, string> = {
   ATIVO: "Ativos",
-  TRANCADO: "Trancados",
+  TRANCADO: "Com matrícula suspensa",
   FORMADO: "Formados",
   DESISTENTE: "Desistentes",
 };
@@ -235,7 +237,7 @@ export default async function AlunosPage({ searchParams }: AlunosPageProps) {
                       <Badge tone={CATEGORIA_TONE[aluno.categoria]}>{CATEGORIA_LABEL[aluno.categoria]}</Badge>
                     </Td>
                     <Td>
-                      <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
+                      <Badge tone={STATUS_TONE[aluno.status]}>{STATUS_ALUNO_LABEL[aluno.status]}</Badge>
                     </Td>
                     <Td>{formatDate(aluno.createdAt)}</Td>
                   </Tr>

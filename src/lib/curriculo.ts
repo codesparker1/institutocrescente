@@ -7,6 +7,7 @@ import type { Periodo, Prisma } from "@/generated/prisma/client";
 type Decimal = Prisma.Decimal;
 import { SALA_A_CONFIRMAR } from "@/lib/utils";
 import { datasDoAnoLetivoSeguinte, dentroDoAnoLetivo, trabalhoDeFimDeAno } from "@/lib/academico";
+import { NOTA_MINIMA_POSITIVA } from "@/lib/avaliacao";
 
 /**
  * Garante que todo aluno com matrícula ativa nesta turma tem uma InscricaoCadeira (tentativa 1,
@@ -567,24 +568,59 @@ async function suspenderNaoRematriculados(anoLetivoNovo: number): Promise<void> 
         take: 1,
         select: { id: true, turma: { select: { anoLetivo: true } } },
       },
+      // Para separar quem terminou de quem faltou — ver a nota em `concluiuOCurso` abaixo.
+      inscricoes: {
+        where: { eMonografiaAplicada: true },
+        select: { notas: { select: { valor: true } } },
+      },
     },
   });
 
-  const aSuspender = alunosAtivos.filter((a) => {
+  const emFalta = alunosAtivos.filter((a) => {
     const ultimaMatricula = a.matriculas[0];
     return ultimaMatricula && ultimaMatricula.turma.anoLetivo < anoLetivoNovo;
   });
-  if (aSuspender.length === 0) return;
+  if (emFalta.length === 0) return;
 
+  // §pedido do cliente 2026-09-09: "um aluno finalista, depois de defender, no fim do ano o seu
+  // estado fica concluído — não é preciso aparecer a mensagem de que não renovou a matrícula".
+  // O finalista que defendeu e passou não se rematricula: não há ano seguinte para onde ir, e
+  // processarRematriculaAction — o único sítio que escrevia FORMADO — nunca chega a ser chamado por
+  // ele. Sem esta separação caía no ramo de baixo e ficava TRANCADO, a ler no painel que "não
+  // renovou dentro do prazo" — uma acusação falsa a quem acabou o curso.
+  //
+  // A monografia aprovada é o critério porque só existe no último ano do curso e só é atribuída
+  // depois do pagamento confirmado: tê-la com nota positiva é, por construção, ter concluído. Uma
+  // defesa negativa não conta (fica REPROVADO e segue para suspensão, que é o caminho certo — tem
+  // de repetir), e quem ainda não defendeu nem sequer chega aqui: o `where` acima já o exclui.
+  const concluiuOCurso = (aluno: (typeof emFalta)[number]) =>
+    aluno.inscricoes.some((i) => i.notas.some((n) => Number(n.valor) >= NOTA_MINIMA_POSITIVA));
+
+  const formados = emFalta.filter(concluiuOCurso);
+  const aSuspender = emFalta.filter((a) => !concluiuOCurso(a));
+
+  const formadoIds = formados.map((a) => a.id);
   const alunoIds = aSuspender.map((a) => a.id);
   await prisma.$transaction([
+    // Mesmo par de escritas do fim de curso manual (processarRematriculaAction): FORMADO + a
+    // matrícula do último ano a CONCLUIDA, para os dois caminhos deixarem a base no mesmo estado.
+    prisma.aluno.updateMany({ where: { id: { in: formadoIds } }, data: { status: "FORMADO" } }),
+    prisma.matricula.updateMany({
+      where: { id: { in: formados.map((a) => a.matriculas[0].id) } },
+      data: { status: "CONCLUIDA" },
+    }),
     prisma.aluno.updateMany({ where: { id: { in: alunoIds } }, data: { status: "TRANCADO" } }),
     prisma.matricula.updateMany({
       where: { id: { in: aSuspender.map((a) => a.matriculas[0].id) } },
       data: { status: "TRANCADA" },
     }),
     // Sem isto, as inscrições do ano suspenso ficam `ativa=true` para sempre — mesma classe de
-    // bug da rematrícula (src/lib/diagnostico.ts: regra sem-inscricao-ativa-se-inativo).
-    prisma.inscricaoCadeira.updateMany({ where: { alunoId: { in: alunoIds }, ativa: true }, data: { ativa: false } }),
+    // bug da rematrícula (src/lib/diagnostico.ts: regra sem-inscricao-ativa-se-inativo). Vale para
+    // os dois grupos: a monografia de quem se formou também fecha, senão continuaria a ocupar
+    // lugar na contagem de orientandos do professor no ano seguinte.
+    prisma.inscricaoCadeira.updateMany({
+      where: { alunoId: { in: [...formadoIds, ...alunoIds] }, ativa: true },
+      data: { ativa: false },
+    }),
   ]);
 }

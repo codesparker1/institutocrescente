@@ -232,8 +232,10 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
                       <EditarOrientador
                         inscricaoId={finalista.inscricaoId}
                         orientadorAtualId={finalista.orientadorId}
+                        orientadorNome={finalista.orientadorNome}
                         professores={opcoesProfessores}
                         limite={limite}
+                        defendida={finalista.notaFinal !== null}
                       />
                     ) : (
                       <span className="text-xs text-texto-suave">Confirme primeiro o pagamento.</span>
@@ -248,6 +250,7 @@ export default async function FinalistasPage({ searchParams }: FinalistasPagePro
                         temOrientador={finalista.orientadorId !== null}
                         minDataTexto={hojeTexto}
                         maxDataTexto={maxDefesaTexto}
+                        defendida={finalista.notaFinal !== null}
                       />
                     ) : (
                       <span className="text-xs text-texto-suave">—</span>

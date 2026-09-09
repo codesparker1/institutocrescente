@@ -18,7 +18,7 @@ import { LinhaPercursoEditavel } from "@/components/alunos/LinhaPercursoEditavel
 import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
-import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo, nomeProfessor } from "@/lib/utils";
+import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo, nomeProfessor, STATUS_ALUNO_LABEL } from "@/lib/utils";
 import { anoLetivoCorrente, motivoRematriculaIndisponivel, semestreFechado } from "@/lib/academico";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
 import { ESTADO_COBRANCA_LABEL, ESTADO_COBRANCA_TONE } from "@/lib/estado-cobranca";
@@ -303,7 +303,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             </div>
           ) : null}
         </div>
-        <Badge tone={STATUS_TONE[aluno.status]}>{aluno.status}</Badge>
+        <Badge tone={STATUS_TONE[aluno.status]}>{STATUS_ALUNO_LABEL[aluno.status]}</Badge>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

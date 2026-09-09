@@ -26,6 +26,11 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
   }
 
   const trancado = aluno.status === "TRANCADO";
+  // §pedido do cliente 2026-09-09: o finalista que defendeu passa a FORMADO no fim do ano (ver
+  // suspenderNaoRematriculados) em vez de cair na suspensão automática. Como ele também não tem
+  // matrícula ativa, sem esta distinção o painel dir-lhe-ia "Ano Letivo: Por definir", como se
+  // estivesse à espera de alguma coisa — quando já não está.
+  const formado = aluno.status === "FORMADO";
 
   const agora = await getAgora();
   const config = await prisma.configuracaoAcademica.findUnique({ where: { id: "config" } });
@@ -153,6 +158,16 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
         </div>
       ) : null}
 
+      {formado ? (
+        <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <GraduationCap size={18} className="mt-0.5 shrink-0" />
+          <p>
+            Concluiu o curso. As suas notas continuam disponíveis em Minhas Notas — para a certidão oficial, dirija-se à
+            secretaria.
+          </p>
+        </div>
+      ) : null}
+
       {bloqueio.bloqueado ? (
         <AvisoNotasBloqueadas
           saldoEmDivida={bloqueio.saldoEmDivida}
@@ -224,10 +239,12 @@ export async function AlunoDashboard({ alunoId }: AlunoDashboardProps) {
           { label: "Email", value: aluno.email ?? "—" },
           // Aluno trancado não tem semestre ativo — mostrar "Sem matrícula ativa" em vez do
           // ano letivo/semestre correntes, que sugeririam um estado enganador (regra confirmada).
-          trancado
-            ? { label: "Matrícula", value: "Sem matrícula ativa" }
-            : { label: "Ano Letivo", value: anoLetivoDoAluno !== null ? formatAnoLetivo(anoLetivoDoAluno) : "Por definir" },
-          ...(trancado ? [] : [{ label: "Semestre", value: `${semestreAtual}º Semestre` }]),
+          formado
+            ? { label: "Situação", value: "Curso concluído" }
+            : trancado
+              ? { label: "Matrícula", value: "Sem matrícula ativa" }
+              : { label: "Ano Letivo", value: anoLetivoDoAluno !== null ? formatAnoLetivo(anoLetivoDoAluno) : "Por definir" },
+          ...(trancado || formado ? [] : [{ label: "Semestre", value: `${semestreAtual}º Semestre` }]),
         ]}
       />
 

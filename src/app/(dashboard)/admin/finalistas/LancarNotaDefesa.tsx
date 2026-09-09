@@ -2,9 +2,9 @@
 
 import { useState, useActionState } from "react";
 import { Input } from "@/components/ui/Input";
-import { lancarNotaDefesaAction } from "@/actions/notas";
+import { lancarNotaDefesaAction, type LancarNotaDefesaState } from "@/actions/notas";
 
-const initialState: { error?: string } = {};
+const initialState: LancarNotaDefesaState = {};
 
 interface LancarNotaDefesaProps {
   inscricaoId: string;
@@ -19,13 +19,23 @@ interface LancarNotaDefesaProps {
 export function LancarNotaDefesa({ inscricaoId, notaFinal }: LancarNotaDefesaProps) {
   const [state, formAction, isPending] = useActionState(lancarNotaDefesaAction, initialState);
   // Fechado por omissão quando já há nota — ver antes de decidir corrigir, não editar de imediato.
-  const [aberto, setAberto] = useState(notaFinal === null);
+  // Depois de lançar, volta a mostrar a nota em vez do campo (§reportado 2026-09-09: "guarda mas
+  // depois não sai do modo editar"): um `useState(notaFinal === null)` só corre na montagem, e o
+  // campo ficava aberto mesmo com a nota já gravada e revalidada.
+  //
+  // Derivado, e não um useEffect com setState (proibido por react-hooks/set-state-in-effect) — ver
+  // a mesma solução, com a explicação completa, em LinhaPercursoEditavel.
+  const [estadoAoCorrigir, setEstadoAoCorrigir] = useState<LancarNotaDefesaState | null>(null);
+  const aberto =
+    estadoAoCorrigir !== null
+      ? !(state.ok && state !== estadoAoCorrigir)
+      : notaFinal === null && !state.ok;
 
-  if (!aberto) {
+  if (!aberto && notaFinal !== null) {
     return (
       <div className="flex items-center gap-2">
-        <span className="font-semibold text-texto">{notaFinal!.toFixed(1)}</span>
-        <button type="button" onClick={() => setAberto(true)} className="text-xs text-texto-suave hover:text-navy-600 hover:underline">
+        <span className="font-semibold text-texto">{notaFinal.toFixed(1)}</span>
+        <button type="button" onClick={() => setEstadoAoCorrigir(state)} className="text-xs text-texto-suave hover:text-navy-600 hover:underline">
           corrigir
         </button>
       </div>
@@ -56,7 +66,7 @@ export function LancarNotaDefesa({ inscricaoId, notaFinal }: LancarNotaDefesaPro
           {isPending ? "..." : "Lançar"}
         </button>
         {notaFinal !== null ? (
-          <button type="button" onClick={() => setAberto(false)} className="text-xs text-texto-suave hover:text-navy-600">
+          <button type="button" onClick={() => setEstadoAoCorrigir(null)} className="text-xs text-texto-suave hover:text-navy-600">
             cancelar
           </button>
         ) : null}

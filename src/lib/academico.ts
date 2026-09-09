@@ -238,3 +238,41 @@ export function estadoDaMonografia(
   if (!inscricao.defesaData) return "DEFESA_POR_MARCAR";
   return "DEFESA_MARCADA";
 }
+
+/** O mínimo que `inscricoesVisiveisAoAluno` precisa de saber sobre uma inscrição. */
+export interface InscricaoParaHistorico {
+  disciplinaId: string;
+  tentativa: number;
+  /** null = ainda sem resultado (em curso, admitido a exame, por defender). */
+  aprovado: boolean | null;
+}
+
+/**
+ * Filtra o percurso do aluno para o que ele deve ver em Minhas Notas e no histórico impresso:
+ * quando uma disciplina repetida é superada, a tentativa anterior — onde reprovou — sai da lista
+ * (§pedido do cliente 2026-09-09: "quando ele supera a disciplina repetida, aquela do ano anterior
+ * onde reprovou apaga-se para estar a nova onde ele aprovou").
+ *
+ * Só esconde quando a tentativa MAIS RECENTE está mesmo aprovada. Enquanto a repetição estiver por
+ * avaliar — ou se voltar a correr mal — as duas continuam à vista: nessa altura a reprovação
+ * anterior ainda é a situação real da disciplina, e escondê-la deixaria o aluno sem perceber
+ * porque é que está a repetir.
+ *
+ * Não apaga nada na base de dados: a ficha do aluno (Gestão de Matrícula) continua a mostrar todas
+ * as tentativas, que é o registo académico de que o DAAC precisa. Isto é só a vista do próprio.
+ */
+export function inscricoesVisiveisAoAluno<T extends InscricaoParaHistorico>(inscricoes: T[]): T[] {
+  const maiorTentativaAprovada = new Map<string, number>();
+  for (const inscricao of inscricoes) {
+    if (inscricao.aprovado !== true) continue;
+    const atual = maiorTentativaAprovada.get(inscricao.disciplinaId);
+    if (atual === undefined || inscricao.tentativa > atual) {
+      maiorTentativaAprovada.set(inscricao.disciplinaId, inscricao.tentativa);
+    }
+  }
+
+  return inscricoes.filter((inscricao) => {
+    const aprovadaEm = maiorTentativaAprovada.get(inscricao.disciplinaId);
+    return aprovadaEm === undefined || inscricao.tentativa >= aprovadaEm;
+  });
+}

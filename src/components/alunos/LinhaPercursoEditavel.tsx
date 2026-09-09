@@ -74,7 +74,19 @@ export function LinhaPercursoEditavel({
   editavel,
 }: LinhaPercursoEditavelProps) {
   const [state, formAction, isPending] = useActionState(guardarNotaHistoricaAction, initialState);
-  const [aberto, setAberto] = useState(false);
+  // Fechar sozinha depois de gravar (§reportado 2026-09-09: "guarda mas depois não sai do modo
+  // editar"). A linha ficava com os inputs abertos e a Média/Final a "—", o que dá a impressão de
+  // que nada foi guardado — o utilizador não tinha como saber se devia carregar outra vez.
+  //
+  // Derivado em vez de um useEffect com setState (que a regra react-hooks/set-state-in-effect
+  // proíbe, e com razão: dava um render em cascata a cada gravação). O que se guarda é o `state`
+  // que existia no momento em que a linha foi aberta; a linha fecha-se quando chega um state NOVO
+  // e bem sucedido. Um erro também produz um state novo, mas sem `ok` — por isso a linha fica
+  // aberta com a mensagem à vista, que é o que se quer.
+  const [estadoAoAbrir, setEstadoAoAbrir] = useState<GuardarNotaHistoricaState | null>(null);
+  const aberto = estadoAoAbrir !== null && !(state.ok && state !== estadoAoAbrir);
+  const abrir = () => setEstadoAoAbrir(state);
+  const fechar = () => setEstadoAoAbrir(null);
 
   const formId = `nota-historica-${inscricaoCadeiraId}`;
 
@@ -126,7 +138,7 @@ export function LinhaPercursoEditavel({
           <Td>
             <button
               type="button"
-              onClick={() => setAberto(true)}
+              onClick={abrir}
               className="text-xs font-medium text-texto hover:text-navy-700 hover:underline"
             >
               editar
@@ -173,7 +185,7 @@ export function LinhaPercursoEditavel({
             </Button>
             <button
               type="button"
-              onClick={() => setAberto(false)}
+              onClick={fechar}
               className="text-xs text-texto-suave hover:text-navy-600"
             >
               cancelar
