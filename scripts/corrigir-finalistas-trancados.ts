@@ -46,18 +46,31 @@ async function main() {
       matriculas: {
         orderBy: { turma: { anoLetivo: "desc" } },
         take: 1,
-        select: { id: true, status: true, turma: { select: { anoLetivo: true } } },
+        select: { id: true, status: true, turma: { select: { anoLetivo: true, cursoId: true } } },
       },
       inscricoes: {
         where: { eMonografiaAplicada: true },
-        select: { notas: { select: { valor: true } } },
+        select: {
+          notas: { select: { valor: true } },
+          turmaDisciplina: { select: { turma: { select: { anoLetivo: true, cursoId: true } } } },
+        },
       },
     },
   });
 
-  const aCorrigir = alunosTrancados.filter((aluno) =>
-    aluno.inscricoes.some((i) => i.notas.some((n) => Number(n.valor) >= NOTA_MINIMA_POSITIVA)),
-  );
+  // §2026-09-11: a monografia tem de ser do MESMO curso e ano letivo da última matrícula — a mesma
+  // correção feita em suspenderNaoRematriculados. Sem o âmbito, quem terminou uma licenciatura e
+  // começou outra seria "corrigido" para FORMADO no curso novo por causa da monografia do antigo.
+  const aCorrigir = alunosTrancados.filter((aluno) => {
+    const turmaAtual = aluno.matriculas[0]?.turma;
+    if (!turmaAtual) return false;
+    return aluno.inscricoes.some(
+      (i) =>
+        i.turmaDisciplina.turma.cursoId === turmaAtual.cursoId &&
+        i.turmaDisciplina.turma.anoLetivo === turmaAtual.anoLetivo &&
+        i.notas.some((n) => Number(n.valor) >= NOTA_MINIMA_POSITIVA),
+    );
+  });
 
   if (aCorrigir.length === 0) {
     console.log("Nenhum aluno TRANCADO com monografia aprovada encontrado — nada a corrigir.");

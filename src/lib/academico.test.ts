@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, motivoRematriculaIndisponivel, semestreFechado, estadoDaMonografia, inscricoesVisiveisAoAluno } from "./academico";
+import { decidirRematricula, cadeirasARepetir, anoLetivoCorrente, dentroDoAnoLetivo, datasDoAnoLetivoSeguinte, trabalhoDeFimDeAno, motivoRematriculaIndisponivel, semestreFechado, estadoDaMonografia, inscricoesVisiveisAoAluno, concluiuOCursoComMonografia } from "./academico";
 
 test("reprovações dentro do limite avança de ano", () => {
   const r = decidirRematricula({ reprovacoes: 2, limiteReprovacoes: 2, anoCurricular: 1 });
@@ -321,5 +321,60 @@ test("inscricoesVisiveisAoAluno: uma disciplina aprovada nao afeta outra", () =>
   assert.deepEqual(
     visiveis.map((i) => `${i.disciplinaId}:${i.tentativa}`),
     ["d1:2", "d2:1"],
+  );
+});
+
+const CURSO_ARQ = "curso-arquitectura";
+const CURSO_ENG = "curso-eng-informatica";
+
+test("concluiuOCursoComMonografia: monografia aprovada do curso e ano corrente conclui", () => {
+  assert.equal(
+    concluiuOCursoComMonografia({ cursoId: CURSO_ENG, anoLetivo: 2031 }, [
+      { aprovada: true, cursoId: CURSO_ENG, anoLetivo: 2031 },
+    ]),
+    true,
+  );
+});
+
+test("concluiuOCursoComMonografia: monografia de OUTRO curso nao conclui este", () => {
+  assert.equal(
+    concluiuOCursoComMonografia({ cursoId: CURSO_ENG, anoLetivo: 2028 }, [
+      { aprovada: true, cursoId: CURSO_ARQ, anoLetivo: 2027 },
+    ]),
+    false,
+    "quem terminou uma licenciatura e comecou outra nao se forma no 1o ano da nova",
+  );
+});
+
+test("concluiuOCursoComMonografia: monografia do mesmo curso mas de ano letivo anterior nao conclui", () => {
+  assert.equal(
+    concluiuOCursoComMonografia({ cursoId: CURSO_ENG, anoLetivo: 2032 }, [
+      { aprovada: true, cursoId: CURSO_ENG, anoLetivo: 2031 },
+    ]),
+    false,
+    "a repetir o ultimo ano, a aprovacao do ano passado nao fecha o ano em curso",
+  );
+});
+
+test("concluiuOCursoComMonografia: monografia reprovada nao conclui", () => {
+  assert.equal(
+    concluiuOCursoComMonografia({ cursoId: CURSO_ENG, anoLetivo: 2031 }, [
+      { aprovada: false, cursoId: CURSO_ENG, anoLetivo: 2031 },
+    ]),
+    false,
+  );
+});
+
+test("concluiuOCursoComMonografia: sem matricula nao conclui", () => {
+  assert.equal(concluiuOCursoComMonografia(null, [{ aprovada: true, cursoId: CURSO_ENG, anoLetivo: 2031 }]), false);
+});
+
+test("concluiuOCursoComMonografia: entre varias, basta a certa", () => {
+  assert.equal(
+    concluiuOCursoComMonografia({ cursoId: CURSO_ENG, anoLetivo: 2031 }, [
+      { aprovada: true, cursoId: CURSO_ARQ, anoLetivo: 2027 },
+      { aprovada: true, cursoId: CURSO_ENG, anoLetivo: 2031 },
+    ]),
+    true,
   );
 });

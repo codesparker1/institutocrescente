@@ -6,7 +6,7 @@ import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
 import type { Periodo, Prisma } from "@/generated/prisma/client";
 type Decimal = Prisma.Decimal;
 import { SALA_A_CONFIRMAR } from "@/lib/utils";
-import { datasDoAnoLetivoSeguinte, dentroDoAnoLetivo, trabalhoDeFimDeAno } from "@/lib/academico";
+import { concluiuOCursoComMonografia, datasDoAnoLetivoSeguinte, dentroDoAnoLetivo, trabalhoDeFimDeAno } from "@/lib/academico";
 import { NOTA_MINIMA_POSITIVA } from "@/lib/avaliacao";
 
 /**
@@ -566,12 +566,17 @@ async function suspenderNaoRematriculados(anoLetivoNovo: number): Promise<void> 
       matriculas: {
         orderBy: { turma: { anoLetivo: "desc" } },
         take: 1,
-        select: { id: true, turma: { select: { anoLetivo: true } } },
+        select: { id: true, turma: { select: { anoLetivo: true, cursoId: true } } },
       },
-      // Para separar quem terminou de quem faltou — ver a nota em `concluiuOCurso` abaixo.
+      // Para separar quem terminou de quem faltou — ver a nota em `concluiuOCurso` abaixo. O
+      // curso e o ano letivo da monografia vêm junto porque é por eles que se sabe se ela é DESTE
+      // percurso ou de um anterior.
       inscricoes: {
         where: { eMonografiaAplicada: true },
-        select: { notas: { select: { valor: true } } },
+        select: {
+          notas: { select: { valor: true } },
+          turmaDisciplina: { select: { turma: { select: { anoLetivo: true, cursoId: true } } } },
+        },
       },
     },
   });
@@ -593,8 +598,23 @@ async function suspenderNaoRematriculados(anoLetivoNovo: number): Promise<void> 
   // depois do pagamento confirmado: tê-la com nota positiva é, por construção, ter concluído. Uma
   // defesa negativa não conta (fica REPROVADO e segue para suspensão, que é o caminho certo — tem
   // de repetir), e quem ainda não defendeu nem sequer chega aqui: o `where` acima já o exclui.
+  //
+  // §2026-09-11: a monografia tem de ser DESTE percurso — mesmo curso E mesmo ano letivo da última
+  // matrícula. Sem esse âmbito, quem terminou uma licenciatura e começou outra (iniciarNovoCursoAction)
+  // era marcado FORMADO no primeiro fecho de ano do curso NOVO, por causa da monografia do curso
+  // ANTIGO. Encontrado ao preparar a simulação do percurso completo de um aluno nessa situação —
+  // teria dado um diploma de 4 anos a quem tinha feito o 1º.
+  // A regra vive em lib/academico.ts (concluiuOCursoComMonografia) para poder ser testada — este
+  // módulo é server-only e o corredor de testes não o consegue importar.
   const concluiuOCurso = (aluno: (typeof emFalta)[number]) =>
-    aluno.inscricoes.some((i) => i.notas.some((n) => Number(n.valor) >= NOTA_MINIMA_POSITIVA));
+    concluiuOCursoComMonografia(
+      aluno.matriculas[0]?.turma,
+      aluno.inscricoes.map((i) => ({
+        aprovada: i.notas.some((n) => Number(n.valor) >= NOTA_MINIMA_POSITIVA),
+        cursoId: i.turmaDisciplina.turma.cursoId,
+        anoLetivo: i.turmaDisciplina.turma.anoLetivo,
+      })),
+    );
 
   const formados = emFalta.filter(concluiuOCurso);
   const aSuspender = emFalta.filter((a) => !concluiuOCurso(a));

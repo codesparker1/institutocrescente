@@ -276,3 +276,37 @@ export function inscricoesVisiveisAoAluno<T extends InscricaoParaHistorico>(insc
     return aprovadaEm === undefined || inscricao.tentativa >= aprovadaEm;
   });
 }
+
+/** Uma monografia do aluno, reduzida ao que decide se ela conclui o curso corrente. */
+export interface MonografiaParaConclusao {
+  /** Tem nota positiva lançada na defesa. */
+  aprovada: boolean;
+  cursoId: string;
+  anoLetivo: number;
+}
+
+/**
+ * O aluno concluiu o curso em que está agora? Sim quando tem uma monografia APROVADA que pertence
+ * ao MESMO curso e ao MESMO ano letivo da sua última matrícula.
+ *
+ * O âmbito é o ponto todo desta função (§encontrado 2026-09-11, a preparar a simulação de um
+ * percurso completo). Sem ele, bastava ter uma monografia aprovada em qualquer altura da vida:
+ * quem terminou uma licenciatura e começou outra (iniciarNovoCursoAction) era dado como formado no
+ * primeiro fecho de ano do curso NOVO, por causa da monografia do curso ANTIGO — um diploma de
+ * quatro anos entregue a quem tinha feito o primeiro.
+ *
+ * O ano letivo entra junto com o curso, e não só o curso, para o caso de alguém repetir o último
+ * ano: a monografia aprovada do ano anterior não fecha o ano em que ele está agora.
+ */
+export function concluiuOCursoComMonografia(
+  turmaDaUltimaMatricula: { cursoId: string; anoLetivo: number } | null | undefined,
+  monografias: readonly MonografiaParaConclusao[],
+): boolean {
+  if (!turmaDaUltimaMatricula) return false;
+  return monografias.some(
+    (m) =>
+      m.aprovada &&
+      m.cursoId === turmaDaUltimaMatricula.cursoId &&
+      m.anoLetivo === turmaDaUltimaMatricula.anoLetivo,
+  );
+}
