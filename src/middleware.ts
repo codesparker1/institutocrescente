@@ -29,6 +29,10 @@ const RESTRICTED_PREFIXES: { prefix: string; roles: string[] }[] = [
   // está em /admin, e ROLE_HOME["DEV"] é undefined → fallback /dashboard. Loop evitado ao
   // autorizar DEV explicitamente aqui.
   { prefix: "/admin/relogio", roles: ["DEV"] },
+  // Sala de Comando (§2026-09-11) — instrumentação da simulação, não gestão académica. Fica fora
+  // do alcance do DAAC, que entra no resto de /admin: a lista de corridas expõe ids e percursos de
+  // alunos fora de qualquer contexto de trabalho dele.
+  { prefix: "/admin/simulacao", roles: ["ADMIN", "DEV"] },
   // Caixa de entrada de reclamações é a "página inicial" do DEV (dashboard/page.tsx redireciona
   // para lá) — sem esta linha DEV entra em loop /admin/reclamacoes ↔ /dashboard (achado em teste
   // Playwright 2026-08: ERR_TOO_MANY_REDIRECTS ao logar como DEV).

@@ -28,7 +28,7 @@ import { chromium, type Browser } from "playwright";
 import path from "node:path";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { garantirNaoENeon } from "../lib/guardarNeon";
-import { avancarRelogio } from "./relogio";
+import { avancarRelogio, definirCorrida } from "./relogio";
 import { escreverRelatorioAnomalias } from "./anomalias";
 import { construirMarcos, type ConfigAcademicaParaMarcos } from "./ano/marcos";
 import { login } from "./agentes/comum";
@@ -215,6 +215,8 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `teste-5-alunos-${Date.now()}`);
   mkdirSync(outputDir, { recursive: true });
+  // Liga os saltos de relógio a esta corrida, para o painel de simulação os mostrar como marcos.
+  definirCorrida(outputDir);
 
   console.log("A ler contexto seedado (5 alunos, staff, configuração académica)...");
   const [alunosUser, staffUsers] = await Promise.all([

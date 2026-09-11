@@ -581,10 +581,28 @@ model SimEvento {
   etiqueta     String
   detalhes     Json?
   duracaoMs    Int?
+  /// Corrida a que o evento pertence — o basename do outputDir do orquestrador
+  /// (ex. "ano-1787003991451"). Sem isto, todas as corridas caem na mesma tabela sem forma de
+  /// isolar uma; o painel de simulação não conseguiria mostrar "esta corrida" nem o relatório
+  /// reler uma corrida antiga sem apanhar eventos de outra pelo meio.
+  /// Nullable porque os eventos gravados antes desta coluna existir não têm corrida conhecida.
+  runId        String?
+  /// Entidade de domínio que o evento tocou, no formato "tipo:id" (ex. "cobranca:c4f1",
+  /// "inscricao:9ab2"). É daqui que saem as setas entre raias no painel: dois eventos de PAPÉIS
+  /// diferentes que tocaram a mesma entidade, em ordem, são um fluxo de dados entre esses papéis.
+  /// Correlação e não causalidade declarada — por isso revela também fluxos que ninguém previu.
+  entidade     String?
+  /// Mudou estado (true) ou só consultou (false). Não altera a direção das setas — essa vem da
+  /// ordem temporal — mas separa "a Secretaria confirmou" de "o aluno viu", que é a leitura que
+  /// interessa quando se procura onde um fluxo se partiu.
+  escrita      Boolean       @default(false)
 
   @@index([tipo])
   @@index([dataSimulada])
   @@index([tipo, dataSimulada])
+  @@index([runId])
+  // Cobre a consulta que desenha as setas: eventos de uma corrida agrupados por entidade.
+  @@index([runId, entidade])
 }
 
 /// Configuração singleton da rematrícula/retenção (id fixo "config", §4.2/8b — não é promoção

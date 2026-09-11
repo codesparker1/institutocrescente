@@ -22,6 +22,14 @@ export const DEMO_PASSWORD = "Ispc@2026";
 export interface CredencialAgente {
   papel: string;
   email: string;
+  /** User.id — vai para SimEvento.userId, para o painel saber quem agiu. */
+  userId: string;
+  /**
+   * Aluno.id da conta, quando é um aluno. É a entidade das páginas "as minhas coisas"
+   * (/minhas-notas, /financeiro), que não têm id na URL: sem isto, o fluxo mais comum do sistema
+   * — Secretaria mexe no aluno X, aluno X vê o resultado — não produzia seta nenhuma no painel.
+   */
+  alunoId?: string | null;
 }
 
 export interface ContextoSimulacao {
@@ -58,11 +66,14 @@ export async function getContextoSimulacao(opts: { professores?: number; alunos?
   const { professores: nProfessores = 2, alunos: nAlunos = 10, seed } = opts;
   const rng = criarRng(seed);
   const [admin, secretaria, daac, todosProfessores, todosAlunos] = await Promise.all([
-    prisma.user.findFirstOrThrow({ where: { role: "ADMIN" }, select: { email: true } }),
-    prisma.user.findFirstOrThrow({ where: { role: "SECRETARIA" }, select: { email: true } }),
-    prisma.user.findFirstOrThrow({ where: { role: "DAAC" }, select: { email: true } }),
-    prisma.user.findMany({ where: { role: "PROFESSOR" }, select: { email: true } }),
-    prisma.user.findMany({ where: { role: "ALUNO", aluno: { status: "ATIVO" } }, select: { email: true } }),
+    prisma.user.findFirstOrThrow({ where: { role: "ADMIN" }, select: { id: true, email: true } }),
+    prisma.user.findFirstOrThrow({ where: { role: "SECRETARIA" }, select: { id: true, email: true } }),
+    prisma.user.findFirstOrThrow({ where: { role: "DAAC" }, select: { id: true, email: true } }),
+    prisma.user.findMany({ where: { role: "PROFESSOR" }, select: { id: true, email: true } }),
+    prisma.user.findMany({
+      where: { role: "ALUNO", aluno: { status: "ATIVO" } },
+      select: { id: true, email: true, alunoId: true },
+    }),
   ]);
 
   if (todosProfessores.length < nProfessores) throw new Error(`Precisa de pelo menos ${nProfessores} professores seedados — corre o seed primeiro.`);
@@ -76,11 +87,20 @@ export async function getContextoSimulacao(opts: { professores?: number; alunos?
   };
 
   return {
-    admin: { papel: "admin", email: admin.email ?? semEmail("admin") },
-    secretaria: { papel: "secretaria", email: secretaria.email ?? semEmail("secretaria") },
-    daac: { papel: "daac", email: daac.email ?? semEmail("daac") },
-    professores: professores.map((p, i) => ({ papel: `professor-${i + 1}`, email: p.email ?? semEmail("professor") })),
-    alunos: alunos.map((a, i) => ({ papel: `aluno-${i + 1}`, email: a.email ?? semEmail("aluno") })),
+    admin: { papel: "admin", email: admin.email ?? semEmail("admin"), userId: admin.id },
+    secretaria: { papel: "secretaria", email: secretaria.email ?? semEmail("secretaria"), userId: secretaria.id },
+    daac: { papel: "daac", email: daac.email ?? semEmail("daac"), userId: daac.id },
+    professores: professores.map((p, i) => ({
+      papel: `professor-${i + 1}`,
+      email: p.email ?? semEmail("professor"),
+      userId: p.id,
+    })),
+    alunos: alunos.map((a, i) => ({
+      papel: `aluno-${i + 1}`,
+      email: a.email ?? semEmail("aluno"),
+      userId: a.id,
+      alunoId: a.alunoId,
+    })),
   };
 }
 

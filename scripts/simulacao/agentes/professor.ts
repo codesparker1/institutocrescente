@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
-import { login } from "./comum";
-import { instrumentarPagina, registarAnomalia } from "../anomalias";
+import { login, registarAcao, anomaliaDoAgente } from "./comum";
+import { instrumentarPagina } from "../anomalias";
+import { entidadeDaRota } from "../../../src/lib/simulacao";
 import type { CredencialAgente } from "../db-helpers";
 
 /**
@@ -115,24 +116,48 @@ export async function agirComoProfessor(
 ): Promise<ResultadoProfessor> {
   if (!opts.jaLogado) {
     instrumentarPagina(page, outputDir, credencial.papel);
-    await login(page, baseUrl, credencial);
+    await login(page, baseUrl, credencial, outputDir);
   }
 
   const disciplinaAberta = await abrirDisciplina(page, baseUrl, opts.disciplinaLabel, opts.anoLetivo);
   if (!disciplinaAberta) {
-    await registarAnomalia(page, outputDir, credencial.papel, "/professor sem nenhuma disciplina atribuída");
+    await anomaliaDoAgente(page, credencial, outputDir, "/professor sem nenhuma disciplina atribuída");
     return { disciplinaAberta: false, notasLancadas: 0, aulaCriada: false, presencasMarcadas: 0 };
   }
 
+  // A pauta aberta é a entidade de tudo o que este agente faz a seguir — é ela que liga as notas
+  // lançadas aqui ao aluno que as vai ver em /minhas-notas, do outro lado do painel.
+  const pauta = entidadeDaRota(new URL(page.url()).pathname);
+
   const linhaExiste = (await page.locator("table tbody tr").count()) > 0;
   if (!linhaExiste) {
-    await registarAnomalia(page, outputDir, credencial.papel, "pauta sem alunos/avaliações — tabela vazia");
+    await anomaliaDoAgente(page, credencial, outputDir, "pauta sem alunos/avaliações — tabela vazia");
     return { disciplinaAberta: true, notasLancadas: 0, aulaCriada: false, presencasMarcadas: 0 };
   }
 
+  const inicioNotas = Date.now();
   const notasLancadas = await lancarTodasAsNotasDisponiveis(page, outputDir, credencial.papel, opts.valor);
+  if (notasLancadas > 0) {
+    await registarAcao(credencial, outputDir, `Lança ${notasLancadas} nota(s) na pauta`, {
+      entidade: pauta,
+      rota: new URL(page.url()).pathname,
+      duracaoMs: Date.now() - inicioNotas,
+      detalhes: { notasLancadas, valor: opts.valor ?? "15" },
+    });
+  }
+
   const aulaCriada = await criarAulaSeForDiaLetivo(page, credencial.papel);
+  if (aulaCriada) {
+    await registarAcao(credencial, outputDir, "Cria a aula de hoje", { entidade: pauta });
+  }
+
   const presencasMarcadas = aulaCriada || (await page.locator("text=presentes").count()) > 0 ? await marcarPresencas(page) : 0;
+  if (presencasMarcadas > 0) {
+    await registarAcao(credencial, outputDir, `Marca ${presencasMarcadas} presença(s)`, {
+      entidade: pauta,
+      detalhes: { presencasMarcadas },
+    });
+  }
 
   return { disciplinaAberta, notasLancadas, aulaCriada, presencasMarcadas };
 }

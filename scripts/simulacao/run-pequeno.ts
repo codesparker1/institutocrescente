@@ -9,7 +9,7 @@
  */
 import { chromium } from "playwright";
 import path from "node:path";
-import { avancarRelogio } from "./relogio";
+import { avancarRelogio, definirCorrida } from "./relogio";
 import { escreverRelatorioAnomalias } from "./anomalias";
 import { visitarComoAluno } from "./agentes/aluno";
 import { agirComoProfessor } from "./agentes/professor";
@@ -76,6 +76,8 @@ async function correrDiagnostico(): Promise<void> {
 async function main() {
   const { url } = parseArgs(process.argv.slice(2));
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `pequeno-${Date.now()}`);
+  // Liga os saltos de relógio a esta corrida, para o painel de simulação os mostrar como marcos.
+  definirCorrida(outputDir);
 
   const seed = gerarSeed();
   console.log(`A ler contexto seedado... (seed: ${seed})`);

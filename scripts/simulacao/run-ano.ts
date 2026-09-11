@@ -23,7 +23,7 @@ import path from "node:path";
 import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { garantirNaoENeon } from "../lib/guardarNeon";
 import { gerarSeed } from "../lib/rng";
-import { avancarRelogio } from "./relogio";
+import { avancarRelogio, definirCorrida } from "./relogio";
 import { escreverRelatorioAnomalias } from "./anomalias";
 import { construirMarcos, type Marco } from "./ano/marcos";
 import { estimarCusto, type AmostraPedido } from "./custo";
@@ -226,6 +226,8 @@ async function main(): Promise<void> {
   const seed = args.seed ?? gerarSeed();
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `ano-${Date.now()}`);
   mkdirSync(outputDir, { recursive: true });
+  // Liga os saltos de relógio a esta corrida, para o painel de simulação os mostrar como marcos.
+  definirCorrida(outputDir);
 
   console.log(`Seed desta corrida: ${seed} (repete com --seed ${seed} para reproduzir exatamente a mesma amostra de professores/alunos)`);
   console.log("A ler configuração académica e contexto seedado...");

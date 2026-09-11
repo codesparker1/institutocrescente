@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, GraduationCap, Layers, ScrollText, CalendarClock, ClipboardList, Wallet, AlertTriangle, MessageSquareWarning, Clock } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Layers, ScrollText, CalendarClock, ClipboardList, Wallet, AlertTriangle, MessageSquareWarning, Clock, Radio } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { NavItem } from "./NavItem";
 import { NavGroup } from "./NavGroup";
@@ -44,7 +44,7 @@ export function Sidebar({ role, isOpen, onClose, simulationMode, temMonografia =
           <Logo size={44} priority />
         </div>
         <nav className="flex flex-col gap-1">
-          {role === "ADMIN" ? <AdminNav /> : null}
+          {role === "ADMIN" ? <AdminNav simulationMode={simulationMode} /> : null}
           {role === "SECRETARIA" ? <SecretariaNav /> : null}
           {role === "PROFESSOR" ? <ProfessorNav /> : null}
           {role === "ALUNO" ? <AlunoNav temMonografia={temMonografia} /> : null}
@@ -59,10 +59,13 @@ export function Sidebar({ role, isOpen, onClose, simulationMode, temMonografia =
 }
 
 // Página Inicial (ou equivalente) vem sempre primeiro; os restantes itens seguem ordem alfabética por label.
-function AdminNav() {
+function AdminNav({ simulationMode }: { simulationMode: boolean }) {
   return (
     <>
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
+      {/* Só com SIMULATION_MODE=true, como o Relógio Simulado: sem simulação a correr não há
+          corridas para ver, e o item levaria a um ecrã permanentemente vazio. */}
+      {simulationMode ? <NavItem href="/admin/simulacao" label="Sala de Comando" icon={<Radio size={18} />} /> : null}
       <NavGroup
         label="Gestão Académica"
         icon={<Layers size={18} />}
@@ -172,6 +175,7 @@ function DevNav({ simulationMode }: { simulationMode: boolean }) {
       <NavItem href="/admin/reclamacoes" label="Reclamações e Sugestões" icon={<MessageSquareWarning size={18} />} />
       {/* Só existe com SIMULATION_MODE=true (teste de vários anos com tempo acelerado) — ver src/lib/tempo.ts. */}
       {simulationMode ? <NavItem href="/admin/relogio" label="Relógio Simulado" icon={<Clock size={18} />} /> : null}
+      {simulationMode ? <NavItem href="/admin/simulacao" label="Sala de Comando" icon={<Radio size={18} />} /> : null}
     </>
   );
 }

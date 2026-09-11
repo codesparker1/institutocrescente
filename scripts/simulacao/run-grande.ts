@@ -19,7 +19,7 @@ import path from "node:path";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { garantirNaoENeon } from "../lib/guardarNeon";
 import { gerarSeed } from "../lib/rng";
-import { avancarRelogio } from "./relogio";
+import { avancarRelogio, definirCorrida } from "./relogio";
 import { escreverRelatorioAnomalias } from "./anomalias";
 import { visitarComoAluno } from "./agentes/aluno";
 import { agirComoProfessor } from "./agentes/professor";
@@ -124,6 +124,8 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `grande-${Date.now()}`);
   mkdirSync(outputDir, { recursive: true });
+  // Liga os saltos de relógio a esta corrida, para o painel de simulação os mostrar como marcos.
+  definirCorrida(outputDir);
 
   const seed = args.seed ?? gerarSeed();
   console.log(
