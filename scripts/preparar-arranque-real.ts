@@ -151,8 +151,19 @@ async function main() {
   //
   // As configurações saem cedo porque apontam a User (atualizadaPor); as contas saem antes de
   // Professor/Aluno porque User.professorId/alunoId apontam para eles.
-  console.log("\nA apagar...");
-  await prisma.$transaction([
+  // A telemetria sai PRIMEIRO e FORA da transação. São dezenas de milhares de linhas, e a
+  // transação interativa do Prisma expira aos 5s por omissão — contra uma base remota, só esta
+  // tabela estourava o limite e levava consigo o resto (§falhou assim à primeira, 2026-09-13).
+  // Pode ficar de fora sem risco: SimEvento não tem chave estrangeira nenhuma, ninguém depende
+  // dela, e é o registo mais descartável da base. Se falhar a meio, o pior caso é sobrarem
+  // eventos órfãos — nada que impeça o arranque.
+  console.log("\nA apagar a telemetria (fora da transação, por ser volumosa)...");
+  const telemetriaApagada = await prisma.simEvento.deleteMany({});
+  console.log(`  ${telemetriaApagada.count} evento(s) de telemetria apagados.`);
+
+  console.log("\nA apagar o resto, numa transação...");
+  await prisma.$transaction(
+    [
     prisma.frequencia.deleteMany({}),
     prisma.nota.deleteMany({}),
     prisma.aula.deleteMany({}),
@@ -164,7 +175,6 @@ async function main() {
     prisma.cobranca.deleteMany({}),
     prisma.reclamacao.deleteMany({}),
     prisma.auditLog.deleteMany({}),
-    prisma.simEvento.deleteMany({}),
     prisma.configuracaoAcademica.deleteMany({}),
     prisma.configuracaoFinanceira.deleteMany({}),
     prisma.relogioSimulado.deleteMany({}),
@@ -181,7 +191,11 @@ async function main() {
     // Repostas, não apagadas — só os campos com defeito no schema, sem datas nem utilizador.
     prisma.configuracaoAcademica.create({ data: { id: "config" } }),
     prisma.configuracaoFinanceira.create({ data: { id: "config" } }),
-  ]);
+    ],
+    // 5s (o defeito) não chega: são duas dezenas de comandos, cada um com a latência de ida e
+    // volta até à base remota. O tempo aqui não é trabalho, é distância.
+    { timeout: 60_000, maxWait: 15_000 },
+  );
 
   const depois = await contar();
   imprimir("DEPOIS — o que devia estar a zero:", depois.apagar);
