@@ -44,7 +44,7 @@ export function Sidebar({ role, isOpen, onClose, simulationMode, temMonografia =
           <Logo size={44} priority />
         </div>
         <nav className="flex flex-col gap-1">
-          {role === "ADMIN" ? <AdminNav simulationMode={simulationMode} /> : null}
+          {role === "ADMIN" ? <AdminNav /> : null}
           {role === "SECRETARIA" ? <SecretariaNav /> : null}
           {role === "PROFESSOR" ? <ProfessorNav /> : null}
           {role === "ALUNO" ? <AlunoNav temMonografia={temMonografia} /> : null}
@@ -59,13 +59,10 @@ export function Sidebar({ role, isOpen, onClose, simulationMode, temMonografia =
 }
 
 // Página Inicial (ou equivalente) vem sempre primeiro; os restantes itens seguem ordem alfabética por label.
-function AdminNav({ simulationMode }: { simulationMode: boolean }) {
+function AdminNav() {
   return (
     <>
       <NavItem href="/dashboard" label="Página Inicial" icon={<LayoutDashboard size={18} />} />
-      {/* Só com SIMULATION_MODE=true, como o Relógio Simulado: sem simulação a correr não há
-          corridas para ver, e o item levaria a um ecrã permanentemente vazio. */}
-      {simulationMode ? <NavItem href="/admin/simulacao" label="Sala de Comando" icon={<Radio size={18} />} /> : null}
       <NavGroup
         label="Gestão Académica"
         icon={<Layers size={18} />}

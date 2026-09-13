@@ -44,15 +44,18 @@ export function ReporSenhaForm({ userId, nome, deveTrocarSenha }: ReporSenhaForm
 
   if (state.sucesso) {
     return (
-      <div className="flex flex-col items-start gap-1">
+      // Painel, e não uma linha de texto miúdo (§reportado 2026-09-13: "isso é muito pequeno"). É
+      // aqui que a senha aparece, e quem a está a ler vai ditá-la a alguém ao telefone ou copiá-la
+      // para uma mensagem — tem de se ler de longe e sem confundir caracteres.
+      <div className="flex flex-col items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
         <Badge tone="success">Senha Reposta</Badge>
-        <span className="text-xs text-texto-suave">
+        <p className="text-sm text-texto">
           Entra com{" "}
-          <code className="rounded bg-navy-50 px-1 py-0.5 font-mono text-[11px] font-semibold text-texto">
+          <code className="select-all rounded border border-emerald-300 bg-white px-2 py-1 font-mono text-base font-semibold tracking-wide text-texto">
             {state.sucesso.senha}
-          </code>{" "}
-          e troca-a à entrada.
-        </span>
+          </code>
+        </p>
+        <p className="text-xs text-texto-suave">A troca é pedida logo à entrada.</p>
       </div>
     );
   }

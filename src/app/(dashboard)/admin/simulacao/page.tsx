@@ -25,14 +25,14 @@ interface SimulacaoPageProps {
  * Sala de Comando — a corrida de simulação vista como fluxo entre papéis (§pedido do cliente
  * 2026-09-11), em vez de um relatório de texto lido depois de tudo acabar.
  *
- * ADMIN e DEV apenas: é instrumentação, não gestão académica. O DAAC entra em quase todo o /admin
- * (ver middleware.ts) mas não aqui — telemetria da simulação não lhe diz respeito, e a lista de
- * corridas revelaria nomes e ids de alunos fora de qualquer contexto de trabalho dele.
+ * DEV apenas (§2026-09-13) — o mesmo papel que opera o relógio simulado. É instrumentação, não
+ * gestão académica: nem o ADMIN nem o DAAC têm o que fazer aqui, e a lista de corridas revelaria
+ * nomes e ids de alunos fora de qualquer contexto de trabalho deles.
  */
 export default async function SimulacaoPage({ searchParams }: SimulacaoPageProps) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN" && session.user.role !== "DEV") redirect("/dashboard");
+  if (session.user.role !== "DEV") redirect("/dashboard");
 
   const { corrida } = await searchParams;
 

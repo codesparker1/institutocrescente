@@ -5,7 +5,6 @@ import { IspcCrest } from "@/components/brand/IspcCrest";
 import { Field, Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { loginAction, type LoginState } from "@/actions/auth";
-import { DemoAccountsPanel } from "./DemoAccountsPanel";
 
 const initialState: LoginState = {};
 
@@ -20,13 +19,6 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-navy-950 px-4 py-12">
-      <DemoAccountsPanel
-        onSelect={(demoEmail, demoPassword) => {
-          setIdentificador(demoEmail);
-          setPassword(demoPassword);
-        }}
-      />
-
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <IspcCrest size={176} priority />
