@@ -3,10 +3,16 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Table";
 import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteProfessorAction } from "@/actions/admin";
+import { ReporSenhaForm } from "@/components/admin/ReporSenhaForm";
 import { CreateProfessorForm } from "./CreateProfessorForm";
 
 export default async function AdminProfessoresPage() {
-  const professores = await prisma.professor.findMany({ orderBy: { nome: "asc" } });
+  // A conta de acesso vem junto por causa do "Repor senha" (§2026-09-13) — a senha vive no User,
+  // não no Professor. Pode não existir: um docente criado antes de haver contas, ou apagado o User.
+  const professores = await prisma.professor.findMany({
+    orderBy: { nome: "asc" },
+    include: { user: { select: { id: true } } },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,6 +35,7 @@ export default async function AdminProfessoresPage() {
                   <Th>Nome</Th>
                   <Th>Email</Th>
                   <Th>Especialidade</Th>
+                  <Th>Senha</Th>
                   <Th></Th>
                 </tr>
               </Thead>
@@ -38,6 +45,9 @@ export default async function AdminProfessoresPage() {
                     <Td className="font-medium text-texto">{professor.nome}</Td>
                     <Td>{professor.email}</Td>
                     <Td>{professor.especialidade}</Td>
+                    <Td>
+                      <ReporSenhaForm userId={professor.user?.id ?? null} nome={professor.nome} />
+                    </Td>
                     <Td className="text-right">
                       <DeleteButtonForm action={deleteProfessorAction} id={professor.id} />
                     </Td>

@@ -1619,3 +1619,53 @@ export async function deleteEmolumentoAction(formData: FormData) {
 
   revalidatePath("/admin/emolumentos");
 }
+
+export interface ReporSenhaState {
+  error?: string;
+  sucesso?: { nome: string; senha: string };
+}
+
+/**
+ * Repõe a senha de uma conta para a senha padrão do sistema (§pedido do cliente 2026-09-13:
+ * "o admin pode formatar a palavra passe dos usuários"). É o caminho para quem perdeu o acesso —
+ * até agora a única saída era apagar a conta e criá-la de novo, o que levava o histórico à frente.
+ *
+ * Faz exatamente o mesmo que a criação de conta (createProfessorAction, createStaffUserAction,
+ * createAlunoAction): a MESMA senha padrão e `deveTrocarSenha: true`. É esta segunda parte que
+ * torna a primeira segura — o middleware manda a pessoa para /trocar-senha e não a deixa sair de
+ * lá, por isso a senha padrão nunca sobrevive à primeira entrada (ver lib/credentials.ts).
+ *
+ * ADMIN não é reponível, e de propósito: quem repõe senhas é ADMIN, logo um ADMIN podia tomar a
+ * conta de outro sem deixar de parecer uma operação de rotina. Não há aqui nenhum fluxo legítimo
+ * que precise disso — um administrador sem acesso resolve-se fora da aplicação, com acesso à base.
+ *
+ * Devolve `{ error }` em vez de lançar, como o resto das ações desta tabela: o Next substitui a
+ * mensagem de qualquer exceção que saia de uma Server Action por um erro genérico em produção
+ * (§bug de 2026-09-07), e a frase certa perder-se-ia justamente onde é precisa.
+ */
+export async function reporSenhaAction(_prevState: ReporSenhaState, formData: FormData): Promise<ReporSenhaState> {
+  const session = await requireGerirContas();
+
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) return { error: "Conta inválida." };
+
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, role: true } });
+  if (!user) return { error: "Conta não encontrada." };
+  if (user.role === "ADMIN") {
+    return { error: "A senha de um administrador não se repõe por aqui." };
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await bcrypt.hash(SENHA_INICIAL_PADRAO, 10), deveTrocarSenha: true },
+  });
+
+  await audit(session, `Repôs a senha de ${user.name} (${user.role})`, "User", user.id);
+
+  // Os três sítios onde a conta pode estar listada — a ação é a mesma em todos.
+  revalidatePath("/admin/equipa");
+  revalidatePath("/admin/professores");
+  revalidatePath("/alunos");
+
+  return { sucesso: { nome: user.name, senha: SENHA_INICIAL_PADRAO } };
+}

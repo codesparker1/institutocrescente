@@ -18,6 +18,7 @@ import { LinhaPercursoEditavel } from "@/components/alunos/LinhaPercursoEditavel
 import { CreditarCadeiraForm } from "@/components/alunos/CreditarCadeiraForm";
 import { DocumentosAlunoCard } from "@/components/alunos/DocumentosAlunoCard";
 import { DadosPessoaisAlunoForm } from "@/components/alunos/DadosPessoaisAlunoForm";
+import { ReporSenhaForm } from "@/components/admin/ReporSenhaForm";
 import { formatDate, formatCurrency, chaveMes, PERIODO_LABEL, formatAnoLetivo, nomeProfessor, STATUS_ALUNO_LABEL } from "@/lib/utils";
 import { anoLetivoCorrente, motivoRematriculaIndisponivel, semestreFechado } from "@/lib/academico";
 import { getEstadoFinanceiroAluno } from "@/lib/financeiro";
@@ -56,6 +57,9 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
     where: { id },
     include: {
       matriculas: { include: { turma: { include: { curso: true } } } },
+      // A conta de acesso, para o "Repor senha" (§2026-09-13) — a senha vive no User, não no Aluno.
+      // Pode não existir: um aluno matriculado antes de haver contas nunca chegou a ter uma.
+      user: { select: { id: true } },
     },
   });
 
@@ -303,7 +307,12 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
             </div>
           ) : null}
         </div>
-        <Badge tone={STATUS_TONE[aluno.status]}>{STATUS_ALUNO_LABEL[aluno.status]}</Badge>
+        <div className="flex items-start gap-4">
+          {/* Mesma permissão dos dados pessoais (podeGerirContas, só ADMIN): quem pode mudar o nome
+              da pessoa é quem pode devolver-lhe o acesso. */}
+          {podeEditarDadosPessoais ? <ReporSenhaForm userId={aluno.user?.id ?? null} nome={aluno.nome} variant="link" /> : null}
+          <Badge tone={STATUS_TONE[aluno.status]}>{STATUS_ALUNO_LABEL[aluno.status]}</Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

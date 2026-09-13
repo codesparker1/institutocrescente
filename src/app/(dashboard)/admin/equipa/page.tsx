@@ -4,6 +4,7 @@ import { Table, Thead, Th, Tbody, Tr, Td, EmptyState } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { DeleteButtonForm } from "@/components/ui/DeleteButtonForm";
 import { deleteStaffUserAction } from "@/actions/admin";
+import { ReporSenhaForm } from "@/components/admin/ReporSenhaForm";
 import { CreateStaffForm } from "./CreateStaffForm";
 import { formatDate } from "@/lib/utils";
 
@@ -35,6 +36,7 @@ export default async function AdminEquipaPage() {
                   <Th>Email</Th>
                   <Th>Papel</Th>
                   <Th>Criada em</Th>
+                  <Th>Senha</Th>
                   <Th></Th>
                 </tr>
               </Thead>
@@ -47,6 +49,9 @@ export default async function AdminEquipaPage() {
                       <Badge tone={user.role === "DAAC" ? "info" : user.role === "DEV" ? "warning" : "neutral"}>{user.role}</Badge>
                     </Td>
                     <Td>{formatDate(user.createdAt)}</Td>
+                    <Td>
+                      <ReporSenhaForm userId={user.id} nome={user.name} />
+                    </Td>
                     <Td className="text-right">
                       <DeleteButtonForm action={deleteStaffUserAction} id={user.id} />
                     </Td>
