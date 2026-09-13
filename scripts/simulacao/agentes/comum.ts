@@ -35,7 +35,7 @@ async function erroVisivel(page: Page, outputDir: string, papel: string, onde: s
 export async function login(page: Page, baseUrl: string, credencial: CredencialAgente, outputDir?: string): Promise<void> {
   const inicio = Date.now();
   await page.goto(`${baseUrl}/login`);
-  await page.fill("#identificador", credencial.email);
+  await page.fill("#identificador", credencial.identificador);
   await page.fill("#password", DEMO_PASSWORD);
   await Promise.all([
     page.waitForURL(/\/(dashboard|professor)/),

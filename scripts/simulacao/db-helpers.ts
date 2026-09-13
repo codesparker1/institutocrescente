@@ -21,7 +21,17 @@ export const DEMO_PASSWORD = "Ispc@2026";
 
 export interface CredencialAgente {
   papel: string;
-  email: string;
+  /**
+   * O que vai para a caixa de login (#identificador). O sistema aceita email OU nº de estudante
+   * — `buscarUserPorIdentificador` decide pelo "@" — e o schema diz que alunos podem não ter email
+   * (User.email é opcional, User.numeroEstudante existe desnormalizado exatamente para isto).
+   * Separado de `email` porque são coisas diferentes: este serve para entrar, aquele para procurar
+   * o Aluno na base. Antes eram o mesmo campo, e um aluno sem email rebentava a simulação com
+   * "Conta de aluno sem email — corre o seed primeiro" quando a conta dele estava perfeitamente boa.
+   */
+  identificador: string;
+  /** Email da conta, quando existe. Null num aluno que entra pelo nº de estudante. */
+  email: string | null;
   /** User.id — vai para SimEvento.userId, para o painel saber quem agiu. */
   userId: string;
   /**
@@ -72,7 +82,7 @@ export async function getContextoSimulacao(opts: { professores?: number; alunos?
     prisma.user.findMany({ where: { role: "PROFESSOR" }, select: { id: true, email: true } }),
     prisma.user.findMany({
       where: { role: "ALUNO", aluno: { status: "ATIVO" } },
-      select: { id: true, email: true, alunoId: true },
+      select: { id: true, email: true, alunoId: true, numeroEstudante: true },
     }),
   ]);
 
@@ -82,22 +92,33 @@ export async function getContextoSimulacao(opts: { professores?: number; alunos?
   const professores = amostraAleatoria(todosProfessores, nProfessores, rng);
   const alunos = amostraAleatoria(todosAlunos, nAlunos, rng);
 
-  const semEmail = (label: string) => {
+  // O email é obrigatório para staff (ADMIN/SECRETARIA/DAAC/PROFESSOR) — está escrito no schema,
+  // e uma conta de staff sem ele é mesmo uma seed incompleta.
+  const semEmail = (label: string): string => {
     throw new Error(`Conta de ${label} sem email — corre o seed primeiro.`);
   };
 
   return {
-    admin: { papel: "admin", email: admin.email ?? semEmail("admin"), userId: admin.id },
-    secretaria: { papel: "secretaria", email: secretaria.email ?? semEmail("secretaria"), userId: secretaria.id },
-    daac: { papel: "daac", email: daac.email ?? semEmail("daac"), userId: daac.id },
+    admin: { papel: "admin", identificador: admin.email ?? semEmail("admin"), email: admin.email, userId: admin.id },
+    secretaria: {
+      papel: "secretaria",
+      identificador: secretaria.email ?? semEmail("secretaria"),
+      email: secretaria.email,
+      userId: secretaria.id,
+    },
+    daac: { papel: "daac", identificador: daac.email ?? semEmail("daac"), email: daac.email, userId: daac.id },
     professores: professores.map((p, i) => ({
       papel: `professor-${i + 1}`,
-      email: p.email ?? semEmail("professor"),
+      identificador: p.email ?? semEmail("professor"),
+      email: p.email,
       userId: p.id,
     })),
+    // O aluno entra pelo email OU pelo nº de estudante — só falha se não tiver nenhum dos dois,
+    // que aí é mesmo uma conta impossível de usar.
     alunos: alunos.map((a, i) => ({
       papel: `aluno-${i + 1}`,
-      email: a.email ?? semEmail("aluno"),
+      identificador: a.email ?? a.numeroEstudante ?? semEmail("aluno (sem email nem nº de estudante)"),
+      email: a.email,
       userId: a.id,
       alunoId: a.alunoId,
     })),

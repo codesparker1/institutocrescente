@@ -6,6 +6,12 @@
  * mostrou levar até 49s numa rota — inaceitável multiplicado por 15 contextos concorrentes).
  *
  * Usage: npx tsx scripts/simulacao/run-pequeno.ts [--url http://localhost:3901]
+ *          [--alunos 1] [--professores 1]
+ *
+ * `--alunos`/`--professores` existem porque os valores por omissão de getContextoSimulacao (10 e 2)
+ * são do tempo da seed grande, e numa base pequena o script rebentava antes de fazer nada:
+ * "Precisa de pelo menos 10 alunos seedados". A corrida pequena serve justamente para confirmar
+ * seletores e relógio — tem de poder correr com um aluno só.
  */
 import { chromium } from "playwright";
 import path from "node:path";
@@ -26,9 +32,11 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local", override: true });
 
 function parseArgs(argv: string[]) {
-  const args = { url: "http://localhost:3901" };
+  const args = { url: "http://localhost:3901", alunos: 1, professores: 1 };
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--url") args.url = argv[i + 1];
+    if (argv[i] === "--url" && argv[i + 1]) args.url = argv[i + 1];
+    else if (argv[i] === "--alunos" && argv[i + 1]) args.alunos = Number(argv[i + 1]);
+    else if (argv[i] === "--professores" && argv[i + 1]) args.professores = Number(argv[i + 1]);
   }
   return args;
 }
@@ -74,14 +82,14 @@ async function correrDiagnostico(): Promise<void> {
 }
 
 async function main() {
-  const { url } = parseArgs(process.argv.slice(2));
+  const { url, alunos, professores } = parseArgs(process.argv.slice(2));
   const outputDir = path.join(process.cwd(), "scripts", "simulacao", "output", `pequeno-${Date.now()}`);
   // Liga os saltos de relógio a esta corrida, para o painel de simulação os mostrar como marcos.
   definirCorrida(outputDir);
 
   const seed = gerarSeed();
-  console.log(`A ler contexto seedado... (seed: ${seed})`);
-  const contexto = await getContextoSimulacao({ seed });
+  console.log(`A ler contexto seedado... (seed: ${seed}, ${alunos} aluno(s), ${professores} professor(es))`);
+  const contexto = await getContextoSimulacao({ seed, alunos, professores });
   await disconnect();
 
   console.log(`Relógio simulado: 15 de Setembro de 2026 (início do ano letivo).`);
@@ -89,12 +97,12 @@ async function main() {
 
   const browser = await chromium.launch();
 
-  console.log(`A visitar como aluno (${contexto.alunos[0].email})...`);
+  console.log(`A visitar como aluno (${contexto.alunos[0].identificador})...`);
   const paginaAluno = await browser.newPage();
   await visitarComoAluno(paginaAluno, url, contexto.alunos[0], outputDir);
   await paginaAluno.close();
 
-  console.log(`A agir como professor (${contexto.professores[0].email})...`);
+  console.log(`A agir como professor (${contexto.professores[0].identificador})...`);
   const paginaProfessor = await browser.newPage();
   const resultadoProfessor = await agirComoProfessor(paginaProfessor, url, contexto.professores[0], outputDir, { anoLetivo: 2026 });
   console.log(
@@ -102,17 +110,17 @@ async function main() {
   );
   await paginaProfessor.close();
 
-  console.log(`A visitar como secretaria (${contexto.secretaria.email})...`);
+  console.log(`A visitar como secretaria (${contexto.secretaria.identificador})...`);
   const paginaSecretaria = await browser.newPage();
   await visitarComoSecretaria(paginaSecretaria, url, contexto.secretaria, outputDir);
   await paginaSecretaria.close();
 
-  console.log(`A visitar como admin (${contexto.admin.email})...`);
+  console.log(`A visitar como admin (${contexto.admin.identificador})...`);
   const paginaAdmin = await browser.newPage();
   await visitarComoAdmin(paginaAdmin, url, contexto.admin, outputDir);
   await paginaAdmin.close();
 
-  console.log(`A visitar como DAAC (${contexto.daac.email})...`);
+  console.log(`A visitar como DAAC (${contexto.daac.identificador})...`);
   const paginaDaac = await browser.newPage();
   await visitarComoDaac(paginaDaac, url, contexto.daac, outputDir);
   await paginaDaac.close();

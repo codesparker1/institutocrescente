@@ -52,7 +52,7 @@ export async function paginaCrashou(page: Page): Promise<string | null> {
 /** Login com password propositadamente errada — ao contrário de agentes/comum.ts's login(), esta espera FICAR em /login com erro visível, nunca redirecionar. */
 export async function tentarLoginComPasswordErrada(page: Page, baseUrl: string, credencial: CredencialAgente): Promise<AcaoCaotica> {
   await page.goto(`${baseUrl}/login`);
-  await page.fill("#identificador", credencial.email);
+  await page.fill("#identificador", credencial.identificador);
   await page.fill("#password", "password-errada-de-propósito");
   await page.click('button[type="submit"]');
   await page.waitForTimeout(800);
@@ -68,7 +68,7 @@ export async function tentarLoginComPasswordErrada(page: Page, baseUrl: string, 
 
 export async function login(page: Page, baseUrl: string, credencial: CredencialAgente): Promise<void> {
   await page.goto(`${baseUrl}/login`);
-  await page.fill("#identificador", credencial.email);
+  await page.fill("#identificador", credencial.identificador);
   await page.fill("#password", DEMO_PASSWORD);
   await Promise.all([page.waitForURL(/\/(dashboard|professor)/), page.click('button[type="submit"]')]);
 }
