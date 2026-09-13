@@ -50,7 +50,7 @@ export default async function AdminEquipaPage() {
                     </Td>
                     <Td>{formatDate(user.createdAt)}</Td>
                     <Td>
-                      <ReporSenhaForm userId={user.id} nome={user.name} />
+                      <ReporSenhaForm userId={user.id} nome={user.name} deveTrocarSenha={user.deveTrocarSenha} />
                     </Td>
                     <Td className="text-right">
                       <DeleteButtonForm action={deleteStaffUserAction} id={user.id} />

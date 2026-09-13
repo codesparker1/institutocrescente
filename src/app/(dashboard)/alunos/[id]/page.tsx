@@ -59,7 +59,7 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
       matriculas: { include: { turma: { include: { curso: true } } } },
       // A conta de acesso, para o "Repor senha" (§2026-09-13) — a senha vive no User, não no Aluno.
       // Pode não existir: um aluno matriculado antes de haver contas nunca chegou a ter uma.
-      user: { select: { id: true } },
+      user: { select: { id: true, deveTrocarSenha: true } },
     },
   });
 
@@ -310,7 +310,11 @@ export default async function AlunoDetailPage({ params }: AlunoDetailPageProps) 
         <div className="flex items-start gap-4">
           {/* Mesma permissão dos dados pessoais (podeGerirContas, só ADMIN): quem pode mudar o nome
               da pessoa é quem pode devolver-lhe o acesso. */}
-          {podeEditarDadosPessoais ? <ReporSenhaForm userId={aluno.user?.id ?? null} nome={aluno.nome} variant="link" /> : null}
+          {podeEditarDadosPessoais ? <ReporSenhaForm
+              userId={aluno.user?.id ?? null}
+              nome={aluno.nome}
+              deveTrocarSenha={aluno.user?.deveTrocarSenha ?? false}
+            /> : null}
           <Badge tone={STATUS_TONE[aluno.status]}>{STATUS_ALUNO_LABEL[aluno.status]}</Badge>
         </div>
       </div>

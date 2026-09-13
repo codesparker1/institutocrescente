@@ -11,7 +11,7 @@ export default async function AdminProfessoresPage() {
   // não no Professor. Pode não existir: um docente criado antes de haver contas, ou apagado o User.
   const professores = await prisma.professor.findMany({
     orderBy: { nome: "asc" },
-    include: { user: { select: { id: true } } },
+    include: { user: { select: { id: true, deveTrocarSenha: true } } },
   });
 
   return (
@@ -46,7 +46,11 @@ export default async function AdminProfessoresPage() {
                     <Td>{professor.email}</Td>
                     <Td>{professor.especialidade}</Td>
                     <Td>
-                      <ReporSenhaForm userId={professor.user?.id ?? null} nome={professor.nome} />
+                      <ReporSenhaForm
+                        userId={professor.user?.id ?? null}
+                        nome={professor.nome}
+                        deveTrocarSenha={professor.user?.deveTrocarSenha ?? false}
+                      />
                     </Td>
                     <Td className="text-right">
                       <DeleteButtonForm action={deleteProfessorAction} id={professor.id} />
