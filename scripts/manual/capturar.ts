@@ -18,7 +18,7 @@
  *   npx tsx scripts/manual/capturar.ts admin daac  # só estes capítulos
  */
 import { chromium, type Browser, type Page } from "playwright";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { CAPITULOS, type Acao, type Captura, type Capitulo } from "./paginas";
 
@@ -47,12 +47,15 @@ interface ResultadoCaptura {
 
 /**
  * Desenha os ponteiros por cima da página: um anel à volta do elemento e um número ao canto.
+ * Devolve os alvos que não encontrou — falha do guião, não do sistema.
  *
- * Em coordenadas do DOCUMENTO (rect + scrollX/Y) e não da janela, porque as capturas de página
- * inteira rolam a página — com `position: fixed` os números ficavam todos empilhados no sítio
- * errado.
+ * Tem de ser uma FUNÇÃO e não uma string: `page.evaluate` com uma string avalia-a como expressão e
+ * nunca a chama com o argumento, devolvendo undefined em silêncio e sem desenhar nada.
+ *
+ * As posições vão em coordenadas do DOCUMENTO (rect + scroll) e não da janela, porque as capturas
+ * de página inteira rolam a página — com `position: fixed` os números empilhavam-se no sítio errado.
  */
-const DESENHAR_PONTEIROS = `(pontos) => {
+function desenharPonteiros(pontos: { selector?: string; texto?: string; nota: string }[]): string[] {
   const anterior = document.getElementById("__manual_ponteiros");
   if (anterior) anterior.remove();
 
@@ -61,57 +64,87 @@ const DESENHAR_PONTEIROS = `(pontos) => {
   camada.style.cssText = "position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;pointer-events:none";
   document.body.appendChild(camada);
 
-  // A maioria dos ponteiros do manual aponta para um botão ou um cabeçalho, e escrever um seletor
-  // CSS para cada um seria frágil e ilegível. Com \`texto\` procura-se pelo rótulo que a pessoa
-  // realmente vê no ecrã — que é também o que o texto do manual vai citar.
-  const procurarPorTexto = (texto) => {
+  // A maioria dos ponteiros aponta para um botão ou um cabeçalho, e escrever um seletor CSS para
+  // cada um seria frágil e ilegível. Com `texto` procura-se pelo rótulo que a pessoa vê no ecrã —
+  // que é também o que o texto do manual cita.
+  const procurarPorTexto = (texto: string): Element | null => {
     const alvo = texto.toLowerCase();
-    const candidatos = Array.from(document.querySelectorAll(
-      "button, a, h1, h2, h3, th, label, input, select, summary, [role=button], [role=tab]"
-    ));
+    const candidatos = Array.from(
+      document.querySelectorAll("button, a, h1, h2, h3, th, label, input, select, summary, [role=button], [role=tab]"),
+    );
+    const conteudo = (e: Element) => (e.textContent ?? "").trim().toLowerCase();
     return (
-      candidatos.find((e) => (e.textContent || "").trim().toLowerCase() === alvo) ||
-      candidatos.find((e) => (e.textContent || "").trim().toLowerCase().includes(alvo)) ||
-      candidatos.find((e) => ((e.getAttribute("placeholder") || "") + (e.getAttribute("aria-label") || "")).toLowerCase().includes(alvo)) ||
+      candidatos.find((e) => conteudo(e) === alvo) ??
+      candidatos.find((e) => conteudo(e).includes(alvo)) ??
+      candidatos.find((e) =>
+        ((e.getAttribute("placeholder") ?? "") + (e.getAttribute("aria-label") ?? "")).toLowerCase().includes(alvo),
+      ) ??
       null
     );
   };
 
-  const emFalta = [];
+  const emFalta: string[] = [];
   pontos.forEach((p, i) => {
     const el = p.selector ? document.querySelector(p.selector) : p.texto ? procurarPorTexto(p.texto) : null;
-    if (!el) { emFalta.push(p.selector || p.texto || "(ponteiro sem alvo definido)"); return; }
+    if (!el) {
+      emFalta.push(p.selector ?? p.texto ?? "(ponteiro sem alvo definido)");
+      return;
+    }
     const r = el.getBoundingClientRect();
     const x = r.left + window.scrollX;
     const y = r.top + window.scrollY;
 
+    // Elementos colados ao bordo — a barra lateral, o cabeçalho — dão coordenadas negativas, e o
+    // anel e o número saíam cortados fora da imagem. Encostar ao bordo em vez de transbordar.
+    const anelX = Math.max(2, x - 5);
+    const anelY = Math.max(2, y - 5);
     const anel = document.createElement("div");
     anel.style.cssText =
-      "position:absolute;left:" + (x - 5) + "px;top:" + (y - 5) + "px;width:" + (r.width + 10) +
-      "px;height:" + (r.height + 10) + "px;border:3px solid #E8590C;border-radius:10px;" +
-      "box-shadow:0 0 0 4px rgba(232,89,12,0.16);";
+      `position:absolute;left:${anelX}px;top:${anelY}px;` +
+      `width:${r.width + 10 - (anelX - (x - 5))}px;height:${r.height + 10 - (anelY - (y - 5))}px;` +
+      "border:3px solid #E8590C;border-radius:10px;box-shadow:0 0 0 4px rgba(232,89,12,0.16);";
     camada.appendChild(anel);
 
     const numero = document.createElement("div");
     numero.textContent = String(i + 1);
+    // O número fica no canto do elemento, mas nunca fora da imagem: num elemento encostado ao
+    // topo ou à esquerda, passa para dentro em vez de ficar em coordenada negativa.
     numero.style.cssText =
-      "position:absolute;left:" + (x - 19) + "px;top:" + (y - 19) + "px;width:30px;height:30px;" +
+      `position:absolute;left:${Math.max(4, x - 19)}px;top:${Math.max(4, y - 19)}px;width:30px;height:30px;` +
       "border-radius:999px;background:#E8590C;color:#fff;text-align:center;" +
       "font:700 16px/30px ui-sans-serif,system-ui,-apple-system,sans-serif;" +
       "box-shadow:0 2px 8px rgba(0,0,0,0.35);";
     camada.appendChild(numero);
   });
   return emFalta;
-}`;
+}
 
 async function executarAcao(page: Page, acao: Acao): Promise<void> {
   switch (acao.tipo) {
     case "clicar":
       await page.click(acao.selector, { timeout: 15_000 });
       break;
-    case "clicarTexto":
-      await page.getByText(acao.texto, { exact: false }).first().click({ timeout: 15_000 });
-      break;
+    case "clicarTexto": {
+      // Por papel (ligação, depois botão) antes de cair no texto solto: numa tabela, o nome de uma
+      // turma aparece também dentro de filtros e de células não clicáveis, e o primeiro nó de texto
+      // a corresponder raramente é o que abre a página.
+      const nome = new RegExp(acao.texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const candidatos = [
+        page.getByRole("link", { name: nome }),
+        page.getByRole("button", { name: nome }),
+        page.getByText(acao.texto, { exact: false }),
+      ];
+      for (const [i, loc] of candidatos.entries()) {
+        if ((await loc.count()) === 0) continue;
+        try {
+          await loc.first().click({ timeout: 10_000 });
+          return;
+        } catch (erro) {
+          if (i === candidatos.length - 1) throw erro;
+        }
+      }
+      throw new Error(`nada clicável com o texto "${acao.texto}"`);
+    }
     case "preencher":
       await page.fill(acao.selector, acao.valor, { timeout: 15_000 });
       break;
@@ -125,14 +158,39 @@ async function executarAcao(page: Page, acao: Acao): Promise<void> {
 }
 
 async function entrar(page: Page, identificador: string, senha: string): Promise<void> {
-  await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+  // "load" e não "domcontentloaded": o formulário é um useActionState, e preencher antes de o React
+  // hidratar fazia com que a hidratação repusesse os campos a vazio entre o preencher e o clicar —
+  // o clique submetia um formulário vazio, sem erro visível, e o ecrã ficava parado em "Entrar".
+  await page.goto(`${BASE}/login`, { waitUntil: "load" });
+  await page.waitForSelector('button[type="submit"]:not([disabled])', { timeout: 30_000 });
+  await page.waitForTimeout(1500);
+
   await page.fill('input[name="identificador"]', identificador);
   await page.fill('input[name="password"]', senha);
+
+  // Confirma que os valores lá ficaram mesmo. Se a hidratação os apagou, preenche outra vez —
+  // é mais barato do que um timeout de 60s a seguir.
+  const preenchido = await page.inputValue('input[name="identificador"]');
+  if (preenchido !== identificador) {
+    await page.fill('input[name="identificador"]', identificador);
+    await page.fill('input[name="password"]', senha);
+  }
+
   await page.click('button[type="submit"]');
   // O login é uma Server Action seguida de redirect do lado do cliente — esperar por networkidle
   // resolve cedo demais e apanha a página ainda em "A entrar...".
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
-  await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
+  try {
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
+  } catch (erro) {
+    // Um login que não passa é quase sempre o formulário a mostrar um erro na própria página —
+    // credenciais, bloqueio, ou o servidor a devolver algo inesperado. Sem ver o ecrã, o timeout
+    // sozinho não diz nada e leva a adivinhar.
+    const visivel = await page.locator("body").innerText().catch(() => "(não foi possível ler a página)");
+    console.log(`    ecrã no momento do timeout (${page.url()}):`);
+    console.log(`    ${visivel.replace(/\n+/g, " | ").slice(0, 400)}`);
+    throw erro;
+  }
+  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
 }
 
 async function sair(page: Page): Promise<void> {
@@ -159,7 +217,10 @@ async function capturarUma(
   const url = `${BASE}${captura.rota}`;
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await page.waitForLoadState("networkidle", { timeout: 25_000 }).catch(() => {});
+    // networkidle é só uma conveniência: uma aplicação Next com streaming raramente o atinge, e
+    // esperar 25s por página custava mais do que a captura toda. O tempo fixo a seguir é o que
+    // realmente garante que as animações de entrada acabaram.
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
 
     for (const acao of captura.acoes ?? []) {
       await executarAcao(page, acao);
@@ -172,10 +233,7 @@ async function capturarUma(
     await page.waitForTimeout(600);
 
     const ponteiros = captura.ponteiros ?? [];
-    let emFalta: string[] = [];
-    if (ponteiros.length > 0) {
-      emFalta = (await page.evaluate(DESENHAR_PONTEIROS, ponteiros)) as string[];
-    }
+    const emFalta = ponteiros.length > 0 ? await page.evaluate(desenharPonteiros, ponteiros) : [];
 
     const pasta = path.join(IMAGENS, capitulo.papel);
     await mkdir(pasta, { recursive: true });
@@ -232,6 +290,13 @@ async function main() {
     });
     const page = await context.newPage();
 
+    // O tsx compila com keepNames, que envolve cada função nomeada numa chamada a __name. O
+    // Playwright serializa a função de desenho dos ponteiros e leva essa referência para o browser,
+    // onde __name não existe — e o page.evaluate rebentava com ReferenceError em todas as capturas
+    // com ponteiros. Definido como string de propósito: um init script escrito como função voltaria
+    // a passar pelo mesmo compilador e teria o mesmo problema.
+    await context.addInitScript({ content: "globalThis.__name = globalThis.__name || ((f) => f);" });
+
     // O capítulo do ecrã de entrada é o único que fotografa o sistema de fora — sem sessão.
     if (capitulo.login) {
       try {
@@ -244,7 +309,25 @@ async function main() {
       }
     }
 
+    let contaAtual = capitulo.login?.identificador ?? null;
+
     for (const captura of capitulo.capturas) {
+      // Uma captura pode pedir outra conta (ver Captura.login). Trocar exige voltar atrás a seguir,
+      // senão as capturas seguintes saíam com o utilizador errado — e ninguém daria por isso a olhar
+      // para a imagem, porque a página é a mesma.
+      const desejada = captura.login ?? capitulo.login;
+      if (desejada && desejada.identificador !== contaAtual) {
+        try {
+          await page.context().clearCookies();
+          await entrar(page, desejada.identificador, desejada.senha);
+          contaAtual = desejada.identificador;
+        } catch {
+          console.log(`  troca de conta falhou (${desejada.identificador}) — ${captura.id} saltada`);
+          falhas.push(`${capitulo.papel}/${captura.id}: login`);
+          continue;
+        }
+      }
+
       const r = await capturarUma(page, capitulo, captura);
       if (!r) {
         falhas.push(`${capitulo.papel}/${captura.id}`);
@@ -264,7 +347,20 @@ async function main() {
 
   await browser.close();
 
-  await writeFile(path.join(RAIZ, "capturas.json"), JSON.stringify(resultados, null, 2), "utf8");
+  // Funde com o que já lá está, em vez de substituir: correr um capítulo sozinho para corrigir uma
+  // captura não pode apagar do manifesto os outros cinco. A ordem final segue o catálogo, não a
+  // ordem por que as corridas aconteceram.
+  const anterior: ResultadoCaptura[] = await readFile(path.join(RAIZ, "capturas.json"), "utf8")
+    .then((t) => JSON.parse(t) as ResultadoCaptura[])
+    .catch(() => []);
+  const papeisCorridos = new Set(capitulos.map((c) => c.papel));
+  const juntos = [...anterior.filter((r) => !papeisCorridos.has(r.papel)), ...resultados];
+
+  const ordem = new Map<string, number>();
+  CAPITULOS.forEach((c, i) => c.capturas.forEach((cap, j) => ordem.set(`${c.papel}/${cap.id}`, i * 1000 + j)));
+  juntos.sort((a, b) => (ordem.get(`${a.papel}/${a.id}`) ?? 0) - (ordem.get(`${b.papel}/${b.id}`) ?? 0));
+
+  await writeFile(path.join(RAIZ, "capturas.json"), JSON.stringify(juntos, null, 2), "utf8");
 
   console.log(`\n${resultados.length} captura(s) em ${path.relative(process.cwd(), IMAGENS)}`);
   console.log(`Manifesto: ${path.relative(process.cwd(), path.join(RAIZ, "capturas.json"))}`);

@@ -46,6 +46,13 @@ export interface Captura {
   recortar?: string;
   /** A captura muda de rota de propósito (ex.: abrir a ficha de um aluno pelo nome). */
   permitirRedirecionamento?: boolean;
+  /**
+   * Entra com outra conta só para esta captura. Existe para um caso concreto: o capítulo do
+   * Estudante precisa de um aluno de 1º ano, com cadeiras e horário cheios, para quase todos os
+   * ecrãs — mas o ecrã *Finalista* só existe para quem tem monografia, e um finalista de último ano
+   * não tem cadeiras nenhumas. Sem isto, ou o horário saía vazio ou o Finalista não entrava no manual.
+   */
+  login?: { identificador: string; senha: string };
 }
 
 export interface Capitulo {
@@ -706,7 +713,9 @@ export const CAPITULOS: Capitulo[] = [
     resumo:
       "O estudante consulta o que é dele: notas, horário, propinas e, se for finalista, a monografia. " +
       "Não altera nada — excepto a própria senha e o envio de reclamações.",
-    login: { identificador: "helder.zua@aluno.ispc.ao", senha: SENHA },
+    // Marta Kiala, 1º ano: tem cadeiras, horário e notas — é com ela que quase todos os ecrãs deste
+    // capítulo fazem sentido. O ecrã Finalista troca para o Hélder, que tem monografia.
+    login: { identificador: "marta.kiala@aluno.ispc.ao", senha: SENHA },
     capturas: [
       {
         id: "dashboard",
@@ -733,6 +742,9 @@ export const CAPITULOS: Capitulo[] = [
           "Só aparece a quem tem monografia. Mostra o orientador e os contactos dele, a data e a sala da " +
           "defesa, e a nota depois de lançada.",
         paginaInteira: true,
+        // Um finalista de último ano não tem cadeiras normais — por isso esta é a única captura do
+        // capítulo feita com a conta dele, e não com a da aluna do 1º ano.
+        login: { identificador: "helder.zua@aluno.ispc.ao", senha: SENHA },
       },
       {
         id: "horario",
