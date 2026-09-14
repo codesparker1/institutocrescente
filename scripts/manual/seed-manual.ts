@@ -348,8 +348,19 @@ async function main() {
     });
     alunoPorNumero.set(a.numero, { id: aluno.id, anoCurricular: a.anoCurricular, categoria });
 
+    // numeroEstudante TAMBÉM na conta, não só no Aluno: é um campo desnormalizado do User, e é
+    // ele que faz o login por número de estudante funcionar sem um join (ver
+    // buscarUserPorIdentificador). Sem isto, o aluno só entra por email — e o próprio ecrã de
+    // entrada promete as duas formas. Apanhado a testar o login contra o site (§2026-09-14).
     await prisma.user.create({
-      data: { name: a.nome, email: aluno.email!, passwordHash, role: "ALUNO", alunoId: aluno.id },
+      data: {
+        name: a.nome,
+        email: aluno.email!,
+        numeroEstudante: a.numero,
+        passwordHash,
+        role: "ALUNO",
+        alunoId: aluno.id,
+      },
     });
 
     const turmaId = turmaPorChave.get(`${a.cursoCodigo}:${a.anoCurricular}:${a.periodo}:${ANO_LETIVO}`)!;
