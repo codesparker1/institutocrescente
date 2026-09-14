@@ -32,13 +32,14 @@
 # graphify knowledge-graph analysis output (generated, not source)
 /graphify-out
 
-# manual da faculdade — as capturas saem a 2x (dezenas de MB) e o HTML/PDF são compostos a partir
-# delas; tudo isto se regenera com scripts/manual/. O que fica versionado é o guião
+# manual da faculdade — as capturas saem a 2x e o .docx/.pdf são compostos a partir delas; são
+# dezenas de MB e regeneram-se todos com scripts/manual/. O que fica versionado é a fonte: o guião
 # (scripts/manual/paginas.ts) e o manifesto com o texto das legendas (docs/manual/capturas.json).
 /docs/manual/imagens
-/docs/manual/manual.html
+/docs/manual/*.docx
 /docs/manual/*.pdf
 /docs/manual/*.log
+/docs/manual/previa
 
 # next.js
 /.next/
