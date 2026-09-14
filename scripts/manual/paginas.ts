@@ -564,8 +564,11 @@ export const CAPITULOS: Capitulo[] = [
         titulo: "Meus Orientandos",
         legenda:
           "Os finalistas que orienta, com o estado da defesa de cada um. A nota da defesa não é lançada por " +
-          "si — é do júri, pelo DAAC.",
+          "si — é do júri, pelo DAAC. Um professor sem orientandos atribuídos vê esta página vazia, e isso é normal.",
         paginaInteira: true,
+        // Conta de um professor que orienta mesmo alguém — o ecrã de quem não orienta ninguém não
+        // ensina nada a quem está a ler o manual.
+        login: { identificador: "jacinto.neto@ispc.ao", senha: SENHA },
       },
       {
         id: "reclamacoes",
@@ -573,7 +576,11 @@ export const CAPITULOS: Capitulo[] = [
         titulo: "Reclamações e Sugestões",
         legenda:
           "O canal para reportar problemas do sistema ou sugerir melhorias. Vai para o responsável técnico, " +
-          "não para a direcção académica.",
+          "não para a direcção académica. Por baixo do formulário ficam os seus envios anteriores e o estado de cada um.",
+        // A página mostra os envios de quem entrou. Uma conta que nunca enviou nada só mostraria o
+        // formulário em branco, e o estado de acompanhamento — que é metade do valor do ecrã —
+        // ficava de fora do manual.
+        login: { identificador: "rui.ferreira@ispc.ao", senha: SENHA },
       },
     ],
     problemas: [
@@ -631,7 +638,7 @@ export const CAPITULOS: Capitulo[] = [
           "O ecrã do dia a dia, com letras maiores de propósito. Pesquisa-se o aluno pelo nome, marcam-se os " +
           "meses que ele está a pagar, confirma-se e imprime-se o recibo.",
         ponteiros: [
-          { texto: "Pesquis", nota: "Pesquisar o aluno pelo nome ou número de estudante." },
+          { selector: "main input", nota: "Pesquisar o aluno pelo nome ou número de estudante." },
         ],
       },
       {
@@ -651,7 +658,10 @@ export const CAPITULOS: Capitulo[] = [
         legenda:
           "A situação financeira, o aproveitamento e o histórico. É daqui que se processa a rematrícula e se " +
           "reactiva quem ficou trancado.",
-        acoes: [{ tipo: "clicarTexto", texto: "Sandra Vieira Dias" }, { tipo: "esperar", ms: 2500 }],
+        // Paula Massano e não um aluno trancado: a lista não mostra trancados por defeito, e o
+        // clique não encontrava a linha. Ela é também a devedora crónica, que é o caso que mais
+        // interessa a quem trabalha ao balcão.
+        acoes: [{ tipo: "clicarTexto", texto: "Paula Massano" }, { tipo: "esperar", ms: 2500 }],
         permitirRedirecionamento: true,
         paginaInteira: true,
       },
@@ -771,7 +781,12 @@ export const CAPITULOS: Capitulo[] = [
         id: "reclamacoes",
         rota: "/reclamacoes",
         titulo: "Reclamações e Sugestões",
-        legenda: "Para reportar um problema do sistema ou sugerir uma melhoria.",
+        legenda:
+          "Para reportar um problema do sistema ou sugerir uma melhoria. Por baixo do formulário ficam os " +
+          "seus envios anteriores, o estado de cada um e a resposta, quando já houver.",
+        // Conta de uma aluna que já enviou e já foi respondida — é a resposta que mostra para que
+        // serve o ecrã. Numa conta sem envios só se veria o formulário em branco.
+        login: { identificador: "beatriz.sacatucua@aluno.ispc.ao", senha: SENHA },
       },
     ],
     problemas: [

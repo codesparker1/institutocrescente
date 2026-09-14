@@ -1,0 +1,770 @@
+[
+  {
+    "papel": "acesso",
+    "id": "login",
+    "titulo": "O ecrã de entrada",
+    "legenda": "Pode entrar com o email ou com o número de estudante — o sistema aceita os dois no mesmo campo. A senha inicial de qualquer conta nova é Ispc@2026, e o sistema obriga a trocá-la na primeira entrada.",
+    "rota": "/login",
+    "ficheiro": "imagens/acesso/login.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Email (ex. secretaria@ispc.ao) ou número de estudante (ex. ISPC2026-0001)."
+      },
+      {
+        "numero": 2,
+        "nota": "Senha. Na primeira entrada é a senha inicial dada pelo Administrador."
+      },
+      {
+        "numero": 3,
+        "nota": "Entrar."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "dashboard",
+    "titulo": "Página Inicial",
+    "legenda": "O resumo do sistema. A secção 'A precisar de atenção' é a mais útil no dia a dia: enquanto houver trabalho por fazer ali, há professores e alunos que não conseguem usar as disciplinas.",
+    "rota": "/dashboard",
+    "ficheiro": "imagens/admin/dashboard.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Menu lateral: tudo o que este papel pode fazer está aqui. Muda conforme quem entra."
+      },
+      {
+        "numero": 2,
+        "nota": "Barra de topo: a data que o sistema considera hoje, o seu nome, e a saída da conta."
+      },
+      {
+        "numero": 3,
+        "nota": "Título da página onde está, para não se perder."
+      },
+      {
+        "numero": 4,
+        "nota": "Trabalho pendente que está a travar outras pessoas — disciplinas sem professor, horários por marcar."
+      },
+      {
+        "numero": 5,
+        "nota": "Atalho directo para resolver as disciplinas sem professor."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "configuracao-academica",
+    "titulo": "Configuração Académica",
+    "legenda": "O primeiro ecrã a preencher num sistema novo. Define as datas do ano letivo, a janela em que a Secretaria pode processar rematrículas, qual é o semestre corrente, e se os professores podem ou não lançar notas neste momento.",
+    "rota": "/admin/academico/configuracao",
+    "ficheiro": "imagens/admin/configuracao-academica.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "O semestre corrente. Só as disciplinas deste semestre ficam abertas aos professores."
+      },
+      {
+        "numero": 2,
+        "nota": "Lançamento de notas. Fechado aqui, nenhum professor consegue lançar — o DAAC continua a poder."
+      },
+      {
+        "numero": 3,
+        "nota": "Nada é aplicado antes de guardar."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "cursos",
+    "titulo": "Cursos",
+    "legenda": "Os cursos que o Instituto oferece. A duração em anos que definir aqui é o que limita até que ano curricular se podem criar turmas e plano curricular.",
+    "rota": "/admin/cursos",
+    "ficheiro": "imagens/admin/cursos.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Criar um curso novo: nome, código e duração em anos."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "disciplinas",
+    "titulo": "Disciplinas",
+    "legenda": "O catálogo de disciplinas. Criar a disciplina aqui não a põe em nenhum ano — isso é o passo seguinte, no Plano Curricular. São dois passos de propósito: a mesma disciplina pode entrar em vários cursos sem ser duplicada.",
+    "rota": "/admin/disciplinas",
+    "ficheiro": "imagens/admin/disciplinas.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Criar uma disciplina: nome, código e carga horária."
+      },
+      {
+        "numero": 2,
+        "nota": "Filtrar por curso quando a lista crescer."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "plano-curricular",
+    "titulo": "Plano Curricular",
+    "legenda": "Onde se diz em que ano e semestre de cada curso se lecciona cada disciplina. É esta ligação — a cadeira curricular — que faz as turmas nascerem já com as disciplinas certas, e é aqui que se marca a monografia do último ano.",
+    "rota": "/admin/curriculo",
+    "ficheiro": "imagens/admin/plano-curricular.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Põe uma disciplina num ano e semestre de um curso."
+      },
+      {
+        "numero": 2,
+        "nota": "Regras da cadeira: se permite dispensa, a nota mínima, e se é a monografia."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "turmas",
+    "titulo": "Turmas",
+    "legenda": "Uma turma é uma coorte: curso, ano curricular, período e ano letivo. Ao criar a turma, as disciplinas vêm automaticamente do plano curricular — só falta atribuir o professor a cada uma.",
+    "rota": "/admin/turmas",
+    "ficheiro": "imagens/admin/turmas.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Criar a coorte. As disciplinas do plano entram sozinhas."
+      },
+      {
+        "numero": 2,
+        "nota": "Filtrar por curso, ano ou ano letivo."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "turma-detalhe",
+    "titulo": "Dentro de uma turma",
+    "legenda": "Aqui atribui-se o professor a cada disciplina da turma. Uma disciplina sem professor continua a existir e o aluno vê-a, mas a pauta fica só de leitura: não há quem possa lançar notas nem marcar presenças.",
+    "rota": "/admin/turmas",
+    "ficheiro": "imagens/admin/turma-detalhe.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "precos",
+    "titulo": "Preços de Propina",
+    "legenda": "O preço mensal da propina, por categoria de estudante e por ano curricular. É igual em todos os cursos. As três categorias são Normal, Bolseiro INAGBE e Comparticipada.",
+    "rota": "/admin/precos",
+    "ficheiro": "imagens/admin/precos.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "emolumentos",
+    "titulo": "Emolumentos",
+    "legenda": "O catálogo de declarações, certidões e outros serviços pagos. Os alunos vêem esta lista e é por aqui que sabem quanto custa cada pedido.",
+    "rota": "/admin/emolumentos",
+    "ficheiro": "imagens/admin/emolumentos.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Criar um serviço novo com o seu preço."
+      },
+      {
+        "numero": 2,
+        "nota": "Desligar um serviço esconde-o dos alunos sem apagar o histórico."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "finalistas",
+    "titulo": "Finalistas",
+    "legenda": "Os alunos no último ano. A monografia é atribuída ao confirmar o pagamento; depois disso atribui-se o orientador, marca-se a defesa e lança-se a nota. A nota da defesa é única — não há recurso.",
+    "rota": "/admin/finalistas",
+    "ficheiro": "imagens/admin/finalistas.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "A pauta impressa das defesas marcadas."
+      },
+      {
+        "numero": 2,
+        "nota": "Lançar a nota da defesa. Só o DAAC e o Administrador podem — nem o orientador."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "notas",
+    "titulo": "Notas e Frequência",
+    "legenda": "A entrada para as pautas de todas as turmas. O Administrador e o DAAC podem lançar notas em qualquer disciplina e em qualquer semestre, mesmo com o lançamento fechado aos professores.",
+    "rota": "/notas",
+    "ficheiro": "imagens/admin/notas.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "horario",
+    "titulo": "Horário e Provas",
+    "legenda": "As aulas semanais e as datas das provas. As provas seguem uma ordem obrigatória: não se marca o exame antes da P2, nem o recurso antes do exame.",
+    "rota": "/horario",
+    "ficheiro": "imagens/admin/horario.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "O horário semanal das aulas."
+      },
+      {
+        "numero": 2,
+        "nota": "As datas e salas das provas de cada época."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "registo-pagamentos",
+    "titulo": "Registo de Pagamentos",
+    "legenda": "Pesquisa-se o aluno pelo nome, confirmam-se os meses pagos em lote e emite-se o recibo. É também aqui que se reverte um pagamento confirmado por engano.",
+    "rota": "/financeiro/registo",
+    "ficheiro": "imagens/admin/registo-pagamentos.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "devedores",
+    "titulo": "Lista de Devedores",
+    "legenda": "Alunos com propinas ou multas em atraso além da tolerância. Pode ordenar-se por antiguidade da dívida, por valor ou por nome, e imprimir-se.",
+    "rota": "/financeiro/devedores",
+    "ficheiro": "imagens/admin/devedores.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Ordenar pela dívida mais antiga — normalmente a mais urgente."
+      },
+      {
+        "numero": 2,
+        "nota": "Lista em papel para a reunião ou para o arquivo."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "configuracao-financeira",
+    "titulo": "Configuração Financeira",
+    "legenda": "O dia de vencimento das propinas, a tolerância antes de haver multa, o valor da multa, e o bloqueio de acesso às notas por dívida. Exclusivo do Administrador.",
+    "rota": "/admin/financeiro/configuracao",
+    "ficheiro": "imagens/admin/configuracao-financeira.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "professores",
+    "titulo": "Professores",
+    "legenda": "As contas do corpo docente. Cada professor criado aqui recebe uma conta com a senha inicial. O estado ao lado do nome diz se a pessoa já definiu a senha dela ou se ainda está na padrão.",
+    "rota": "/admin/professores",
+    "ficheiro": "imagens/admin/professores.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Criar um professor e a conta de acesso dele."
+      },
+      {
+        "numero": 2,
+        "nota": "Devolve a conta à senha inicial. Use quando alguém perde a senha."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "equipa",
+    "titulo": "Equipa",
+    "legenda": "As contas do DAAC, da Secretaria e do responsável técnico. É o ecrã mais sensível do sistema e só o Administrador o vê.",
+    "rota": "/admin/equipa",
+    "ficheiro": "imagens/admin/equipa.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Criar uma conta de staff, escolhendo o papel."
+      },
+      {
+        "numero": 2,
+        "nota": "Repor a senha de um membro da equipa."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "gestao-matricula",
+    "titulo": "Gestão de Matrícula",
+    "legenda": "A lista de estudantes e o ponto de entrada para a ficha de cada um. É por aqui que se matricula alguém novo e que se acompanha o percurso de quem já está.",
+    "rota": "/alunos",
+    "ficheiro": "imagens/admin/gestao-matricula.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Matricular um estudante novo."
+      },
+      {
+        "numero": 2,
+        "nota": "Filtrar por curso, ano, estado ou nome."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "ficha-aluno",
+    "titulo": "A ficha de um estudante",
+    "legenda": "Tudo sobre uma pessoa num só lugar: dados, situação financeira, aproveitamento, documentos e histórico. É também daqui que se processa a rematrícula para o ano seguinte.",
+    "rota": "/alunos",
+    "ficheiro": "imagens/admin/ficha-aluno.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "admin",
+    "id": "auditoria",
+    "titulo": "Registo de Auditoria",
+    "legenda": "Todas as acções feitas no sistema, com quem as fez, quando e de que endereço. Não se apaga nem se edita. É o que responde a 'quem mudou esta nota?'.",
+    "rota": "/auditoria",
+    "ficheiro": "imagens/admin/auditoria.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "dashboard",
+    "titulo": "Página Inicial do DAAC",
+    "legenda": "O mesmo resumo do Administrador, sem as secções que não são do domínio do DAAC.",
+    "rota": "/dashboard",
+    "ficheiro": "imagens/daac/dashboard.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Menu lateral: tudo o que este papel pode fazer está aqui. Muda conforme quem entra."
+      },
+      {
+        "numero": 2,
+        "nota": "Barra de topo: a data que o sistema considera hoje, o seu nome, e a saída da conta."
+      },
+      {
+        "numero": 3,
+        "nota": "Título da página onde está, para não se perder."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "plano-curricular",
+    "titulo": "Plano Curricular",
+    "legenda": "O ecrã central do DAAC. Define o desenho de cada curso, e é aqui que se marca qual é a cadeira de monografia do último ano — o sistema não adivinha qual é.",
+    "rota": "/admin/curriculo",
+    "ficheiro": "imagens/daac/plano-curricular.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Pôr uma disciplina num ano e semestre."
+      },
+      {
+        "numero": 2,
+        "nota": "Marcar a monografia, e as regras de dispensa da cadeira."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "turmas",
+    "titulo": "Turmas",
+    "legenda": "Criar as coortes do ano letivo e atribuir os professores às disciplinas de cada uma.",
+    "rota": "/admin/turmas",
+    "ficheiro": "imagens/daac/turmas.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "finalistas",
+    "titulo": "Finalistas e Orientadores",
+    "legenda": "O DAAC confirma o pagamento da monografia, atribui o orientador, marca a defesa e lança a nota. Há um limite de orientandos por professor, configurável em Configuração Académica.",
+    "rota": "/admin/finalistas",
+    "ficheiro": "imagens/daac/finalistas.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "A nota da defesa. Única — sem recurso nem exame especial."
+      },
+      {
+        "numero": 2,
+        "nota": "A pauta das defesas marcadas, para imprimir."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "notas",
+    "titulo": "Notas e Frequência",
+    "legenda": "O DAAC lança notas em qualquer disciplina e em qualquer semestre, mesmo quando o lançamento está fechado aos professores. É o que permite corrigir uma nota depois de o semestre fechar.",
+    "rota": "/notas",
+    "ficheiro": "imagens/daac/notas.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "horario",
+    "titulo": "Horário e Provas",
+    "legenda": "As aulas semanais e as datas das provas de cada época.",
+    "rota": "/horario",
+    "ficheiro": "imagens/daac/horario.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "gestao-estudante",
+    "titulo": "Gestão de Estudante",
+    "legenda": "Aproveitamento, histórico e documentos de cada estudante. O DAAC vê a situação financeira em modo de leitura — registar pagamentos é da Secretaria e do Administrador.",
+    "rota": "/alunos",
+    "ficheiro": "imagens/daac/gestao-estudante.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "daac",
+    "id": "configuracao-academica",
+    "titulo": "Configuração Académica",
+    "legenda": "O semestre corrente, a janela de matrícula, as regras de retenção e o limite de orientandos por professor. Mudar o semestre aqui fecha o anterior.",
+    "rota": "/admin/academico/configuracao",
+    "ficheiro": "imagens/daac/configuracao-academica.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "professor",
+    "id": "minhas-disciplinas",
+    "titulo": "Minhas Disciplinas",
+    "legenda": "As disciplinas atribuídas a si no semestre corrente. Cada uma abre a pauta, onde se lançam as notas e se marcam as presenças.",
+    "rota": "/professor",
+    "ficheiro": "imagens/professor/minhas-disciplinas.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Menu lateral: tudo o que este papel pode fazer está aqui. Muda conforme quem entra."
+      },
+      {
+        "numero": 2,
+        "nota": "Barra de topo: a data que o sistema considera hoje, o seu nome, e a saída da conta."
+      },
+      {
+        "numero": 3,
+        "nota": "Título da página onde está, para não se perder."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "professor",
+    "id": "pauta",
+    "titulo": "A pauta de uma disciplina",
+    "legenda": "Uma linha por aluno e uma coluna por época. A média de frequência sai do P1 e do P2; o exame só entra para quem não ficou dispensado. Guarde antes de sair — o editor fecha ao guardar.",
+    "rota": "/professor",
+    "ficheiro": "imagens/professor/pauta.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "professor",
+    "id": "horario",
+    "titulo": "Meu Horário",
+    "legenda": "As suas aulas da semana e as provas que tem marcadas.",
+    "rota": "/horario",
+    "ficheiro": "imagens/professor/horario.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "professor",
+    "id": "orientandos",
+    "titulo": "Meus Orientandos",
+    "legenda": "Os finalistas que orienta, com o estado da defesa de cada um. A nota da defesa não é lançada por si — é do júri, pelo DAAC. Um professor sem orientandos atribuídos vê esta página vazia, e isso é normal.",
+    "rota": "/professor/orientandos",
+    "ficheiro": "imagens/professor/orientandos.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "professor",
+    "id": "reclamacoes",
+    "titulo": "Reclamações e Sugestões",
+    "legenda": "O canal para reportar problemas do sistema ou sugerir melhorias. Vai para o responsável técnico, não para a direcção académica. Por baixo do formulário ficam os seus envios anteriores e o estado de cada um.",
+    "rota": "/reclamacoes",
+    "ficheiro": "imagens/professor/reclamacoes.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "secretaria",
+    "id": "dashboard",
+    "titulo": "Página Inicial",
+    "legenda": "O resumo do dia: o que está por cobrar e o que precisa de atenção.",
+    "rota": "/dashboard",
+    "ficheiro": "imagens/secretaria/dashboard.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Menu lateral: tudo o que este papel pode fazer está aqui. Muda conforme quem entra."
+      },
+      {
+        "numero": 2,
+        "nota": "Barra de topo: a data que o sistema considera hoje, o seu nome, e a saída da conta."
+      },
+      {
+        "numero": 3,
+        "nota": "Título da página onde está, para não se perder."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "secretaria",
+    "id": "registo-pagamentos",
+    "titulo": "Registo de Pagamentos",
+    "legenda": "O ecrã do dia a dia, com letras maiores de propósito. Pesquisa-se o aluno pelo nome, marcam-se os meses que ele está a pagar, confirma-se e imprime-se o recibo.",
+    "rota": "/financeiro/registo",
+    "ficheiro": "imagens/secretaria/registo-pagamentos.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Pesquisar o aluno pelo nome ou número de estudante."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "secretaria",
+    "id": "gestao-matricula",
+    "titulo": "Gestão de Matrícula",
+    "legenda": "Matricular estudantes novos e processar rematrículas para o ano seguinte, dentro da janela definida pelo DAAC.",
+    "rota": "/alunos",
+    "ficheiro": "imagens/secretaria/gestao-matricula.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Matricular um estudante novo."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "secretaria",
+    "id": "ficha-aluno",
+    "titulo": "A ficha de um estudante",
+    "legenda": "A situação financeira, o aproveitamento e o histórico. É daqui que se processa a rematrícula e se reactiva quem ficou trancado.",
+    "rota": "/alunos",
+    "ficheiro": "imagens/secretaria/ficha-aluno.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "secretaria",
+    "id": "devedores",
+    "titulo": "Lista de Devedores",
+    "legenda": "Quem está em atraso, há quanto tempo e quanto deve. Ordenável e imprimível.",
+    "rota": "/financeiro/devedores",
+    "ficheiro": "imagens/secretaria/devedores.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "secretaria",
+    "id": "reclamacoes",
+    "titulo": "Reclamações e Sugestões",
+    "legenda": "Para reportar problemas do sistema ao responsável técnico.",
+    "rota": "/reclamacoes",
+    "ficheiro": "imagens/secretaria/reclamacoes.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "estudante",
+    "id": "dashboard",
+    "titulo": "Página Inicial do Estudante",
+    "legenda": "O resumo do percurso: o ano em que está, as propinas e o que tem por fazer.",
+    "rota": "/dashboard",
+    "ficheiro": "imagens/estudante/dashboard.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Menu lateral: tudo o que este papel pode fazer está aqui. Muda conforme quem entra."
+      },
+      {
+        "numero": 2,
+        "nota": "Barra de topo: a data que o sistema considera hoje, o seu nome, e a saída da conta."
+      },
+      {
+        "numero": 3,
+        "nota": "Título da página onde está, para não se perder."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "estudante",
+    "id": "minhas-notas",
+    "titulo": "Minhas Notas",
+    "legenda": "As notas por ano do curso, com o estado de cada cadeira. Pode imprimir as notas de cada ano separadamente. Quando repete uma cadeira e a supera, a reprovação anterior deixa de aparecer.",
+    "rota": "/minhas-notas",
+    "ficheiro": "imagens/estudante/minhas-notas.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Imprime as notas do ano que está a ver."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "estudante",
+    "id": "finalista",
+    "titulo": "Finalista",
+    "legenda": "Só aparece a quem tem monografia. Mostra o orientador e os contactos dele, a data e a sala da defesa, e a nota depois de lançada.",
+    "rota": "/finalista",
+    "ficheiro": "imagens/estudante/finalista.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "estudante",
+    "id": "horario",
+    "titulo": "Meu Horário",
+    "legenda": "As aulas da semana e as datas das provas.",
+    "rota": "/horario",
+    "ficheiro": "imagens/estudante/horario.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "estudante",
+    "id": "propinas",
+    "titulo": "Minhas Propinas",
+    "legenda": "Mês a mês, o que está pago e o que está em dívida. Se o bloqueio por dívida estiver activo, é aqui que se percebe porque é que as notas deixaram de abrir.",
+    "rota": "/financeiro",
+    "ficheiro": "imagens/estudante/propinas.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "estudante",
+    "id": "emolumentos",
+    "titulo": "Catálogo de Emolumentos",
+    "legenda": "Quanto custa cada declaração, certidão ou segunda via, para saber antes de ir ao balcão.",
+    "rota": "/financeiro/emolumentos",
+    "ficheiro": "imagens/estudante/emolumentos.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "estudante",
+    "id": "reclamacoes",
+    "titulo": "Reclamações e Sugestões",
+    "legenda": "Para reportar um problema do sistema ou sugerir uma melhoria. Por baixo do formulário ficam os seus envios anteriores, o estado de cada um e a resposta, quando já houver.",
+    "rota": "/reclamacoes",
+    "ficheiro": "imagens/estudante/reclamacoes.png",
+    "ponteiros": [],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  },
+  {
+    "papel": "dev",
+    "id": "caixa-reclamacoes",
+    "titulo": "Caixa de Reclamações e Sugestões",
+    "legenda": "Tudo o que os estudantes, professores e staff reportam sobre o sistema chega aqui. Cada entrada passa por Pendente, Em análise e Resolvido, e pode levar uma resposta curta que o autor vê.",
+    "rota": "/admin/reclamacoes",
+    "ficheiro": "imagens/dev/caixa-reclamacoes.png",
+    "ponteiros": [
+      {
+        "numero": 1,
+        "nota": "Menu lateral: tudo o que este papel pode fazer está aqui. Muda conforme quem entra."
+      },
+      {
+        "numero": 2,
+        "nota": "Barra de topo: a data que o sistema considera hoje, o seu nome, e a saída da conta."
+      },
+      {
+        "numero": 3,
+        "nota": "Título da página onde está, para não se perder."
+      }
+    ],
+    "ponteirosEmFalta": [],
+    "aviso": null
+  }
+]
