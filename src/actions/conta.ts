@@ -9,6 +9,7 @@ import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores, type FormState } from "@/lib/forms";
 import { requireSessao } from "@/lib/permissions";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
+import { emailOpcionalSchema, emailSchema } from "@/lib/identificador";
 
 const semStringVazia = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 
@@ -31,10 +32,9 @@ export async function atualizarContaAction(_prevState: ContaState, formData: For
 
   // Email/telefone obrigatórios para todo o staff e para PROFESSOR (Professor.email/telefone são
   // NOT NULL); opcionais só para ALUNO (Aluno.email/telefone já são opcionais hoje).
-  const emailSchema =
-    user.role === "ALUNO"
-      ? z.preprocess(semStringVazia, z.string().email("Email inválido").optional())
-      : z.string().email("Email inválido");
+  // Normalizado em ambos os casos (lib/identificador): o login ignora maiúsculas desde 2026-09-14,
+  // e alguém a corrigir o próprio email aqui não pode criar uma colisão que só difira na caixa.
+  const schemaDoEmail = user.role === "ALUNO" ? emailOpcionalSchema : emailSchema;
   const telefoneSchema =
     user.role === "PROFESSOR"
       ? telefoneAngolaSchema
@@ -42,7 +42,7 @@ export async function atualizarContaAction(_prevState: ContaState, formData: For
 
   const ContaSchema = z
     .object({
-      email: emailSchema,
+      email: schemaDoEmail,
       telefone: telefoneSchema,
       senhaAtual: z.string().min(1, "Indique a sua senha atual"),
       novaSenha: z.preprocess(semStringVazia, z.string().min(8, "A senha deve ter pelo menos 8 caracteres").optional()),

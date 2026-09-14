@@ -9,6 +9,7 @@ import { SENHA_INICIAL_PADRAO } from "@/lib/credentials";
 import { telefoneAngolaSchema } from "@/lib/phone";
 import { erroDeValidacao, extrairValores, type DeleteResult, type FormState } from "@/lib/forms";
 import { isForeignKeyViolation, isUniqueConstraintViolation } from "@/lib/prisma-errors";
+import { emailSchema } from "@/lib/identificador";
 import { requireGerirCurriculo, requireGerirContas, type SessionComUser } from "@/lib/permissions";
 import { sincronizarInscricoesTurma, sincronizarTurmasComPlanoCurricular } from "@/lib/curriculo";
 // Com alias: createTurmaAction tem uma variável local com este nome (o ano CIVIL, outra coisa), e
@@ -625,7 +626,7 @@ export async function deleteCadeiraCurricularAction(formData: FormData): Promise
 
 const ProfessorSchema = z.object({
   nome: z.string().min(2, "Nome é obrigatório"),
-  email: z.string().email("Email inválido"),
+  email: emailSchema,
   telefone: telefoneAngolaSchema,
   especialidade: z.string().min(2, "Especialidade é obrigatória"),
 });
@@ -720,7 +721,7 @@ export async function deleteProfessorAction(formData: FormData): Promise<DeleteR
 
 const StaffSchema = z.object({
   nome: z.string().min(2, "Nome é obrigatório"),
-  email: z.string().email("Email inválido"),
+  email: emailSchema,
   role: z.enum(["DAAC", "SECRETARIA", "DEV"], { message: "Papel inválido" }),
 });
 

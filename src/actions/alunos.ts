@@ -15,14 +15,17 @@ import { sincronizarInscricoesTurma, anosAnterioresEmFalta, inscreverCadeirasAno
 import { gerarPropinasAnoLetivo } from "@/lib/financeiro";
 import { getAgora } from "@/lib/tempo";
 import { isUniqueConstraintViolation } from "@/lib/prisma-errors";
+import { emailOpcionalSchema } from "@/lib/identificador";
 
 const CAMPOS_ALUNO = ["nome", "email", "telefone", "dataNascimento", "genero", "turmaId", "categoria"] as const;
 type CampoAluno = (typeof CAMPOS_ALUNO)[number];
 
 // Email e telefone são opcionais na matrícula (MD §7) — o número de estudante é a
 // credencial principal do aluno. Campo vazio no formulário conta como "não preenchido".
+// O emailOpcionalSchema vem de lib/identificador e guarda o email normalizado — o login ignora
+// maiúsculas (§2026-09-14), e só normalizando na escrita é que o índice único da base impede
+// duas contas que difiram apenas na caixa das letras.
 const semStringVazia = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
-const emailOpcionalSchema = z.preprocess(semStringVazia, z.string().email("Email inválido").optional());
 const telefoneOpcionalSchema = z.preprocess(semStringVazia, telefoneAngolaSchema.optional());
 
 const AlunoSchema = z.object({
